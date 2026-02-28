@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+![A screenshot of the project](./public/desipayments_logo.png)
+# Grocery Frontend Project
+Welcome to the Grocery Frontend Project! This repository contains the code and documentation for the frontend of a grocery application built with Next.js, React, and TypeScript. Below is a summary of the project and key guidelines.
 
-## Getting Started
+## Project Purpose
 
-First, run the development server:
+This is a frontend-only application built for a grocery platform. It displays user profiles, dashboards, sales data, and other core features. It interacts with a backend API for data fetching, and the entire frontend is built using a modular, scalable structure.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Folder Structure
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- `app/`: Core application layer with pages, layouts, and components (e.g., auth, dashboard, sales).
+- `features/`: Domain-specific logic per feature, such as authentication state management.
+- `hooks/`: Custom React hooks for reusable logic.
+- `lib/`: Shared utilities (e.g., API calls, constants).
+- `public/`: Static assets like images and fonts.
+- `styles/`: Global styles and themes.
+- `tests/`: Automated tests for components and logic.
+- `docs/`: Project documentation (e.g., folder structure, technology stack, task templates).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Technology Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Next.js**: Primary framework for server-side rendering, routing, and performance optimization.
+- **React**: Core UI library for component-based architecture.
+- **TypeScript**: Ensures type safety across the codebase, improving reliability and developer experience.
+- **Redux**: Predictable state management for complex state interactions.
+- **React Hooks**: For component state management and reusable logic.
+- **Docker**: Containerization for consistent deployment across environments.
+- **Tailwind CSS**: Utility-first styling for rapid UI development.
+- **Jest & React Testing Library**: Testing framework ensuring component reliability.
 
-## Learn More
+## Engineering Rules
 
-To learn more about Next.js, take a look at the following resources:
+- Keep UI pages thin; business logic must reside in hooks or service layers.
+- Centralize API calls in a dedicated service layer to keep components lean.
+- Use consistent folder names and patterns, with each feature isolated for maintainability.
+- Write unit and integration tests for every feature addition.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## How to Get Started
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Clone the repository:  
+   ```bash  
+   git clone <repository-url>  
 
-## Deploy on Vercel
+2. Install dependencies:  
+   ```bash  
+   npm install  
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+3. Run the development server:  
+   ```bash  
+   npm run dev    
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+4. Build for production:  
+   ```bash  
+   npm run build    
+
+## Documentation
+
+- Folder Structure: See `docs/folder_structure/v1/folder_structure.md` for a detailed breakdown of the project’s structure.
+- Task Templates: For task assignments, see `docs/app/problems_template.md`.
+- Technology Stack: See `docs/technology/v1/basic-tech.md` for details on tools and scaling plans.
+
+## Contribution
+
+We follow a modular monolith structure. Each feature should be developed in isolation under its own folder in `features/`. Ensure each module is tested, and please document any assumptions in the `solution.md` file.
+
+## License
+
+This project is licensed under the MIT License—see the LICENSE file for details.
+
+## Contact
+
+For any questions or issues, please contact the project maintainer:  
+- Name: Mohammad Atif Hossain 
+- Email: atif@desipayments.com
