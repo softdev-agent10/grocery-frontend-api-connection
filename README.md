@@ -39,7 +39,7 @@ This is a frontend-only application built for a grocery platform. It displays us
 
 1. Clone the repository:  
    ```bash  
-   git clone <repository-url>  
+   git clone https://github.com/desipayments/grocery-frontend.git 
 
 2. Install dependencies:  
    ```bash  
