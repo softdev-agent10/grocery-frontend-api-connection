@@ -97,9 +97,3 @@ We follow a modular monolith structure. Each feature should be developed in isol
 ## License
 
 This project is licensed under the MIT License—see the LICENSE file for details.
-
-## Contact
-
-For any questions or issues, please contact the project maintainer:  
-- Name: Mohammad Atif Hossain 
-- Email: atif@desipayments.com
