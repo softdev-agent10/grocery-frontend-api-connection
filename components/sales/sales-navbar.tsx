@@ -59,10 +59,12 @@ export default function SalesNavbar() {
                             <Icon className='size-5' />
                         </Button>
                     ))}
-                    <Button variant="outline" className='py-5 flex items-center gap-2'>
-                        <LayoutDashboard className='size-5' />
-                        <span className='text-base'>Dashboard</span>
-                    </Button>
+                    <a href="/dashboard">
+                        <Button variant="outline" className='py-5 flex items-center gap-2'>
+                            <LayoutDashboard className='size-5' />
+                            <span className='text-base'>Dashboard</span>
+                        </Button>
+                    </a>
                     <div className="hidden md:flex flex-col items-end text-lg text-white ml-1">
                         <span>07 January 2026</span>
                         <span className="font-semibold">04:10 AM (GMT)</span>
