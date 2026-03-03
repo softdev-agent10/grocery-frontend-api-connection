@@ -9,7 +9,7 @@
 
 export default function Home() {
   return (
-    <div className="relative min-h-screen bg-white dark:bg-black overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden">
       {/* Background pattern */}
       <div className="absolute inset-0 bg-grid-zinc-900/[0.02] dark:bg-grid-zinc-100/[0.02]"></div>
       
