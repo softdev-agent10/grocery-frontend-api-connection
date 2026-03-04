@@ -15,14 +15,14 @@ export type Items = {
     name: string
 }
 
-export function SearchInput({
+export function SearchInput<T extends Items>({
     items,
     onSelect,
     placeholder = "Search items...",
     inputClassName,
 }: {
-    items: Items[]
-    onSelect: (item: Items) => void
+    items: T[]
+    onSelect: (item: T) => void
     placeholder?: string
     inputClassName?: string
 }) {

@@ -12,18 +12,21 @@ const users = [
     {
         id: "1",
         name: "Jhon Doe",
+        contact: "8888888888"
     },
     {
         id: "2",
         name: "Alex Smith",
+        contact: "9999999999"
     },
     {
         id: "3",
         name: "Jane Doe",
+        contact: "7777777777"
     },
 ]
 
-export default function CustomerModal({ customer, setCustomer }: { customer: { name: string; membership?: string } | null; setCustomer: (customer: { name: string; membership?: string }) => void }) {
+export default function CustomerModal({ customer, setCustomer }: { customer: { name: string; contact: string } | null; setCustomer: (customer: { name: string; contact: string }) => void }) {
     const [modalOpen, setModalOpen] = useState(false)
 
     return (
@@ -59,7 +62,7 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
                             </Button>
                         </div>
                     </Field>
-                    <Field>
+                    {/* <Field>
                         <Label htmlFor="username" className="md:text-2xl">
                             Full Name
                         </Label>
@@ -71,7 +74,7 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
                             value={customer?.name || ""}
                             readOnly
                         />
-                    </Field>
+                    </Field> */}
                 </FieldGroup>
             </div>
             {modalOpen && (

@@ -29,11 +29,22 @@ export function SalesActionsDialog({
 }: SalesActionsDialogProps) {
 
 
-  if (title === "Calculator") {
+  if (title === "Calculator" || title === "Discount") {
     return(
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-1/3">
-          <DialogTitle className="hidden">Calculator</DialogTitle>
+        <DialogContent className="sm:max-w-fit p-0 border-0 bg-transparent shadow-none overflow-visible">
+          <DialogTitle className="hidden">{title}</DialogTitle>
+          {children}
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
+  if (title === "Miscellaneous") {
+    return(
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-4xl p-0 border-0 bg-transparent shadow-none overflow-visible">
+          <DialogTitle className="hidden">{title}</DialogTitle>
           {children}
         </DialogContent>
       </Dialog>

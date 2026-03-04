@@ -151,10 +151,10 @@ export default function CalculatorUI() {
     state.input === "0" && !state.operator ? "AC" : "C";
 
   return (
-    <div className="flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="flex items-center justify-center">
+      <div className="w-full max-w-md relative">
         <div
-          className="rounded-md bg-black p-6 sm:p-8 shadow-2xl"
+          className="rounded-3xl bg-black p-6 sm:p-8 pt-10 sm:pt-12 shadow-2xl border border-white/10"
           style={{ backgroundColor: IOS_DARK }}
         >
           {/* Expression */}
