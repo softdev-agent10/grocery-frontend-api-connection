@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { 
   LayoutDashboard, 
   ShoppingBag, 
@@ -20,8 +21,28 @@ import {
   User,
   LogOut,
   UserCircle,
-  HeartPlus
+  Eye,
+  Layers,
+  TrendingUp,
+  AlertTriangle,
+  AlertCircle,
+  Box,
+  Tag,
+  DollarSign,
+  Shield
 } from "lucide-react";
+
+const inventoryItems = [
+  { label: "View Product", icon: Eye, href: "/dashboard/inventory/view-product" },
+  { label: "Categories", icon: Layers, href: "/dashboard/inventory/categories" },
+  { label: "Top Selling Product", icon: TrendingUp, href: "/dashboard/inventory/top-selling" },
+  { label: "Out of Stocks", icon: AlertTriangle, href: "/dashboard/inventory/out-of-stocks" },
+  { label: "Low Stocks", icon: AlertCircle, href: "/dashboard/inventory/low-stocks" },
+  { label: "Unit", icon: Box, href: "/dashboard/inventory/units" },
+  { label: "Brands", icon: Tag, href: "/dashboard/inventory/brands" },
+  { label: "Tax Fee", icon: DollarSign, href: "/dashboard/inventory/tax-fee" },
+  { label: "Warranties", icon: Shield, href: "/dashboard/inventory/warranties" }
+];
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -154,11 +175,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             
             {!isCollapsed && openMenus.inventory && (
               <div className="mt-1 ml-4 pl-4 border-l-2 border-gray-100 space-y-1">
-                {["View Product", "Categories", "Top Selling Product", "Out of Stocks", "Low Stocks", "Unit", "Brands", "Tax Fee", "Warranties"].map((sub) => (
-                  <div key={sub} className="px-3 py-2 text-[13px] text-gray-500 hover:text-blue-600 cursor-pointer rounded-md hover:bg-blue-50/50 transition-colors">
-                    {sub}
-                  </div>
-                ))}
+                {inventoryItems.map((item) => {
+                  const IconComponent = item.icon;
+                  return (
+                    <Link 
+                      key={item.label}
+                      href={item.href}
+                      onClick={() => setIsOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 text-[13px] text-gray-500 hover:text-blue-600 cursor-pointer rounded-md hover:bg-blue-50/50 transition-colors group"
+                    >
+                      <IconComponent size={14} className="text-gray-400 group-hover:text-blue-500 flex-shrink-0" />
+                      <span className="font-medium">{item.label}</span>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -294,5 +324,5 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   );
 }
 // ami chacci je code gula dashboard er maje component then folder er maje sajiye thakbe..erokom akare ekta sundor stucture banaia deo and code gula stucture onujayi diye deo sob thkbe dashboard er moddhe dashboard er maje layout.tsx page.tsx ase tasara project setup kora ase 
-// full responsive for volcora register display: 1920*1080
-//  volcora customer display : 220*1440 and nest hub,nest hub max er jonno responsive kore full code deo
+//  full responsive for volcora register display: 1920*1080
+//   volcora customer display : 220*1440 and nest hub,nest hub max er jonno responsive kore full code deo
