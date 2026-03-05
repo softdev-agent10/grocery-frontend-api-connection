@@ -17,6 +17,7 @@ interface SalesActionsDialogProps {
   children?: React.ReactNode
   onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void
   className?: string
+  showFooter?: boolean
 }
 
 export function SalesActionsDialog({
@@ -26,6 +27,7 @@ export function SalesActionsDialog({
   children,
   onSubmit,
   className,
+  showFooter = true,
 }: SalesActionsDialogProps) {
 
 
@@ -55,18 +57,20 @@ export function SalesActionsDialog({
 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn("sm:max-w-1/2", className)}>
-        <form onSubmit={onSubmit} className="w-full">
+        <form onSubmit={onSubmit || ((e) => e.preventDefault())} className="w-full">
           <DialogHeader className="flex flex-row justify-between px-4 py-3 mt-3 rounded-md" style={{ background: "linear-gradient(135deg, #2563eb 0%, #3b4fcf 55%, #4338ca 100%)" }}>
             {title && <DialogTitle className="uppercase text-4xl font-bold text-white">{title}</DialogTitle>}
             <Search className="size-10 text-white" />
           </DialogHeader>
           {children}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button className="md:text-xl md:px-5 md:py-5" variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button className="md:text-xl md:px-5 md:py-5" type="submit">Save</Button>
-          </DialogFooter>
+          {showFooter && (
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button className="md:text-xl md:px-5 md:py-5" variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button className="md:text-xl md:px-5 md:py-5" type="submit">Save</Button>
+            </DialogFooter>
+          )}
         </form>
       </DialogContent>
     </Dialog>

@@ -11,7 +11,7 @@ import { Textarea } from '../ui/textarea'
 const users = [
     {
         id: "1",
-        name: "Jhon Doe",
+        name: "John Doe",
         contact: "8888888888"
     },
     {

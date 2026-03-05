@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Banknote, Calculator, ClockFading, Coffee, CookingPot, CreditCard, Download, Gift, HandCoins, History, IdCard, Upload, User, X, PauseCircle, CirclePlus, Apple, Drumstick, Milk, Croissant, Wine, IceCream, Cookie, Home, Banana, Search } from "lucide-react";
+import { Banknote, Calculator, ClockFading, Coffee, CookingPot, CreditCard, Download, Gift, HandCoins, History, IdCard, Upload, User, X, PauseCircle, CirclePlus, Apple, Drumstick, Milk, Croissant, Wine, IceCream, Cookie, Home, Banana, Search, BanknoteX } from "lucide-react";
 import { SalesActionsDialog } from "@/components/sales/sales-actions-modal";
 import CustomerModal from "@/components/sales/customer-modal";
 import CalculatorUI from "@/components/sales/calculator";
@@ -17,7 +18,7 @@ import GiftCardModal from "@/components/sales/giftcard-modal";
 import CashInForm from "@/components/sales/cash-in-form";
 import CashOutForm from "@/components/sales/cash-out-form";
 import CashPaymentModal from "@/components/sales/cash-payment-modal";
-import { getInvoiceHtml } from "@/components/sales/invoice";
+import Invoice from "@/components/sales/invoice";
 import DiscountModal from "@/components/sales/discount-modal";
 import QuickAddModal from "@/components/sales/quick-add-modal";
 
@@ -31,6 +32,17 @@ interface Product {
     icon?: ReactNode;
     image?: string;
     promotion?: string;
+}
+
+interface HeldSale {
+    id: string;
+    items: CartItemType[];
+    customer: { name: string; contact: string } | null;
+    taxPercent: number;
+    isTaxFree: boolean;
+    discountValue: number;
+    discountType: "percentage" | "flat";
+    heldAt: Date;
 }
 
 const CATEGORIES = [
@@ -65,6 +77,7 @@ const PRODUCTS: Product[] = [
 
 export default function SalesPage() {
     const [modalOpen, setModalOpen] = useState(false);
+    const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [cashPaymentOpen, setCashPaymentOpen] = useState(false);
     const [cashGiven, setCashGiven] = useState(0);
     const [modalTitle, setModalTitle] = useState<ReactNode>(null);
@@ -76,13 +89,21 @@ export default function SalesPage() {
     const [taxPercent, setTaxPercent] = useState(0);
     const [discountValue, setDiscountValue] = useState(0);
     const [discountType, setDiscountType] = useState<"percentage" | "flat">("percentage");
+    const [isTaxFree, setIsTaxFree] = useState(false);
     const [keypadResetKey, setKeypadResetKey] = useState(0);
+    const [printRequested, setPrintRequested] = useState(false);
+    const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
+
+    const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
+        setNotification({ message, type });
+        setTimeout(() => setNotification(null), 3000);
+    };
 
     const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
-    const taxAmount = (subtotal * taxPercent) / 100;
-    const discountAmount = 
-        discountType === "percentage" 
-            ? (subtotal * discountValue) / 100 
+    const taxAmount = isTaxFree ? 0 : (subtotal * taxPercent) / 100;
+    const discountAmount =
+        discountType === "percentage"
+            ? (subtotal * discountValue) / 100
             : discountValue;
     const total = Math.max(0, subtotal + taxAmount - discountAmount);
 
@@ -98,6 +119,47 @@ export default function SalesPage() {
         setModalOpen(false);
     };
 
+    const handleCancelSale = () => {
+        setItems([]);
+        setCustomer(null);
+        setTaxPercent(0);
+        setIsTaxFree(false);
+        setDiscountValue(0);
+        setDiscountType("percentage");
+        setKeypadResetKey(prev => prev + 1);
+    };
+
+    const handleHoldSale = () => {
+        if (items.length === 0) return;
+        const newHeldSale: HeldSale = {
+            id: Math.random().toString(36).substr(2, 9),
+            items: [...items],
+            customer,
+            taxPercent,
+            isTaxFree,
+            discountValue,
+            discountType,
+            heldAt: new Date(),
+        };
+        setHeldSales(prev => [...prev, newHeldSale]);
+        handleCancelSale();
+    };
+
+    const handleResumeSale = (heldSale: HeldSale) => {
+        setItems(heldSale.items);
+        setCustomer(heldSale.customer);
+        setTaxPercent(heldSale.taxPercent);
+        setIsTaxFree(heldSale.isTaxFree);
+        setDiscountValue(heldSale.discountValue);
+        setDiscountType(heldSale.discountType);
+        setHeldSales(prev => prev.filter(sale => sale.id !== heldSale.id));
+        setModalOpen(false);
+    };
+
+    const handleDeleteHeldSale = (id: string) => {
+        setHeldSales(prev => prev.filter(sale => sale.id !== id));
+    };
+
     function handleAction(type: string, data?: any) {
         // If it's a category, just set it
         if (CATEGORIES.find(c => c.name === type)) {
@@ -108,6 +170,17 @@ export default function SalesPage() {
         if (type === "Cash") {
             setCashGiven(data?.cashGiven || 0);
             setCashPaymentOpen(true);
+            return;
+        }
+
+        if (type === "Tax Free") {
+            setIsTaxFree(!isTaxFree);
+            if (!isTaxFree) {
+                setTaxPercent(0);
+                showNotification("Tax Free mode enabled", "success");
+            } else {
+                showNotification("Tax Free mode disabled", "success");
+            }
             return;
         }
 
@@ -137,7 +210,7 @@ export default function SalesPage() {
                 break
             case "Discount":
                 setModalContent(
-                    <DiscountModal 
+                    <DiscountModal
                         initialType={discountType}
                         initialValue={discountValue}
                         onConfirm={handleApplyDiscount}
@@ -147,13 +220,42 @@ export default function SalesPage() {
                 break
             case "Miscellaneous":
                 setModalContent(
-                    <QuickAddModal 
+                    <QuickAddModal
                         onConfirm={(newItems) => {
                             setItems(prev => [...prev, ...newItems]);
                             setModalOpen(false);
                         }}
                         onCancel={() => setModalOpen(false)}
                     />
+                );
+                break
+            case "Recent Holds":
+                setModalContent(
+                    <div className="space-y-4 p-4">
+                        {heldSales.length === 0 ? (
+                            <p className="text-center py-8 text-gray-500">No held sales found.</p>
+                        ) : (
+                            <div className="max-h-100 overflow-y-auto space-y-2">
+                                {heldSales.map(sale => (
+                                    <div key={sale.id} className="flex items-center justify-between p-4 border rounded-xl hover:bg-gray-50 transition-colors">
+                                        <div>
+                                            <p className="font-bold">{sale.customer?.name || "Guest"}</p>
+                                            <p className="text-sm text-gray-500">
+                                                {sale.items.length} items • ${sale.items.reduce((sum, item) => sum + item.price * item.qty, 0).toFixed(2)}
+                                            </p>
+                                            <p className="text-xs text-gray-400">{sale.heldAt.toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                             <Button type="button" size="sm" onClick={() => handleResumeSale(sale)}>Resume</Button>
+                                             <Button type="button" size="sm" variant="destructive" onClick={() => handleDeleteHeldSale(sale.id)}>
+                                                 <Trash className="size-4" />
+                                             </Button>
+                                         </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 );
                 break
 
@@ -174,37 +276,19 @@ export default function SalesPage() {
     }
 
     const handleProcessAndPrint = () => {
-        const invoiceContent = getInvoiceHtml({
-            items,
-            subtotal,
-            taxAmount,
-            discountAmount,
-            total,
-            cashGiven,
-            change: cashGiven - total,
-            customerName: customer?.name,
-            date: new Date()
-        });
-
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
-        if (printWindow) {
-            printWindow.document.write('<html><head><title>POS Invoice</title></head><body>');
-            printWindow.document.write(invoiceContent);
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-        }
-
-        // Finalize transaction
-        setCashPaymentOpen(false);
-        setItems([]);
-        setCustomer(null);
-        setTaxPercent(0);
-        setDiscountValue(0);
-        setDiscountType("percentage");
-        setKeypadResetKey(prev => prev + 1);
+        setPrintRequested(true);
+        setTimeout(() => {
+            window.print();
+            setCashPaymentOpen(false);
+            setItems([]);
+            setCustomer(null);
+            setTaxPercent(0);
+            setIsTaxFree(false);
+            setDiscountValue(0);
+            setDiscountType("percentage");
+            setKeypadResetKey(prev => prev + 1);
+            setPrintRequested(false);
+        }, 300);
     };
 
     const handleAddToCart = (product: Product) => {
@@ -236,9 +320,10 @@ export default function SalesPage() {
         const product = PRODUCTS.find((p) => p.barcode === barcode);
         if (product) {
             handleAddToCart(product);
+            showNotification(`Added ${product.name} to cart`, 'success');
         } else {
             console.log(`Product with barcode ${barcode} not found`);
-            // You could show a toast notification here
+            showNotification(`Product with barcode ${barcode} not found`, 'error');
         }
     };
 
@@ -258,13 +343,30 @@ export default function SalesPage() {
     return (
         <>
             <BarcodeScanner onScan={handleBarcodeScan} />
+            
+            {/* Global Notification Area */}
+            {notification && (
+                <div className="fixed top-4 right-4 z-9999 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className={`px-6 py-3 rounded-xl shadow-2xl border-2 flex items-center gap-3 ${
+                        notification.type === 'success' 
+                            ? 'bg-green-500 border-green-400 text-white' 
+                            : 'bg-red-500 border-red-400 text-white'
+                    }`}>
+                        <div className="bg-white/20 p-1 rounded-full">
+                            {notification.type === 'success' ? <CirclePlus className="size-5" /> : <X className="size-5" />}
+                        </div>
+                        <p className="font-bold text-lg">{notification.message}</p>
+                    </div>
+                </div>
+            )}
+
             <div className="w-full h-[calc(100vh-80px)] overflow-hidden p-2">
-                <div className="w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-2 overflow-hidden">
+                <div className="w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-1 overflow-hidden">
 
                     {/* Left Panel */}
                     <div className=" p-2 rounded overflow-auto">
                         <div className="grid grid-cols-1 grid-rows-5 gap-2 h-full">
-                            <div className="row-span-3 p-2 w-full border border-gray-200 shadow rounded overflow-hidden">
+                            <div className="row-span-full p-2 w-full border border-gray-200 shadow rounded overflow-hidden">
                                 {/* header row mimicking table - hidden on narrow screens where items stack */}
                                 <div className="hidden xl:flex text-lg font-semibold uppercase border-b pb-1 px-3">
                                     <div className="flex-1">Name</div>
@@ -289,7 +391,8 @@ export default function SalesPage() {
                                 </div>
                             </div>
                             <div className="row-span-2">
-                                <div className="bg-gray-600 shadow-md rounded-xl p-2 w-full mx-auto">
+                                {
+                                    customer && (<div className="bg-gray-600 shadow-md rounded-xl p-2 w-full mx-auto">
 
                                     <h4 className="text-white text-lg sm:text-xl font-bold mb-1">
                                         Membership Information
@@ -320,7 +423,8 @@ export default function SalesPage() {
                                         </div> */}
                                     </div>
 
-                                </div>
+                                </div>)
+                                }
                                 <div className="bg-gray-600 shadow-md rounded-xl p-2 w-full mt-2 mx-auto">
                                     <div className="space-y-2 text-sm sm:text-base text-white">
                                         <div className="flex items-center justify-between">
@@ -329,14 +433,14 @@ export default function SalesPage() {
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <span className="font-medium">Tax(%)</span>
-                                            <span className="font-semibold">{taxPercent.toFixed(2)}%</span>
+                                            <span className="font-semibold">{isTaxFree ? "Free" : `${taxPercent.toFixed(2)}%`}</span>
                                         </div>
-                                        <div className="flex items-center justify-between">
+                                        {discountValue > 0 && (<div className="flex items-center justify-between">
                                             <span className="font-medium">Discount {discountType === "percentage" ? "(%)" : "($)"}</span>
                                             <span className="font-semibold">
                                                 {discountType === "flat" ? `$${discountValue.toFixed(2)}` : `${discountValue}%`}
                                             </span>
-                                        </div>
+                                        </div>)}
                                         <div className="border-t border-white/20 pt-2 flex items-center justify-between">
                                             <span className="text-xl font-bold">Total</span>
                                             <span className="text-2xl font-extrabold">${total.toFixed(2)}</span>
@@ -350,6 +454,7 @@ export default function SalesPage() {
                                         size="lg"
                                         variant="outline"
                                         className="flex items-center justify-center gap-3 bg-gray-700 hover:bg-gray-500 text-white rounded-lg px-4 py-2 text-base md:text-lg w-full border-0"
+                                        onClick={handleCancelSale}
                                     >
                                         <X className="size-6 md:size-7 text-red-400" />
                                         <span>Cancel</span>
@@ -360,6 +465,7 @@ export default function SalesPage() {
                                         size="lg"
                                         variant="outline"
                                         className="flex items-center justify-center gap-3 bg-gray-700 hover:bg-gray-500 text-white rounded-lg px-4 py-2 text-base md:text-lg w-full border-0"
+                                        onClick={handleHoldSale}
                                     >
                                         <PauseCircle className="size-6 md:size-7 text-yellow-300" />
                                         <span>Hold</span>
@@ -370,10 +476,15 @@ export default function SalesPage() {
                                         size="lg"
                                         variant="outline"
                                         className="relative flex items-center justify-center gap-3 bg-gray-700 hover:bg-gray-500 text-white rounded-lg px-4 py-2 text-base md:text-lg w-full border-0"
+                                        onClick={() => handleAction("Recent Holds")}
                                     >
                                         <History className="size-6 md:size-7 text-yellow-300" />
                                         <span>Recent</span>
-                                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] leading-none px-1.5 py-0.5 rounded-full">5</span>
+                                        {heldSales.length > 0 && (
+                                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] leading-none px-1.5 py-0.5 rounded-full">
+                                                {heldSales.length}
+                                            </span>
+                                        )}
                                     </Button>
                                 </div>
                             </div>
@@ -381,24 +492,24 @@ export default function SalesPage() {
                     </div>
 
                     {/* Right Panel */}
-                    <div className="bg-blue-200 p-2 rounded lg:col-span-2 overflow-hidden">
+                    <div className="p-2 rounded lg:col-span-2 overflow-hidden">
 
                         <div className="grid grid-rows-2 gap-2 h-full">
 
-                            <div className="bg-white p-3 sm:p-4 rounded flex flex-col overflow-hidden">
-                                <div className="flex flex-col sm:flex-row gap-2 mb-4 shrink-0">
+                            <div className="bg-white p-2 sm:p-3 rounded flex flex-col overflow-hidden">
+                                <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 mb-1 sm:mb-2 shrink-0">
                                     <div className="relative flex-1">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400 pointer-events-none" />
                                         <Input
                                             placeholder="Search products or scan barcode..."
-                                            className="w-full h-10 sm:h-12 pl-10 border-2 border-gray-400 focus:border-blue-500 focus:ring-0 text-base sm:text-lg rounded-xl"
+                                            className="w-full h-8 sm:h-10 md:h-12 pl-10 border-2 border-gray-400 focus:border-blue-500 focus:ring-0 text-sm sm:text-base rounded-xl"
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
                                         />
                                     </div>
-                                    <Button 
-                                        variant="outline" 
-                                        className="h-10 sm:h-12 border-2 border-gray-400 hover:bg-gray-100 px-4 rounded-xl shrink-0 flex items-center justify-center"
+                                    <Button
+                                        variant="outline"
+                                        className="h-8 sm:h-10 md:h-12 border-2 border-gray-400 hover:bg-gray-100 px-3 sm:px-4 rounded-xl shrink-0 flex items-center justify-center"
                                         onClick={() => handleAction('Miscellaneous')}
                                     >
                                         <CirclePlus className="size-5 sm:mr-2" />
@@ -409,7 +520,7 @@ export default function SalesPage() {
 
                                 <div className="flex-1 overflow-auto custom-scrollbar">
                                     {!(selectedCategory || searchQuery) ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 xl:mt-2 gap-4">
                                             {CATEGORIES.map((cat) => (
                                                 <div
                                                     key={cat.name}
@@ -420,7 +531,7 @@ export default function SalesPage() {
                                                         {cat.icon}
                                                     </div>
                                                     <div className="flex flex-col min-w-0">
-                                                        <span className="text-xl xl:text-2xl font-bold text-white leading-tight break-words">
+                                                        <span className="text-lg xl:text-xl font-bold text-white leading-tight break-words">
                                                             {cat.name}
                                                         </span>
                                                         <span className="text-xs xl:text-sm font-medium text-gray-400 mt-1 uppercase tracking-wide">
@@ -432,11 +543,11 @@ export default function SalesPage() {
                                         </div>
                                     ) : (
                                         <div>
-                                            <div className="flex items-center justify-between mb-4 sticky top-0 bg-white z-10 py-2">
+                                            <div className="flex items-center justify-between mb-1 sm:mb-2 -mt-1 sticky top-0 bg-white z-10 py-0.5 sm:py-1">
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-10 flex items-center gap-2 hover:bg-gray-100 px-3"
+                                                    className="h-8 sm:h-10 flex items-center gap-2 hover:bg-gray-100 px-2 sm:px-3"
                                                     onClick={() => {
                                                         setSelectedCategory(null);
                                                         setSearchQuery("");
@@ -445,7 +556,7 @@ export default function SalesPage() {
                                                     <ArrowLeft className="size-5" />
                                                     <span className="text-sm font-semibold">Back</span>
                                                 </Button>
-                                                <h3 className="text-md xl:text-2xl font-bold text-gray-800 truncate px-2">
+                                                <h3 className="text-sm sm:text-md xl:text-2xl font-bold text-gray-800 truncate px-2">
                                                     {searchQuery ? `Search: ${searchQuery}` : selectedCategory}
                                                 </h3>
                                             </div>
@@ -494,8 +605,8 @@ export default function SalesPage() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded overflow-auto">
-                                <div className="flex flex-col justify-between bg-green-200 p-2 rounded h-full">
+                            <div className="bg-gray-200 grid grid-cols-1 md:grid-cols-2 gap-2 rounded overflow-auto">
+                                <div className="flex flex-col justify-between p-2 rounded h-full">
                                     {/* icon grid */}
                                     <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-2">
                                         <Button
@@ -505,7 +616,10 @@ export default function SalesPage() {
                                             aria-label="Customer"
                                             onClick={() => handleAction('Customer')}
                                         >
-                                            <User className="size-14 xl:size-20" />
+                                            <div className="flex flex-col justify-center items-center">
+                                                <User className="size-14 xl:size-20" />
+                                                <p className="text-lg xl:text-xl">Customer</p>
+                                            </div>
                                         </Button>
                                         <Button
                                             variant="outline"
@@ -514,7 +628,10 @@ export default function SalesPage() {
                                             aria-label="Membership Card Lookup"
                                             onClick={() => handleAction('Membership Card Lookup')}
                                         >
-                                            <IdCard className="size-14 xl:size-20" />
+                                            <div className="flex flex-col justify-center items-center">
+                                                <IdCard className="size-14 xl:size-20" />
+                                                <p className="text-lg xl:text-xl">Membership</p>
+                                            </div>
                                         </Button>
                                         {/* <Button
                                             variant="outline"
@@ -541,7 +658,10 @@ export default function SalesPage() {
                                             aria-label="Calculator"
                                             onClick={() => handleAction('Calculator')}
                                         >
-                                            <Calculator className="size-14 xl:size-20" />
+                                            <div className="flex flex-col justify-center items-center">
+                                                <Calculator className="size-14 xl:size-20" />
+                                                <p className="text-lg xl:text-xl">Calculator</p>
+                                            </div>
                                         </Button>
                                         <Button
                                             variant="outline"
@@ -550,7 +670,10 @@ export default function SalesPage() {
                                             aria-label="CashIn"
                                             onClick={() => handleAction('CashIn')}
                                         >
-                                            <Download className="size-14 xl:size-20" />
+                                            <div className="flex flex-col justify-center items-center">
+                                                <Download className="size-14 xl:size-20" />
+                                                <p className="text-lg xl:text-xl">Cash In</p>
+                                            </div>
                                         </Button>
                                         <Button
                                             variant="outline"
@@ -559,7 +682,10 @@ export default function SalesPage() {
                                             aria-label="CashOut"
                                             onClick={() => handleAction('CashOut')}
                                         >
-                                            <Upload className="size-14 xl:size-20" />
+                                            <div className="flex flex-col justify-center items-center">
+                                                <Upload className="size-14 xl:size-20" />
+                                                <p className="text-lg xl:text-xl">Cash Out</p>
+                                            </div>
                                         </Button>
                                         {/* <Button
                                             variant="outline"
@@ -586,7 +712,22 @@ export default function SalesPage() {
                                             aria-label="History"
                                             onClick={() => handleAction('History')}
                                         >
-                                            <History className="size-14 xl:size-20" />
+                                            <div className="flex flex-col justify-center items-center">
+                                                <History className="size-14 xl:size-20" />
+                                                <p className="text-lg xl:text-xl">History</p>
+                                            </div>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className={`w-full h-full border-2 ${isTaxFree ? "bg-green-600 text-white border-green-700" : "bg-white text-black border-black"}`}
+                                            aria-label="Tax Free"
+                                            onClick={() => handleAction('Tax Free')}
+                                        >
+                                            <div className="flex flex-col justify-center items-center">
+                                                <BanknoteX className="size-14 xl:size-20" />
+                                                <p className="text-lg xl:text-xl font-bold">Tax Free</p>
+                                            </div>
                                         </Button>
                                     </div>
                                     {/* footer section */}
@@ -641,6 +782,7 @@ export default function SalesPage() {
                                         onSetDiscount={setDiscountValue}
                                         onSetTax={setTaxPercent}
                                         onAction={handleAction}
+                                        showNotification={showNotification}
                                     />
                                 </div>
                             </div>
@@ -667,9 +809,33 @@ export default function SalesPage() {
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 title={modalTitle}
+                showFooter={modalTitle !== "Recent Holds"}
             >
                 {modalContent}
             </SalesActionsDialog>
+            {printRequested && (
+                <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+                    <style>{`
+                        @page { size: 80mm auto; margin: 0; }
+                        @media print {
+                            body * { visibility: hidden; }
+                            #pos-invoice, #pos-invoice * { visibility: visible; }
+                            #pos-invoice { position: fixed; left: 0; top: 0; }
+                        }
+                    `}</style>
+                    <Invoice
+                        items={items}
+                        subtotal={subtotal}
+                        taxAmount={taxAmount}
+                        discountAmount={discountAmount}
+                        total={total}
+                        cashGiven={cashGiven}
+                        change={cashGiven - total}
+                        customerName={customer?.name}
+                        date={new Date()}
+                    />
+                </div>
+            )}
         </>
     )
 }
