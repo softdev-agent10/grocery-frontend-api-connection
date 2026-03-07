@@ -226,7 +226,7 @@ export default function App() {
       </header>
 
       {/* Toolbar Section */}
-      <div className="max-w-7xl mx-auto px-6 -mt-8 relative z-20">
+      <div className="  mx-auto px-6 mt-6 relative z-20">
         <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-200 flex flex-wrap items-center gap-3">
           <button 
             onClick={() => openModal("add")}

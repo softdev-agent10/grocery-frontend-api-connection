@@ -107,10 +107,36 @@ const DEPT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6"];
 
 /* ---------------- DASHBOARD ---------------- */
 
+/* Get greeting based on current time */
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  let greeting = "Good Evening";
+  let emoji = "🌙";
+  
+  if (hour >= 4 && hour < 12) {
+    greeting = "Good Morning";
+    emoji = "🌅";
+  } else if (hour >= 12 && hour < 18) {
+    greeting = "Good Afternoon";
+    emoji = "☀️";
+  } else if (hour >= 18 && hour < 21) {
+    greeting = "Good Evening";
+    emoji = "🌆";
+  } else {
+    greeting = "Good Night";
+    emoji = "🌙";
+  }
+  
+  return { greeting, emoji };
+};
+
 export default function App() {
   const [selectedBranch, setSelectedBranch] = useState("All Branches");
   const [posTimeRange, setPosTimeRange] = useState("Today");
   const [inventoryTimeRange, setInventoryTimeRange] = useState("Today");
+
+  // Get dynamic greeting
+  const { greeting, emoji } = useMemo(() => getGreeting(), []);
 
   // Derived Data for POS Section
   const posStats = useMemo(() => getPOSStats(selectedBranch, posTimeRange), [selectedBranch, posTimeRange]);
@@ -151,13 +177,16 @@ export default function App() {
     <div className="w-full min-h-screen bg-white p-4 md:p-8 space-y-12 font-sans">
 
       {/* ================= HEADER ================= */}
-      <div className="rounded-3xl bg-gradient-to-r from-yellow-400 to-yellow-900 p-20 text-white shadow-xl">
-        <h1 className="text-3xl md:text-5xl font-black mx-10">
-          Good Evening <span className="text-blue-400"></span>
-        </h1>
-        <p className="text-slate-300 mt-3 mx-10">
-          Welcome back, Dashboard
-        </p>
+      <div className="rounded-3xl bg-gradient-to-r from-yellow-400 to-yellow-900 p-20 text-white shadow-xl flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl md:text-5xl font-black mx-10">
+            {greeting} <span className="text-blue-400"></span>
+          </h1>
+          <p className="text-slate-300 mt-3 mx-10">
+            Welcome back, Dashboard
+          </p>
+        </div>
+        <div className="text-6xl md:text-8xl">{emoji}</div>
       </div>
 
       {/* ================= FILTER BAR ================= */}
