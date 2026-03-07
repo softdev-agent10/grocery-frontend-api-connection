@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState, ReactNode } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { Button } from "@/components/ui/button";
-import { Banknote, Calculator, ClockFading, Coffee, CookingPot, CreditCard, Download, Gift, HandCoins, History, IdCard, Upload, User, X, PauseCircle, CirclePlus, Apple, Drumstick, Milk, Croissant, Wine, IceCream, Cookie, Home, Banana, Search, BanknoteX } from "lucide-react";
+import { Banknote, Calculator, ClockFading, Coffee, CookingPot, CreditCard, Download, Gift, HandCoins, History, IdCard, Upload, User, X, PauseCircle, CirclePlus, Apple, Drumstick, Milk, Croissant, Wine, IceCream, Cookie, Home, Banana, Search, BanknoteX, Printer } from "lucide-react";
 import { SalesActionsDialog } from "@/components/sales/sales-actions-modal";
 import CustomerModal from "@/components/sales/customer-modal";
 import CalculatorUI from "@/components/sales/calculator";
@@ -21,6 +22,7 @@ import CashPaymentModal from "@/components/sales/cash-payment-modal";
 import Invoice from "@/components/sales/invoice";
 import DiscountModal from "@/components/sales/discount-modal";
 import QuickAddModal from "@/components/sales/quick-add-modal";
+import OrderHistory, { Order } from "@/components/sales/order-history";
 
 interface Product {
     id: string;
@@ -92,6 +94,9 @@ export default function SalesPage() {
     const [isTaxFree, setIsTaxFree] = useState(false);
     const [keypadResetKey, setKeypadResetKey] = useState(0);
     const [printRequested, setPrintRequested] = useState(false);
+    const [isBasketOnlyPrint, setIsBasketOnlyPrint] = useState(false);
+    const [history, setHistory] = useState<Order[]>([]);
+    const [reprintOrder, setReprintOrder] = useState<Order | null>(null);
     const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
 
     const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
@@ -132,7 +137,7 @@ export default function SalesPage() {
     const handleHoldSale = () => {
         if (items.length === 0) return;
         const newHeldSale: HeldSale = {
-            id: Math.random().toString(36).substr(2, 9),
+            id: uuidv4(),
             items: [...items],
             customer,
             taxPercent,
@@ -160,6 +165,23 @@ export default function SalesPage() {
         setHeldSales(prev => prev.filter(sale => sale.id !== id));
     };
 
+    const handleHistoryReprint = (order: Order) => {
+        showNotification(`Re-printing receipt for ${order.id}...`, "success");
+        setReprintOrder(order);
+        setIsBasketOnlyPrint(false); // Historical orders always show full invoice
+        setPrintRequested(true);
+        setTimeout(() => {
+            window.print();
+            setPrintRequested(false);
+            setReprintOrder(null);
+        }, 500);
+    };
+
+    const handleHistoryRefund = (order: any) => {
+        showNotification(`Refund processed for ${order.id}`, "success");
+        // In a real app, this would update the backend/store
+    };
+
     function handleAction(type: string, data?: any) {
         // If it's a category, just set it
         if (CATEGORIES.find(c => c.name === type)) {
@@ -181,6 +203,21 @@ export default function SalesPage() {
             } else {
                 showNotification("Tax Free mode disabled", "success");
             }
+            return;
+        }
+
+        if (type === "Print Basket") {
+            handlePrintBasket();
+            return;
+        }
+
+        if (type === "Credit Card") {
+            showNotification("Terminal is not connected", "error");
+            return;
+        }
+
+        if (type === "Refund" || type === "Other") {
+            showNotification("Under development", "success");
             return;
         }
 
@@ -226,6 +263,16 @@ export default function SalesPage() {
                             setModalOpen(false);
                         }}
                         onCancel={() => setModalOpen(false)}
+                    />
+                );
+                break
+            case "History":
+                setModalContent(
+                    <OrderHistory 
+                        orders={history}
+                        onClose={() => setModalOpen(false)} 
+                        onReprint={handleHistoryReprint}
+                        onRefund={handleHistoryRefund}
                     />
                 );
                 break
@@ -275,7 +322,40 @@ export default function SalesPage() {
         setModalOpen(true);
     }
 
+    const handlePrintBasket = () => {
+        if (items.length === 0) {
+            showNotification("Cart is empty!", "error");
+            return;
+        }
+        setIsBasketOnlyPrint(true);
+        setPrintRequested(true);
+        setTimeout(() => {
+            window.print();
+            setPrintRequested(false);
+            setIsBasketOnlyPrint(false);
+        }, 300);
+    };
+
     const handleProcessAndPrint = () => {
+        setIsBasketOnlyPrint(false);
+        setReprintOrder(null); // Clear reprint order if processing new sale
+        
+        // Add to history
+        const newOrder: Order = {
+            id: `ORD-${uuidv4()}`,
+            date: new Date(),
+            customer: customer?.name || "Guest",
+            items: [...items],
+            subtotal,
+            tax: taxAmount,
+            discount: discountAmount,
+            total,
+            paymentMethod: "Cash", // Mock payment method
+            cashGiven,
+            change: cashGiven - total
+        };
+        setHistory(prev => [newOrder, ...prev]);
+
         setPrintRequested(true);
         setTimeout(() => {
             window.print();
@@ -325,10 +405,6 @@ export default function SalesPage() {
             console.log(`Product with barcode ${barcode} not found`);
             showNotification(`Product with barcode ${barcode} not found`, 'error');
         }
-    };
-
-    const getProductQty = (productId: string) => {
-        return items.find((i) => i.id === productId)?.qty || 0;
     };
 
     const filteredProducts = PRODUCTS.filter((p) => {
@@ -494,7 +570,7 @@ export default function SalesPage() {
                     {/* Right Panel */}
                     <div className="p-2 rounded lg:col-span-2 overflow-hidden">
 
-                        <div className="grid grid-rows-2 gap-2 h-full">
+                        <div className="grid grid-rows-2 xl:grid-rows-[1fr_auto] gap-2 h-full">
 
                             <div className="bg-white p-2 sm:p-3 rounded flex flex-col overflow-hidden">
                                 <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 mb-1 sm:mb-2 shrink-0">
@@ -561,34 +637,37 @@ export default function SalesPage() {
                                                 </h3>
                                             </div>
 
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
                                                 {filteredProducts.map((product) => {
                                                     const currentQty = items.find(i => i.id === product.id)?.qty || 0;
                                                     return (
                                                         <div
                                                             key={product.id}
                                                             onClick={() => handleAddToCart(product)}
-                                                            className={`flex flex-col bg-white border-2 rounded-xl p-3 hover:shadow-md transition-all cursor-pointer group text-center relative ${currentQty >= product.stock ? "border-red-200" : "border-gray-100 hover:border-blue-500"}`}
+                                                            className={`flex bg-white border-2 rounded-xl p-2 hover:shadow-md transition-all cursor-pointer group relative items-center gap-3 ${currentQty >= product.stock ? "border-red-200" : "border-gray-100 hover:border-blue-500"}`}
                                                         >
-                                                            <div className="aspect-square bg-gray-50 rounded-lg flex items-center justify-center mb-3 group-hover:bg-blue-50 relative">
-                                                                <div className="absolute top-1 left-1 bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-md font-medium border border-gray-200">
-                                                                    Stock: {product.stock}
+                                                            <div className="size-16 sm:size-20 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-blue-50 relative">
+                                                                <div className="absolute -top-1 -left-1 bg-gray-100 text-gray-600 text-[8px] px-1 py-0.5 rounded-md font-bold border border-gray-200 z-10">
+                                                                    {product.stock}
                                                                 </div>
                                                                 {currentQty > 0 && (
-                                                                    <div className={`absolute -top-2 -right-2 text-white size-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${currentQty >= product.stock ? "bg-red-500" : "bg-blue-600"}`}>
+                                                                    <div className={`absolute -top-2 -right-2 text-white size-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm z-10 ${currentQty >= product.stock ? "bg-red-500" : "bg-blue-600"}`}>
                                                                         {currentQty}
                                                                     </div>
                                                                 )}
-                                                                <div className="scale-110">
+                                                                <div className="scale-100">
                                                                     {product.icon || <ShoppingCart className="size-8 text-gray-300 group-hover:text-blue-500 transition-colors" />}
                                                                 </div>
                                                             </div>
-                                                            <span className="text-sm xl:text-base font-bold text-gray-800 line-clamp-2 mb-1 leading-tight">{product.name}</span>
-                                                            <span className="text-base xl:text-lg font-extrabold text-blue-600">${product.price.toFixed(2)}</span>
+                                                            
+                                                            <div className="flex flex-col flex-1 min-w-0 text-left">
+                                                                <span className="text-xs sm:text-sm font-bold text-gray-800 line-clamp-2 leading-tight mb-1">{product.name}</span>
+                                                                <span className="text-sm sm:text-base font-extrabold text-blue-600">${product.price.toFixed(2)}</span>
+                                                            </div>
 
                                                             {currentQty >= product.stock && (
-                                                                <div className="absolute inset-0 bg-white/40 rounded-xl flex items-center justify-center pointer-events-none">
-                                                                    <span className="bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wider shadow-sm">Out of stock</span>
+                                                                <div className="absolute inset-0 bg-white/40 rounded-xl flex items-center justify-center pointer-events-none z-20">
+                                                                    <span className="bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Out of stock</span>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -605,7 +684,7 @@ export default function SalesPage() {
                                 </div>
                             </div>
 
-                            <div className="bg-gray-200 grid grid-cols-1 md:grid-cols-2 gap-2 rounded overflow-auto">
+                            <div className="bg-gray-200 grid grid-cols-1 md:grid-cols-2 gap-2 rounded xl:overflow-visible overflow-auto">
                                 <div className="flex flex-col justify-between p-2 rounded h-full">
                                     {/* icon grid */}
                                     <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-2">
@@ -618,7 +697,7 @@ export default function SalesPage() {
                                         >
                                             <div className="flex flex-col justify-center items-center">
                                                 <User className="size-14 xl:size-20" />
-                                                <p className="text-lg xl:text-xl">Customer</p>
+                                                <p className="text-md xl:text-xl">Customer</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -630,7 +709,7 @@ export default function SalesPage() {
                                         >
                                             <div className="flex flex-col justify-center items-center">
                                                 <IdCard className="size-14 xl:size-20" />
-                                                <p className="text-lg xl:text-xl">Membership</p>
+                                                <p className="text-md xl:text-xl">Membership</p>
                                             </div>
                                         </Button>
                                         {/* <Button
@@ -660,7 +739,7 @@ export default function SalesPage() {
                                         >
                                             <div className="flex flex-col justify-center items-center">
                                                 <Calculator className="size-14 xl:size-20" />
-                                                <p className="text-lg xl:text-xl">Calculator</p>
+                                                <p className="text-md xl:text-xl">Calculator</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -672,7 +751,7 @@ export default function SalesPage() {
                                         >
                                             <div className="flex flex-col justify-center items-center">
                                                 <Download className="size-14 xl:size-20" />
-                                                <p className="text-lg xl:text-xl">Cash In</p>
+                                                <p className="text-md xl:text-xl">Cash In</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -684,7 +763,7 @@ export default function SalesPage() {
                                         >
                                             <div className="flex flex-col justify-center items-center">
                                                 <Upload className="size-14 xl:size-20" />
-                                                <p className="text-lg xl:text-xl">Cash Out</p>
+                                                <p className="text-md xl:text-xl">Cash Out</p>
                                             </div>
                                         </Button>
                                         {/* <Button
@@ -714,10 +793,10 @@ export default function SalesPage() {
                                         >
                                             <div className="flex flex-col justify-center items-center">
                                                 <History className="size-14 xl:size-20" />
-                                                <p className="text-lg xl:text-xl">History</p>
+                                                <p className="text-md xl:text-xl">History</p>
                                             </div>
                                         </Button>
-                                        <Button
+                                        {/* <Button
                                             variant="outline"
                                             size="icon"
                                             className={`w-full h-full border-2 ${isTaxFree ? "bg-green-600 text-white border-green-700" : "bg-white text-black border-black"}`}
@@ -726,7 +805,19 @@ export default function SalesPage() {
                                         >
                                             <div className="flex flex-col justify-center items-center">
                                                 <BanknoteX className="size-14 xl:size-20" />
-                                                <p className="text-lg xl:text-xl font-bold">Tax Free</p>
+                                                <p className="text-md xl:text-xl">Tax Free</p>
+                                            </div>
+                                        </Button> */}
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="w-full h-full border border-black"
+                                            aria-label="Print Basket"
+                                            onClick={() => handleAction('Print Basket')}
+                                        >
+                                            <div className="flex flex-col justify-center items-center">
+                                                <Printer className="size-14 xl:size-20" />
+                                                <p className="text-md xl:text-xl">Print Basket</p>
                                             </div>
                                         </Button>
                                     </div>
@@ -809,7 +900,13 @@ export default function SalesPage() {
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 title={modalTitle}
-                showFooter={modalTitle !== "Recent Holds"}
+                showFooter={modalTitle !== "Recent Holds" && modalTitle !== "History"}
+                showHeader={modalTitle !== "History"}
+                className={modalTitle === "History" ? "sm:max-w-5xl p-0 overflow-hidden" : ""}
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    setModalOpen(false);
+                }}
             >
                 {modalContent}
             </SalesActionsDialog>
@@ -824,15 +921,16 @@ export default function SalesPage() {
                         }
                     `}</style>
                     <Invoice
-                        items={items}
-                        subtotal={subtotal}
-                        taxAmount={taxAmount}
-                        discountAmount={discountAmount}
-                        total={total}
-                        cashGiven={cashGiven}
-                        change={cashGiven - total}
-                        customerName={customer?.name}
-                        date={new Date()}
+                        items={reprintOrder ? reprintOrder.items : items}
+                        subtotal={reprintOrder ? reprintOrder.subtotal : subtotal}
+                        taxAmount={reprintOrder ? reprintOrder.tax : taxAmount}
+                        discountAmount={reprintOrder ? reprintOrder.discount : discountAmount}
+                        total={reprintOrder ? reprintOrder.total : total}
+                        cashGiven={reprintOrder ? reprintOrder.cashGiven : cashGiven}
+                        change={reprintOrder ? reprintOrder.change : (cashGiven - total)}
+                        customerName={reprintOrder ? reprintOrder.customer : customer?.name}
+                        date={reprintOrder ? reprintOrder.date : new Date()}
+                        isBasketOnly={isBasketOnlyPrint}
                     />
                 </div>
             )}

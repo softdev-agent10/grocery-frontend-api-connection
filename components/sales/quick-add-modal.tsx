@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { X, Zap, Search, Trash2, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,11 +23,11 @@ interface QuickAddModalProps {
 
 export default function QuickAddModal({ onConfirm, onCancel }: QuickAddModalProps) {
     const [items, setItems] = useState<QuickAddItem[]>([
-        { id: Math.random().toString(), name: "", qty: 1, originalPrice: 0, customPrice: 0 }
+        { id: uuidv4(), name: "", qty: 1, originalPrice: 0, customPrice: 0 }
     ]);
 
     const addItem = () => {
-        setItems([...items, { id: Math.random().toString(), name: "", qty: 1, originalPrice: 0, customPrice: 0 }]);
+        setItems([...items, { id: uuidv4(), name: "", qty: 1, originalPrice: 0, customPrice: 0 }]);
     };
 
     const removeItem = (id: string) => {
@@ -102,14 +104,14 @@ export default function QuickAddModal({ onConfirm, onCancel }: QuickAddModalProp
                                     className="h-10 sm:h-11 md:h-12 text-center text-sm sm:text-base rounded-xl border-gray-200 focus:border-[#6366f1] w-full"
                                 />
                             </div>
-                            <div className="w-full md:w-[110px] space-y-2">
+                            {/* <div className="w-full md:w-[110px] space-y-2">
                                 <Label className="text-sm font-bold text-gray-400 uppercase tracking-wider ml-1">
                                     Original Price
                                 </Label>
                                 <div className="h-10 sm:h-11 md:h-12 flex items-center justify-center bg-gray-50/50 rounded-xl border border-gray-200 text-gray-400 font-medium text-sm sm:text-base w-full">
                                     {item.originalPrice.toFixed(2)}
                                 </div>
-                            </div>
+                            </div> */}
                             <div className="w-full md:w-[140px] space-y-2">
                                 <Label className="text-sm font-bold text-[#6366f1] uppercase tracking-wider ml-1 flex items-center gap-1">
                                     Custom Price <span className="text-red-500">*</span>

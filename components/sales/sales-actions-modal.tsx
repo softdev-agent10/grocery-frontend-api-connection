@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Search } from "lucide-react"
+import { VisuallyHidden } from "@/components/ui/visually-hidden"
 
 interface SalesActionsDialogProps {
   open: boolean
@@ -18,6 +19,7 @@ interface SalesActionsDialogProps {
   onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void
   className?: string
   showFooter?: boolean
+  showHeader?: boolean
 }
 
 export function SalesActionsDialog({
@@ -28,14 +30,17 @@ export function SalesActionsDialog({
   onSubmit,
   className,
   showFooter = true,
+  showHeader = true,
 }: SalesActionsDialogProps) {
 
 
   if (title === "Calculator" || title === "Discount") {
     return(
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-fit p-0 border-0 bg-transparent shadow-none overflow-visible">
-          <DialogTitle className="hidden">{title}</DialogTitle>
+        <DialogContent className="sm:max-w-fit p-0 border-0 bg-transparent shadow-none overflow-visible" showCloseButton={true}>
+          <VisuallyHidden>
+            <DialogTitle>{title}</DialogTitle>
+          </VisuallyHidden>
           {children}
         </DialogContent>
       </Dialog>
@@ -45,8 +50,10 @@ export function SalesActionsDialog({
   if (title === "Miscellaneous") {
     return(
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-4xl p-0 border-0 bg-transparent shadow-none overflow-visible">
-          <DialogTitle className="hidden">{title}</DialogTitle>
+        <DialogContent className="sm:max-w-4xl p-0 border-0 bg-transparent shadow-none overflow-visible" showCloseButton={false}>
+          <VisuallyHidden>
+            <DialogTitle>{title}</DialogTitle>
+          </VisuallyHidden>
           {children}
         </DialogContent>
       </Dialog>
@@ -56,12 +63,19 @@ export function SalesActionsDialog({
   return (
 
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("sm:max-w-1/2", className)}>
+      <DialogContent className={cn("sm:max-w-1/2", className)} showCloseButton={showHeader}>
         <form onSubmit={onSubmit || ((e) => e.preventDefault())} className="w-full">
-          <DialogHeader className="flex flex-row justify-between px-4 py-3 mt-3 rounded-md" style={{ background: "linear-gradient(135deg, #2563eb 0%, #3b4fcf 55%, #4338ca 100%)" }}>
-            {title && <DialogTitle className="uppercase text-4xl font-bold text-white">{title}</DialogTitle>}
-            <Search className="size-10 text-white" />
-          </DialogHeader>
+          {!showHeader && title && (
+            <VisuallyHidden>
+              <DialogTitle>{title}</DialogTitle>
+            </VisuallyHidden>
+          )}
+          {showHeader && (
+            <DialogHeader className="flex flex-row justify-between px-4 py-3 mt-3 rounded-md" style={{ background: "linear-gradient(135deg, #2563eb 0%, #3b4fcf 55%, #4338ca 100%)" }}>
+              {title && <DialogTitle className="uppercase text-4xl font-bold text-white">{title}</DialogTitle>}
+              <Search className="size-10 text-white" />
+            </DialogHeader>
+          )}
           {children}
           {showFooter && (
             <DialogFooter>

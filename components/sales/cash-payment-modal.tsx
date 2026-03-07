@@ -4,6 +4,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { CartItemType } from "@/components/sales/cart-items";
+import { VisuallyHidden } from "@/components/ui/visually-hidden";
 
 interface CashPaymentModalProps {
     open: boolean;
@@ -27,7 +28,9 @@ export default function CashPaymentModal({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none rounded-3xl">
-                <DialogTitle className="hidden">Cash Payment</DialogTitle>
+                <VisuallyHidden>
+                    <DialogTitle>Cash Payment</DialogTitle>
+                </VisuallyHidden>
                 
                 {/* Header */}
                 <div 

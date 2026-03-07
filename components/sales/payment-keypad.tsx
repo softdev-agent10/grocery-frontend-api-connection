@@ -119,7 +119,7 @@ export default function PaymentKeypad({
                         value={formatDisplay(keyInput)}
                         readOnly
                         placeholder="0.00"
-                        className="h-8 sm:h-12 xl:h-14 text-lg sm:text-xl! xl:text-3xl font-bold bg-white text-black border-2 border-black focus-visible:ring-0 text-right"
+                        className="h-8 sm:h-12 xl:h-14 text-lg sm:text-xl! xl:text-3xl! font-bold bg-white text-black border-2 border-black focus-visible:ring-0 text-right"
                     />
                     <Button
                         variant="outline"

@@ -41,8 +41,7 @@ export default function SalesNavbar() {
             <div className='w-full flex justify-between items-center px-4 h-16 md:h-20'>
                 {/* Logo */}
                 <div className='text-2xl md:text-3xl text-white font-bold'>
-                    {/* <Image src="/assets/desi-payment-dark.png" alt="Grocery Logo" width={80} height={80} className='inline mr-2' /> */}
-                    OneBalance
+                    <Image src="/assets/logo-dark.svg" alt="Grocery Logo" width={220} height={80} className='inline mr-2' />
                 </div>
 
                 {/* Desktop actions */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { CartItemType } from "@/components/sales/cart-items";
+import Image from "next/image";
 import Barcode from "react-barcode";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -14,6 +15,7 @@ interface InvoiceProps {
     change: number;
     customerName?: string;
     date: Date;
+    isBasketOnly?: boolean;
 }
 
 export default function Invoice({
@@ -25,7 +27,8 @@ export default function Invoice({
     cashGiven,
     change,
     customerName,
-    date
+    date,
+    isBasketOnly = false
 }: InvoiceProps) {
     const invoiceId = `INV-${date.getTime()}`;
     return (
@@ -44,7 +47,8 @@ export default function Invoice({
             }}
         >
             <div style={{ padding: "3mm" }}>
-                <h2 style={{ textAlign: "center", margin: "0 0 2mm 0", fontSize: "16px", fontWeight: "bold" }}>OneBalance</h2>
+                {/* <h2 style={{ textAlign: "center", margin: "0 0 2mm 0", fontSize: "16px", fontWeight: "bold" }}>OneBalance</h2> */}
+                <Image src="/assets/logo-light.svg" alt="Grocery Logo" width={200} height={60} style={{ display: "block", margin: "0 auto 2mm auto" }} />
                 <p style={{ textAlign: "center", margin: "0" }}>123 Grocery Lane, City</p>
                 <p style={{ textAlign: "center", margin: "0 0 4mm 0" }}>Phone: 555-0199</p>
                 
@@ -102,23 +106,26 @@ export default function Invoice({
                 
                 <div style={{ borderTop: "1px dashed #000", margin: "2mm 0" }} />
                 
-                <div style={{ display: "flex", justifyContent: "space-between", margin: "1mm 0" }}>
-                    <span>Cash Given:</span>
-                    <span>${cashGiven.toFixed(2)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", margin: "1mm 0" }}>
-                    <span>Change:</span>
-                    <span>${change.toFixed(2)}</span>
-                </div>
-                
-                <div style={{ display: "flex", justifyContent: "center", marginTop: "2mm", marginBottom: "2mm" }}>
-                    <div style={{ width: "74mm", margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                        <Barcode value={invoiceId} displayValue={false} width={1} height={50} format="CODE128" margin={2} />
-                        <div style={{ textAlign: "center", fontSize: "12px", marginTop: "2mm", wordBreak: "break-all" }}>{invoiceId}</div>
-                    </div>
-                </div>
-                
-                <div style={{ borderTop: "1px dashed #000", margin: "2mm 0" }} />
+                {!isBasketOnly && (
+                    <>
+                        <div style={{ display: "flex", justifyContent: "space-between", margin: "1mm 0" }}>
+                            <span>Cash Given:</span>
+                            <span>${cashGiven.toFixed(2)}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", margin: "1mm 0" }}>
+                            <span>Change:</span>
+                            <span>${change.toFixed(2)}</span>
+                        </div>
+                        
+                        <div style={{ display: "flex", justifyContent: "center", marginTop: "2mm", marginBottom: "2mm" }}>
+                            <div style={{ width: "74mm", margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                <Barcode value={invoiceId} displayValue={false} width={1} height={50} format="CODE128" margin={2} />
+                                <div style={{ textAlign: "center", fontSize: "12px", marginTop: "2mm", wordBreak: "break-all" }}>{invoiceId}</div>
+                            </div>
+                        </div>
+                        <div style={{ borderTop: "1px dashed #000", margin: "2mm 0" }} />
+                    </>
+                )}
                 
                 <p style={{ textAlign: "center", fontWeight: "bold", marginTop: "4mm" }}>
                     THANK YOU!
@@ -168,7 +175,7 @@ export const getInvoiceHtml = (props: InvoiceProps) => {
             </head>
             <body>
                 <div style="font-family: 'Courier New', Courier, monospace; width: 72mm; padding: 3mm; font-size: 10px; color: #000; background-color: #fff; line-height: 1.2;">
-                    <h2 style="text-align: center; margin: 0 0 2mm 0; font-size: 16px; font-weight: bold;">OneBalance</h2>
+                    <img src="/assets/logo-light.svg" alt="Grocery Logo" style="display: block; margin: 0 auto 2mm auto; width: 50mm; height: auto;" />
                     <p style="text-align: center; margin: 0;">123 Grocery Lane, City</p>
                     <p style="text-align: center; margin: 0 0 4mm 0;">Phone: 555-0199</p>
                     
@@ -214,6 +221,7 @@ export const getInvoiceHtml = (props: InvoiceProps) => {
                     
                     <div style="border-top: 1px dashed #000; margin: 2mm 0;"></div>
                     
+                    ${!props.isBasketOnly ? `
                     <div style="display: flex; justify-content: space-between; margin: 1mm 0;">
                         <span>Cash Given:</span>
                         <span>$${props.cashGiven.toFixed(2)}</span>
@@ -229,8 +237,8 @@ export const getInvoiceHtml = (props: InvoiceProps) => {
                             <div style="text-align: center; font-size: 12px; margin-top: 2mm; word-break: break-all;">${invoiceId}</div>
                         </div>
                     </div>
-                    
                     <div style="border-top: 1px dashed #000; margin: 2mm 0;"></div>
+                    ` : ''}
                     
                     <p style="text-align: center; font-weight: bold; margin-top: 4mm;">
                         THANK YOU!
