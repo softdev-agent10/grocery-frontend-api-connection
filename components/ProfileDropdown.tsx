@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import { User, LogOut, UserCircle } from "lucide-react";
 
 interface ProfileDropdownProps {
@@ -29,7 +29,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen, onToggle]);
 
-  const dropdownVariants = {
+  const dropdownVariants: Variants = {
     hidden: {
       opacity: 0,
       scale: 0.95,

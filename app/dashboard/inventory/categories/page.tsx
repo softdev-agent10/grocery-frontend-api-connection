@@ -6,6 +6,8 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
+import DownloadModal from "@/components/download-modal";
 import { 
   Plus, 
   Download, 
@@ -41,6 +43,13 @@ interface Category {
   createdOn: string;
 }
 
+interface HistoryItem {
+  id: string;
+  action: "Add" | "Edit" | "Delete";
+  details: string;
+  timestamp: string;
+}
+
 type ModalType = "add" | "edit" | "download" | "filter" | "history" | "success" | null;
 
 // --- Mock Data ---
@@ -65,6 +74,8 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [successMessage, setSuccessMessage] = useState("");
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
   // Form state for Add/Edit
   const [formData, setFormData] = useState({
@@ -130,7 +141,9 @@ export default function App() {
 
   const handleDelete = (id: number) => {
     if (confirm("Are you sure you want to delete this category?")) {
+      const deletedCategory = categories.find(c => c.id === id);
       setCategories(categories.filter(c => c.id !== id));
+      addHistory("Delete", `Deleted category: ${deletedCategory?.name || 'Unknown'}`);
       showSuccess("Category deleted successfully!");
     }
   };
@@ -138,9 +151,11 @@ export default function App() {
   const handleBulkDelete = () => {
     if (selectedIds.size === 0) return;
     if (confirm(`Are you sure you want to delete ${selectedIds.size} categories?`)) {
+      const deletedCount = selectedIds.size;
       setCategories(categories.filter(c => !selectedIds.has(c.id)));
       setSelectedIds(new Set());
-      showSuccess(`${selectedIds.size} categories deleted successfully!`);
+      addHistory("Bulk Delete", `Deleted ${deletedCount} categories`);
+      showSuccess(`${deletedCount} categories deleted successfully!`);
     }
   };
 
@@ -167,6 +182,7 @@ export default function App() {
         ...c, 
         ...formData
       } : c));
+      addHistory("Edit", `Updated category: ${formData.name}`);
       showSuccess("Category updated successfully!");
     } else {
       const newCategory: Category = {
@@ -175,6 +191,7 @@ export default function App() {
         createdOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
       };
       setCategories([newCategory, ...categories]);
+      addHistory("Add", `Created new category: ${formData.name}`);
       showSuccess("New category created successfully!");
     }
     setActiveModal(null);
@@ -184,6 +201,22 @@ export default function App() {
     setSuccessMessage(msg);
     setActiveModal("success");
     setTimeout(() => setActiveModal(null), 2000);
+  };
+
+  const addHistory = (action: string, details: string) => {
+    const mapAction = (act: string): "Add" | "Edit" | "Delete" => {
+      if (act === "Add") return "Add";
+      if (act === "Delete" || act === "Bulk Delete") return "Delete";
+      return "Edit";
+    };
+
+    const newItem: HistoryItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      action: mapAction(action),
+      details,
+      timestamp: new Date().toLocaleString()
+    };
+    setHistory(prev => [newItem, ...prev].slice(0, 50));
   };
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
@@ -586,74 +619,13 @@ export default function App() {
             )}
 
             {/* Download Modal */}
-            {activeModal === "download" && (
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
-              >
-                <div className="bg-indigo-600 p-8 flex justify-between items-center text-white">
-                  <div>
-                    <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
-                      <Download size={28} /> Export Data
-                    </h2>
-                    <p className="text-indigo-100 text-sm font-medium mt-1">Choose your preferred format</p>
-                  </div>
-                  <button onClick={() => setActiveModal(null)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
-                    <X size={24} />
-                  </button>
-                </div>
-                <div className="p-8 space-y-8">
-                  <div className="space-y-4">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Current Page</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <button 
-                        onClick={() => handleDownload('current', 'pdf')}
-                        className="flex flex-col items-center justify-center gap-3 bg-rose-50 text-rose-600 border border-rose-100 p-6 rounded-3xl font-black hover:bg-rose-100 transition-all group"
-                      >
-                        <div className="bg-rose-500 text-white p-3 rounded-2xl shadow-lg group-hover:scale-110 transition-transform">
-                          <FileText size={24} />
-                        </div>
-                        PDF
-                      </button>
-                      <button 
-                        onClick={() => handleDownload('current', 'csv')}
-                        className="flex flex-col items-center justify-center gap-3 bg-emerald-50 text-emerald-600 border border-emerald-100 p-6 rounded-3xl font-black hover:bg-emerald-100 transition-all group"
-                      >
-                        <div className="bg-emerald-500 text-white p-3 rounded-2xl shadow-lg group-hover:scale-110 transition-transform">
-                          <FileText size={24} />
-                        </div>
-                        CSV
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">All Pages</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <button 
-                        onClick={() => handleDownload('all', 'pdf')}
-                        className="flex flex-col items-center justify-center gap-3 bg-rose-50 text-rose-600 border border-rose-100 p-6 rounded-3xl font-black hover:bg-rose-100 transition-all group"
-                      >
-                        <div className="bg-rose-500 text-white p-3 rounded-2xl shadow-lg group-hover:scale-110 transition-transform">
-                          <FileText size={24} />
-                        </div>
-                        PDF
-                      </button>
-                      <button 
-                        onClick={() => handleDownload('all', 'csv')}
-                        className="flex flex-col items-center justify-center gap-3 bg-emerald-50 text-emerald-600 border border-emerald-100 p-6 rounded-3xl font-black hover:bg-emerald-100 transition-all group"
-                      >
-                        <div className="bg-emerald-500 text-white p-3 rounded-2xl shadow-lg group-hover:scale-110 transition-transform">
-                          <FileText size={24} />
-                        </div>
-                        CSV
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
+            <DownloadModal
+              isOpen={activeModal === "download"}
+              onClose={() => setActiveModal(null)}
+              onDownload={handleDownload}
+              title="Export Data"
+              subtitle="Choose your preferred format"
+            />
 
             {/* Success Modal */}
             {activeModal === "success" && (
@@ -720,63 +692,13 @@ export default function App() {
             )}
 
             {/* History Modal */}
-            {activeModal === "history" && (
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200"
-              >
-                <div className="bg-indigo-600 p-6 flex justify-between items-center text-white">
-                  <h2 className="text-xl font-black flex items-center gap-3 uppercase tracking-tight">
-                    <History size={24} /> Activity Log
-                  </h2>
-                  <button onClick={() => setActiveModal(null)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
-                    <X size={24} />
-                  </button>
-                </div>
-                <div className="p-8 max-h-[60vh] overflow-y-auto">
-                  <div className="space-y-8">
-                    {[
-                      { action: "Created Category", item: "Drinks", user: "Admin", date: "Today, 10:30 AM", type: 'create' },
-                      { action: "Updated Category", item: "Electronics", user: "Manager", date: "Yesterday, 02:15 PM", type: 'update' },
-                      { action: "Deleted Category", item: "Old Stock", user: "Admin", date: "2 days ago, 11:45 AM", type: 'delete' },
-                      { action: "Created Category", item: "Furniture", user: "Admin", date: "17 Nov 2025, 09:00 AM", type: 'create' },
-                    ].map((log, i) => (
-                      <div key={i} className="flex gap-6 relative">
-                        {i !== 3 && <div className="absolute left-[19px] top-10 bottom-[-32px] w-0.5 bg-slate-100" />}
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 shadow-sm ${
-                          log.type === 'create' ? 'bg-emerald-100 text-emerald-600' : 
-                          log.type === 'update' ? 'bg-indigo-100 text-indigo-600' : 
-                          'bg-rose-100 text-rose-600'
-                        }`}>
-                          {log.type === 'create' ? <Plus size={18} /> : 
-                           log.type === 'update' ? <Edit size={18} /> : 
-                           <Trash2 size={18} />}
-                        </div>
-                        <div className="pb-2">
-                          <p className="font-black text-slate-800 text-lg leading-tight">
-                            {log.action}: <span className="text-indigo-600">{log.item}</span>
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded">By {log.user}</span>
-                            <span className="text-xs font-bold text-slate-400">• {log.date}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="p-6 bg-slate-50 border-t flex justify-end">
-                  <button 
-                    onClick={() => setActiveModal(null)}
-                    className="px-8 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-black hover:bg-slate-100 transition-all"
-                  >
-                    Close Log
-                  </button>
-                </div>
-              </motion.div>
-            )}
+            <HistoryModal
+              isOpen={activeModal === "history"}
+              onClose={() => setActiveModal(null)}
+              history={history}
+              title="Activity Log"
+              subtitle="Recent category actions"
+            />
           </div>
         )}
       </AnimatePresence>

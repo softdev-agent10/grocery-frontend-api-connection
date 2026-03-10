@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, Plus, Eye, Trash2, Edit2, TrendingUp } from "lucide-react";
+import { Heart, Plus, Eye, Trash2, Edit2, TrendingUp, Crown, Award } from "lucide-react";
 import { ToolHeader } from "../components/ToolHeader";
 import { DataTable } from "../components/DataTable";
 import { StatCard } from "../components/StatCard";
@@ -51,8 +51,21 @@ const mockData: LoyaltyCard[] = [
 export default function LoyaltyCardPage() {
   const [searchValue, setSearchValue] = useState("");
   const [records, setRecords] = useState<LoyaltyCard[]>(mockData);
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
+  const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
+    const dataToExport = scope === 'current' ? records.slice(0, 5) : records;
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `loyalty-cards_${scope}_${new Date().getTime()}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setIsDownloadModalOpen(false);
+  };
   const filteredRecords = records.filter(
     (record) =>
       record.memberName.toLowerCase().includes(searchValue.toLowerCase()) ||
@@ -112,13 +125,13 @@ export default function LoyaltyCardPage() {
           color="green"
         />
         <StatCard
-          icon={<span className="text-2xl">👑</span>}
+          icon={<Crown size={24} />}
           label="Gold Members"
           value={records.filter((r) => r.tier === "Gold").length}
           color="yellow"
         />
         <StatCard
-          icon={<span className="text-2xl">🏅</span>}
+          icon={<Award size={24} />}
           label="Silver Members"
           value={records.filter((r) => r.tier === "Silver").length}
           color="blue"

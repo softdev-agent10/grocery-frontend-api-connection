@@ -28,6 +28,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
+import DownloadModal from "@/components/download-modal";
 
 interface Product {
   id: number;
@@ -43,8 +45,8 @@ interface Product {
 }
 
 interface HistoryItem {
-  id: number;
-  action: string;
+  id: string;
+  action: "Add" | "Edit" | "Delete";
   details: string;
   timestamp: string;
 }
@@ -68,7 +70,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -106,9 +108,15 @@ export default function App() {
   });
 
   const addHistory = (action: string, details: string) => {
+    const mapAction = (act: string): "Add" | "Edit" | "Delete" => {
+      if (act === "Add") return "Add";
+      if (act === "Delete" || act === "Bulk Delete") return "Delete";
+      return "Edit"; // Default for Edit, Download, and other actions
+    };
+
     const newItem: HistoryItem = {
-      id: Date.now(),
-      action,
+      id: Math.random().toString(36).substr(2, 9),
+      action: mapAction(action),
       details,
       timestamp: new Date().toLocaleString()
     };
@@ -272,7 +280,7 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
     addHistory("Download", `Exported ${scope === 'current' ? 'current page' : 'all'} products as CSV`);
-    setIsDownloadMenuOpen(false);
+    setIsDownloadModalOpen(false);
   };
 
   const downloadPDF = (scope: 'current' | 'all') => {
@@ -295,7 +303,7 @@ export default function App() {
     
     doc.save(`products_${scope}_${new Date().getTime()}.pdf`);
     addHistory("Download", `Exported ${scope === 'current' ? 'current page' : 'all'} products as PDF`);
-    setIsDownloadMenuOpen(false);
+    setIsDownloadModalOpen(false);
   };
 
   return (
@@ -345,53 +353,22 @@ export default function App() {
             <motion.button 
               whileHover={{ scale: 1.05, y: -2 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
+              onClick={() => setIsDownloadModalOpen(true)}
               className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-400 text-slate-700 px-6 py-3 rounded-xl font-bold transition-all shadow-sm"
             >
-              <Download size={20} /> Download <ChevronDown size={16} className={`transition-transform duration-300 ${isDownloadMenuOpen ? 'rotate-180' : ''}`} />
+              <Download size={20} /> Download <ChevronDown size={16} />
             </motion.button>
-            
-            <AnimatePresence>
-              {isDownloadMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setIsDownloadMenuOpen(false)} />
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-slate-100 z-20 overflow-hidden"
-                  >
-                    <div className="p-3 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Current Page</div>
-                    <button 
-                      onClick={() => downloadPDF('current')}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <FileText size={16} className="text-red-500" /> PDF
-                    </button>
-                    <button 
-                      onClick={() => downloadCSV('current')}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-100"
-                    >
-                      <TableIcon size={16} className="text-emerald-500" /> CSV
-                    </button>
 
-                    <div className="p-3 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">All Pages</div>
-                    <button 
-                      onClick={() => downloadPDF('all')}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <FileText size={16} className="text-red-500" /> PDF
-                    </button>
-                    <button 
-                      onClick={() => downloadCSV('all')}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <TableIcon size={16} className="text-emerald-500" /> CSV
-                    </button>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+            <DownloadModal
+              isOpen={isDownloadModalOpen}
+              onClose={() => setIsDownloadModalOpen(false)}
+              onDownload={(scope, format) => {
+                if (format === 'pdf') downloadPDF(scope);
+                else downloadCSV(scope);
+              }}
+              title="Export Products"
+              subtitle="Choose your preferred format"
+            />
           </div>
 
           {/* Filter Dropdown */}
@@ -414,8 +391,8 @@ export default function App() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-100 z-20 overflow-hidden max-h-[80vh] overflow-y-auto"
-                  >
-                    <div className="p-3 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Status</div>
+                  >                  
+                        <div className="p-3 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Status</div>
                     {["All", "Active", "Inactive"].map((status) => (
                       <button 
                         key={status}
@@ -552,7 +529,7 @@ export default function App() {
                   <th className="p-6 font-bold text-xs uppercase tracking-widest text-white">Product Name</th>
                   <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">UPC</th>
                   <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Category</th>
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Brand</th>
+                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Brand</th> 
                   <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Price</th>
                   <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Pricing Type</th>
                   <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Unit</th>
@@ -765,7 +742,7 @@ export default function App() {
                 <button 
                   onClick={() => setIsModalOpen(false)}
                   className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors relative z-10"
-                >
+                >    
                   <X size={24} />
                 </button>
               </div>
@@ -947,73 +924,13 @@ export default function App() {
       </AnimatePresence>
 
       {/* History Modal Section */}
-      <AnimatePresence>
-        {isHistoryOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-end p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsHistoryOpen(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ x: 400, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 400, opacity: 0 }}
-              className="relative bg-white h-full w-full max-w-md shadow-2xl overflow-hidden flex flex-col rounded-l-[3rem]"
-            >
-              <div className="bg-slate-900 p-10 flex justify-between items-center text-white">
-                <div>
-                  <h2 className="text-3xl font-black tracking-tight">Activity Log</h2>
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Recent inventory actions</p>
-                </div>
-                <button 
-                  onClick={() => setIsHistoryOpen(false)}
-                  className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="flex-grow overflow-y-auto p-10 space-y-8">
-                {history.length > 0 ? (
-                  history.map((item) => (
-                    <div key={item.id} className="flex gap-4 relative">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
-                          item.action === 'Add' ? 'bg-emerald-100 text-emerald-600' :
-                          item.action === 'Edit' ? 'bg-blue-100 text-blue-600' :
-                          'bg-red-100 text-red-600'
-                        }`}>
-                          {item.action === 'Add' ? <Plus size={20} /> :
-                           item.action === 'Edit' ? <SquarePen size={20} /> :
-                           <Trash2 size={20} />}
-                        </div>
-                        <div className="w-0.5 h-full bg-slate-100 mt-2" />
-                      </div>
-                      <div className="pb-8">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-black text-slate-800">{item.action}</span>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                            <Clock size={10} /> {item.timestamp}
-                          </span>
-                        </div>
-                        <p className="text-slate-500 text-sm font-medium leading-relaxed">{item.details}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-4">
-                    <Clock size={64} strokeWidth={1} />
-                    <p className="font-bold italic">No activity recorded yet.</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <HistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+        title="Activity Log"
+        subtitle="Recent inventory actions"
+      />
     </div>
   );
 }
