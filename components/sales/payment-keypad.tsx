@@ -188,7 +188,7 @@ export default function PaymentKeypad({
                             className="h-full text-[10px] sm:text-xs xl:text-xl font-bold bg-[#eab308] text-white border-2 border-black hover:bg-[#ca8a04] px-0.5"
                             onClick={() => onAction('Other')}
                         >
-                            Other
+                            MFS
                         </Button>
                         <Button
                             variant="outline"
