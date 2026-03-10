@@ -1,20 +1,28 @@
 "use client"
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
-import { Bell, LayoutDashboard, Maximize, RefreshCcw, Settings, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Maximize, RefreshCcw, Menu, X } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { format } from 'date-fns'
 
 export default function SalesNavbar() {
     const [menuOpen, setMenuOpen] = useState(false)
     const [isFullscreen, setIsFullscreen] = useState(false)
+    const [currentTime, setCurrentTime] = useState(new Date())
     const router = useRouter()
 
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(new Date())
+        }, 1000)
+
+        return () => clearInterval(timer)
+    }, [])
+
     const iconButtons = [
-        { icon: Settings, label: 'Settings' },
         { icon: Maximize, label: 'Maximize' },
-        { icon: RefreshCcw, label: 'Refresh' },
-        { icon: Bell, label: 'Notifications' },
+        { icon: RefreshCcw, label: 'Refresh' }
     ]
 
     const handleIconClick = (label: string) => {
@@ -64,17 +72,16 @@ export default function SalesNavbar() {
                             <span className='text-base'>Dashboard</span>
                         </Button>
                     </a>
-                    <div className="hidden md:flex flex-col items-end text-lg text-white ml-1">
-                        <span>07 January 2026</span>
-                        <span className="font-semibold">04:10 AM (GMT)</span>
-                    </div>
+                    {isFullscreen && (
+                        <div className="hidden md:flex flex-col items-end text-lg text-white ml-1 min-w-[140px]">
+                            <span className="text-sm font-medium opacity-90">{format(currentTime, 'dd MMMM yyyy')}</span>
+                            <span className="font-bold tracking-tight tabular-nums">{format(currentTime, 'hh:mm:ss a')}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Mobile Hamburger */}
                 <div className='flex md:hidden items-center gap-2'>
-                    <Button variant="outline" size="icon" className='size-9' aria-label="Notifications">
-                        <Bell className='size-5' />
-                    </Button>
                     <Button
                         variant="outline"
                         size="icon"
