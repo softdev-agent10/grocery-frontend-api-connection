@@ -47,10 +47,10 @@ export function SalesActionsDialog({
     )
   }
 
-  if (title === "Miscellaneous") {
+  if (title === "Item Pricing" || title === "Quick Add") {
     return(
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-4xl p-0 border-0 bg-transparent shadow-none overflow-visible" showCloseButton={false}>
+        <DialogContent className="sm:max-w-fit p-0 border-0 bg-transparent shadow-none overflow-visible" showCloseButton={false}>
           <VisuallyHidden>
             <DialogTitle>{title}</DialogTitle>
           </VisuallyHidden>

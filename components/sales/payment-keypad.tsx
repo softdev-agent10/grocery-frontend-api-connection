@@ -20,6 +20,8 @@ export default function PaymentKeypad({
     subtotal,
     total,
     hasItems,
+    onSetDiscount,
+    onSetTax,
     onAction,
     showNotification
 }: PaymentKeypadProps) {

@@ -68,13 +68,20 @@ export default function Invoice({
                         </tr>
                     </thead>
                     <tbody>
-                        {items.map(item => (
-                            <tr key={item.id}>
-                                <td style={{ padding: "1mm 0", verticalAlign: "top" }}>{item.name}</td>
-                                <td style={{ textAlign: "right", padding: "1mm 0", verticalAlign: "top" }}>{item.qty}</td>
-                                <td style={{ textAlign: "right", padding: "1mm 0", verticalAlign: "top" }}>${(item.price * item.qty).toFixed(2)}</td>
-                            </tr>
-                        ))}
+                        {items.map(item => {
+                            const itemSubtotal = item.price * item.qty;
+                            const itemDiscount = item.discountType === "percentage"
+                                ? (itemSubtotal * (item.discountValue || 0)) / 100
+                                : (item.discountValue || 0);
+                            const itemTotal = itemSubtotal - itemDiscount;
+                            return (
+                                <tr key={item.id}>
+                                    <td style={{ padding: "1mm 0", verticalAlign: "top" }}>{item.name}</td>
+                                    <td style={{ textAlign: "right", padding: "1mm 0", verticalAlign: "top" }}>{item.qty}</td>
+                                    <td style={{ textAlign: "right", padding: "1mm 0", verticalAlign: "top" }}>${itemTotal.toFixed(2)}</td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
                 

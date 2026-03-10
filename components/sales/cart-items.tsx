@@ -10,16 +10,18 @@ export type CartItemType = {
     price: number;
     qty: number;
     promotion?: string;
+    discountValue?: number;
+    discountType?: 'percentage' | 'flat';
 };
 
 type Props = {
     item: CartItemType;
     onDelete: (id: string) => void;
     onUpdate: (id: string, qty: number) => void;
-    onDoubleTap: () => void;
+    onEdit: (item: CartItemType) => void;
 };
 
-export default function CartItem({ item, onDelete, onUpdate, onDoubleTap }: Props) {
+export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
     const startX = useRef<number | null>(null);
     const [translateX, setTranslateX] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -62,7 +64,7 @@ export default function CartItem({ item, onDelete, onUpdate, onDoubleTap }: Prop
 
         if (now - lastTap.current < DOUBLE_TAP_DELAY) {
             // Double tap detected
-            onDoubleTap();
+            onEdit(item);
             // Reset to prevent triple tap from triggering twice
             lastTap.current = 0;
         } else {
@@ -117,7 +119,7 @@ export default function CartItem({ item, onDelete, onUpdate, onDoubleTap }: Prop
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                onDoubleClick={onDoubleTap}
+                onDoubleClick={() => onEdit(item)}
                 style={{
                     transform: `translateX(${translateX}px)`,
                 }}
@@ -179,8 +181,21 @@ export default function CartItem({ item, onDelete, onUpdate, onDoubleTap }: Prop
 
                         {/* Price and Delete */}
                         <div className="flex items-center gap-2 xl:gap-4 shrink-0 min-w-[80px] xl:min-w-[140px] justify-end">
-                            <div className="text-right text-md xl:text-2xl font-bold truncate">
-                                ${(item.price * item.qty).toFixed(2)}
+                            <div className="text-right flex flex-col items-end">
+                                {item.discountValue && item.discountValue > 0 ? (
+                                    <>
+                                        <div className="text-gray-500/50 text-xs xl:text-sm line-through font-bold">
+                                            ${(item.price * item.qty).toFixed(2)}
+                                        </div>
+                                        <div className="text-md xl:text-2xl font-black text-blue-600">
+                                            ${((item.price * item.qty) - (item.discountType === 'percentage' ? (item.price * item.qty * item.discountValue) / 100 : item.discountValue)).toFixed(2)}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-md xl:text-2xl font-black truncate text-gray-900">
+                                        ${(item.price * item.qty).toFixed(2)}
+                                    </div>
+                                )}
                             </div>
                             <button
                                 onClick={(e) => {

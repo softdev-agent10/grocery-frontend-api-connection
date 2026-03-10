@@ -11,6 +11,8 @@ interface OrderItem {
     name: string;
     price: number;
     qty: number;
+    discountValue?: number;
+    discountType?: 'percentage' | 'flat';
 }
 
 export interface Order {
@@ -178,16 +180,23 @@ export default function OrderHistory({ orders, onClose, onReprint, onRefund }: O
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
-                                            {selectedOrder.items.map((item) => (
-                                                <tr key={item.id} className="text-sm hover:bg-gray-50/50 transition-colors">
-                                                    <td className="p-4">
-                                                        <p className="font-bold text-gray-800">{item.name}</p>
-                                                        <p className="text-xs text-gray-400">${item.price.toFixed(2)} / unit</p>
-                                                    </td>
-                                                    <td className="p-4 text-center text-gray-600 font-medium">{item.qty}</td>
-                                                    <td className="p-4 text-right font-black text-gray-900">${(item.price * item.qty).toFixed(2)}</td>
-                                                </tr>
-                                            ))}
+                                            {selectedOrder.items.map((item) => {
+                                                const itemSubtotal = item.price * item.qty;
+                                                const itemDiscount = item.discountType === "percentage"
+                                                    ? (itemSubtotal * (item.discountValue || 0)) / 100
+                                                    : (item.discountValue || 0);
+                                                const itemTotal = itemSubtotal - itemDiscount;
+                                                return (
+                                                    <tr key={item.id} className="text-sm hover:bg-gray-50/50 transition-colors">
+                                                        <td className="p-4">
+                                                            <p className="font-bold text-gray-800">{item.name}</p>
+                                                            <p className="text-xs text-gray-400">${item.price.toFixed(2)} / unit</p>
+                                                        </td>
+                                                        <td className="p-4 text-center text-gray-600 font-medium">{item.qty}</td>
+                                                        <td className="p-4 text-right font-black text-gray-900">${itemTotal.toFixed(2)}</td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

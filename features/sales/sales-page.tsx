@@ -1,7 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, ReactNode } from "react";
+import { useState, ReactNode, useMemo } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks";
+import {
+    addItem,
+    updateItemQty,
+    updateItem,
+    removeItem,
+    setCustomer,
+    setTaxPercent,
+    setDiscount,
+    setTaxFree,
+    cancelSale,
+    holdSale,
+    resumeSale,
+    deleteHeldSale,
+    addToHistory,
+    setSelectedCategory,
+    setSearchQuery,
+    HeldSale,
+} from "./sales-slice";
 import { Button } from "@/components/ui/button";
 import { Banknote, Calculator, ClockFading, Coffee, CookingPot, CreditCard, Download, Gift, HandCoins, History, IdCard, Upload, User, X, PauseCircle, CirclePlus, Apple, Drumstick, Milk, Croissant, Wine, IceCream, Cookie, Home, Banana, Search, BanknoteX, Printer } from "lucide-react";
 import { SalesActionsDialog } from "@/components/sales/sales-actions-modal";
@@ -23,6 +42,7 @@ import Invoice from "@/components/sales/invoice";
 import DiscountModal from "@/components/sales/discount-modal";
 import QuickAddModal from "@/components/sales/quick-add-modal";
 import OrderHistory, { Order } from "@/components/sales/order-history";
+import ItemPricingModal from "@/components/sales/item-pricing-modal";
 
 interface Product {
     id: string;
@@ -34,17 +54,6 @@ interface Product {
     icon?: ReactNode;
     image?: string;
     promotion?: string;
-}
-
-interface HeldSale {
-    id: string;
-    items: CartItemType[];
-    customer: { name: string; contact: string } | null;
-    taxPercent: number;
-    isTaxFree: boolean;
-    discountValue: number;
-    discountType: "percentage" | "flat";
-    heldAt: Date;
 }
 
 const CATEGORIES = [
@@ -78,33 +87,44 @@ const PRODUCTS: Product[] = [
 ];
 
 export default function SalesPage() {
+    const dispatch = useAppDispatch();
+    const {
+        items,
+        customer,
+        taxPercent,
+        discountValue,
+        discountType,
+        isTaxFree,
+        history,
+        heldSales,
+        selectedCategory,
+        searchQuery,
+    } = useAppSelector((state) => state.sales);
+
     const [modalOpen, setModalOpen] = useState(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [cashPaymentOpen, setCashPaymentOpen] = useState(false);
     const [cashGiven, setCashGiven] = useState(0);
-    const [modalTitle, setModalTitle] = useState<ReactNode>(null);
-    const [modalContent, setModalContent] = useState<ReactNode>(null);
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [items, setItems] = useState<CartItemType[]>([]);
-    const [customer, setCustomer] = useState<{ name: string; contact: string } | null>(null);
-    const [taxPercent, setTaxPercent] = useState(0);
-    const [discountValue, setDiscountValue] = useState(0);
-    const [discountType, setDiscountType] = useState<"percentage" | "flat">("percentage");
-    const [isTaxFree, setIsTaxFree] = useState(false);
+    const [modalTitle, setModalTitle] = useState<string>("");
+    const [modalType, setModalType] = useState<string | null>(null);
     const [keypadResetKey, setKeypadResetKey] = useState(0);
     const [printRequested, setPrintRequested] = useState(false);
     const [isBasketOnlyPrint, setIsBasketOnlyPrint] = useState(false);
-    const [history, setHistory] = useState<Order[]>([]);
     const [reprintOrder, setReprintOrder] = useState<Order | null>(null);
-    const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
+    const [editingItem, setEditingItem] = useState<CartItemType | null>(null);
 
     const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
         setNotification({ message, type });
         setTimeout(() => setNotification(null), 3000);
     };
 
-    const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+    const subtotal = items.reduce((sum, item) => {
+        const itemSubtotal = item.price * item.qty;
+        const itemDiscount = item.discountType === "percentage"
+            ? (itemSubtotal * (item.discountValue || 0)) / 100
+            : (item.discountValue || 0);
+        return sum + (itemSubtotal - itemDiscount);
+    }, 0);
     const taxAmount = isTaxFree ? 0 : (subtotal * taxPercent) / 100;
     const discountAmount =
         discountType === "percentage"
@@ -113,30 +133,23 @@ export default function SalesPage() {
     const total = Math.max(0, subtotal + taxAmount - discountAmount);
 
     const handleApplyDiscount = (type: "percentage" | "flat", val: number) => {
-        setDiscountType(type);
-        setDiscountValue(val);
+        dispatch(setDiscount({ type, value: val }));
         setModalOpen(false);
     };
 
     const handleCancelDiscount = () => {
-        setDiscountValue(0);
-        setDiscountType("percentage");
+        dispatch(setDiscount({ type: "percentage", value: 0 }));
         setModalOpen(false);
     };
 
     const handleCancelSale = () => {
-        setItems([]);
-        setCustomer(null);
-        setTaxPercent(0);
-        setIsTaxFree(false);
-        setDiscountValue(0);
-        setDiscountType("percentage");
+        dispatch(cancelSale());
         setKeypadResetKey(prev => prev + 1);
     };
 
     const handleHoldSale = () => {
         if (items.length === 0) return;
-        const newHeldSale: HeldSale = {
+        const newHeldSale = {
             id: uuidv4(),
             items: [...items],
             customer,
@@ -144,25 +157,19 @@ export default function SalesPage() {
             isTaxFree,
             discountValue,
             discountType,
-            heldAt: new Date(),
+            heldAt: new Date().toISOString(),
         };
-        setHeldSales(prev => [...prev, newHeldSale]);
-        handleCancelSale();
+        dispatch(holdSale(newHeldSale));
+        setKeypadResetKey(prev => prev + 1);
     };
 
     const handleResumeSale = (heldSale: HeldSale) => {
-        setItems(heldSale.items);
-        setCustomer(heldSale.customer);
-        setTaxPercent(heldSale.taxPercent);
-        setIsTaxFree(heldSale.isTaxFree);
-        setDiscountValue(heldSale.discountValue);
-        setDiscountType(heldSale.discountType);
-        setHeldSales(prev => prev.filter(sale => sale.id !== heldSale.id));
+        dispatch(resumeSale(heldSale.id));
         setModalOpen(false);
     };
 
     const handleDeleteHeldSale = (id: string) => {
-        setHeldSales(prev => prev.filter(sale => sale.id !== id));
+        dispatch(deleteHeldSale(id));
     };
 
     const handleHistoryReprint = (order: Order) => {
@@ -177,7 +184,7 @@ export default function SalesPage() {
         }, 500);
     };
 
-    const handleHistoryRefund = (order: any) => {
+    const handleHistoryRefund = (order: Order) => {
         showNotification(`Refund processed for ${order.id}`, "success");
         // In a real app, this would update the backend/store
     };
@@ -185,7 +192,7 @@ export default function SalesPage() {
     function handleAction(type: string, data?: any) {
         // If it's a category, just set it
         if (CATEGORIES.find(c => c.name === type)) {
-            setSelectedCategory(type);
+            dispatch(setSelectedCategory(type));
             return;
         }
 
@@ -196,9 +203,8 @@ export default function SalesPage() {
         }
 
         if (type === "Tax Free") {
-            setIsTaxFree(!isTaxFree);
+            dispatch(setTaxFree(!isTaxFree));
             if (!isTaxFree) {
-                setTaxPercent(0);
                 showNotification("Tax Free mode enabled", "success");
             } else {
                 showNotification("Tax Free mode disabled", "success");
@@ -221,32 +227,30 @@ export default function SalesPage() {
             return;
         }
 
-        // customize title and content based on type
+        // customize title and type based on type
         setModalTitle(`${type}`);
-        switch (type) {
+        setModalType(type);
+        setModalOpen(true);
+    }
+
+    const renderModalContent = () => {
+        switch (modalType) {
             case "Customer":
-                setModalContent(<CustomerModal customer={customer} setCustomer={setCustomer} />);
-                break;
+                return <CustomerModal customer={customer} setCustomer={(c: { name: string; contact: string } | null) => dispatch(setCustomer(c))} />;
             case "Membership Card Lookup":
-                setModalContent(<MembershipModal />);
-                break
+                return <MembershipModal />;
             case "Loyalty Card Lookup":
-                setModalContent(<LoyaltyModal />);
-                break
+                return <LoyaltyModal />;
             case "Find Gift Card":
-                setModalContent(<GiftCardModal />)
-                break
+                return <GiftCardModal />;
             case "Calculator":
-                setModalContent(<CalculatorUI />)
-                break
+                return <CalculatorUI />;
             case "CashIn":
-                setModalContent(<CashInForm />)
-                break
+                return <CashInForm />;
             case "CashOut":
-                setModalContent(<CashOutForm />)
-                break
+                return <CashOutForm />;
             case "Discount":
-                setModalContent(
+                return (
                     <DiscountModal
                         initialType={discountType}
                         initialValue={discountValue}
@@ -254,20 +258,18 @@ export default function SalesPage() {
                         onCancel={handleCancelDiscount}
                     />
                 );
-                break
-            case "Miscellaneous":
-                setModalContent(
+            case "Quick Add":
+                return (
                     <QuickAddModal
-                        onConfirm={(newItems) => {
-                            setItems(prev => [...prev, ...newItems]);
+                        onConfirm={(newItems: CartItemType[]) => {
+                            newItems.forEach((item) => dispatch(addItem(item)));
                             setModalOpen(false);
                         }}
                         onCancel={() => setModalOpen(false)}
                     />
                 );
-                break
             case "History":
-                setModalContent(
+                return (
                     <OrderHistory 
                         orders={history}
                         onClose={() => setModalOpen(false)} 
@@ -275,9 +277,29 @@ export default function SalesPage() {
                         onRefund={handleHistoryRefund}
                     />
                 );
-                break
+            case "Item Pricing":
+                if (!editingItem) return null;
+                return (
+                    <ItemPricingModal
+                        item={editingItem}
+                        onSave={(id, updates) => {
+                            dispatch(updateItem({ id, updates }));
+                            setModalOpen(false);
+                            setEditingItem(null);
+                        }}
+                        onRemove={(id) => {
+                            dispatch(removeItem(id));
+                            setModalOpen(false);
+                            setEditingItem(null);
+                        }}
+                        onCancel={() => {
+                            setModalOpen(false);
+                            setEditingItem(null);
+                        }}
+                    />
+                );
             case "Recent Holds":
-                setModalContent(
+                return (
                     <div className="space-y-4 p-4">
                         {heldSales.length === 0 ? (
                             <p className="text-center py-8 text-gray-500">No held sales found.</p>
@@ -290,7 +312,7 @@ export default function SalesPage() {
                                             <p className="text-sm text-gray-500">
                                                 {sale.items.length} items • ${sale.items.reduce((sum, item) => sum + item.price * item.qty, 0).toFixed(2)}
                                             </p>
-                                            <p className="text-xs text-gray-400">{sale.heldAt.toLocaleString()}</p>
+                                            <p className="text-xs text-gray-400">{new Date(sale.heldAt).toLocaleString()}</p>
                                         </div>
                                         <div className="flex gap-2">
                                              <Button type="button" size="sm" onClick={() => handleResumeSale(sale)}>Resume</Button>
@@ -304,23 +326,20 @@ export default function SalesPage() {
                         )}
                     </div>
                 );
-                break
 
             default:
-                setModalContent(
+                return (
                     <div className="space-y-2">
-                        <p>Here you can put any form or information related to <strong>{type}</strong>.</p>
+                        <p>Here you can put any form or information related to <strong>{modalType}</strong>.</p>
                         <input
                             type="text"
-                            placeholder={`Enter ${type} details...`}
+                            placeholder={`Enter ${modalType} details...`}
                             className="w-full border p-2 rounded"
                         />
                     </div>
                 );
-                break;
         }
-        setModalOpen(true);
-    }
+    };
 
     const handlePrintBasket = () => {
         if (items.length === 0) {
@@ -354,46 +373,41 @@ export default function SalesPage() {
             cashGiven,
             change: cashGiven - total
         };
-        setHistory(prev => [newOrder, ...prev]);
+        dispatch(addToHistory(newOrder));
 
         setPrintRequested(true);
         setTimeout(() => {
             window.print();
             setCashPaymentOpen(false);
-            setItems([]);
-            setCustomer(null);
-            setTaxPercent(0);
-            setIsTaxFree(false);
-            setDiscountValue(0);
-            setDiscountType("percentage");
+            dispatch(cancelSale());
             setKeypadResetKey(prev => prev + 1);
             setPrintRequested(false);
         }, 300);
     };
 
     const handleAddToCart = (product: Product) => {
-        setItems(prev => {
-            const existing = prev.find(i => i.id === product.id);
-            if (existing) {
-                if (existing.qty >= product.stock) return prev;
-                return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
-            }
-            if (product.stock <= 0) return prev;
-            return [...prev, { id: product.id, name: product.name, price: product.price, qty: 1, promotion: product.promotion }];
-        });
+        if (product.stock <= 0) return;
+        
+        const currentQty = items.find(i => i.id === product.id)?.qty || 0;
+        if (currentQty >= product.stock) return;
+
+        dispatch(addItem({ 
+            id: product.id, 
+            name: product.name, 
+            price: product.price, 
+            qty: 1, 
+            promotion: product.promotion 
+        }));
     };
 
     const handleUpdateQuantity = (id: string, qty: number) => {
         const product = PRODUCTS.find(p => p.id === id);
         if (product && qty > product.stock) return;
-
-        setItems((prev) =>
-            prev.map((item) => (item.id === id ? { ...item, qty } : item))
-        );
+        dispatch(updateItemQty({ id, qty }));
     };
 
     const handleDelete = (id: string) => {
-        setItems((prev) => prev.filter((item) => item.id !== id));
+        dispatch(removeItem(id));
     };
 
     const handleBarcodeScan = (barcode: string) => {
@@ -453,7 +467,16 @@ export default function SalesPage() {
                                 <div className="space-y-3 mt-2 overflow-y-auto h-[calc(100%-1rem)] xl:h-[calc(100%-3rem)] custom-scrollbar">
                                     {items.length > 0 ? (
                                         items.map((item) => (
-                                            <CartItem key={item.id} item={item} onDelete={handleDelete} onUpdate={handleUpdateQuantity} onDoubleTap={() => setModalOpen(true)} />
+                                            <CartItem 
+                                                key={item.id} 
+                                                item={item} 
+                                                onDelete={handleDelete} 
+                                                onUpdate={handleUpdateQuantity} 
+                                                onEdit={(item) => {
+                                                    setEditingItem(item);
+                                                    handleAction("Item Pricing");
+                                                }} 
+                                            />
                                         ))
                                     ) : (
                                         <div className="h-full flex flex-col items-center justify-center py-20 px-4 text-center">
@@ -580,17 +603,17 @@ export default function SalesPage() {
                                             placeholder="Search products or scan barcode..."
                                             className="w-full h-8 sm:h-10 md:h-12 pl-10 border-2 border-gray-400 focus:border-blue-500 focus:ring-0 text-sm sm:text-base rounded-xl"
                                             value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            onChange={(e) => dispatch(setSearchQuery(e.target.value))}
                                         />
                                     </div>
                                     <Button
                                         variant="outline"
                                         className="h-8 sm:h-10 md:h-12 border-2 border-gray-400 hover:bg-gray-100 px-3 sm:px-4 rounded-xl shrink-0 flex items-center justify-center"
-                                        onClick={() => handleAction('Miscellaneous')}
+                                        onClick={() => handleAction('Quick Add')}
                                     >
-                                        <CirclePlus className="size-5 sm:mr-2" />
-                                        <span className="hidden sm:inline text-sm font-semibold">Miscellaneous</span>
-                                        <span className="sm:hidden text-xs font-semibold">Misc</span>
+                                        <CirclePlus className="size-5" />
+                                        <span className="hidden sm:inline text-sm font-semibold">Quick Add</span>
+                                        <span className="sm:hidden text-xs font-semibold">Add</span>
                                     </Button>
                                 </div>
 
@@ -625,8 +648,8 @@ export default function SalesPage() {
                                                     size="sm"
                                                     className="h-8 sm:h-10 flex items-center gap-2 hover:bg-gray-100 px-2 sm:px-3"
                                                     onClick={() => {
-                                                        setSelectedCategory(null);
-                                                        setSearchQuery("");
+                                                        dispatch(setSelectedCategory(null));
+                                                        dispatch(setSearchQuery(""));
                                                     }}
                                                 >
                                                     <ArrowLeft className="size-5" />
@@ -870,8 +893,8 @@ export default function SalesPage() {
                                         subtotal={subtotal}
                                         total={total}
                                         hasItems={items.length > 0}
-                                        onSetDiscount={setDiscountValue}
-                                        onSetTax={setTaxPercent}
+                                        onSetDiscount={(val: number) => dispatch(setDiscount({ type: 'percentage', value: val }))}
+                                        onSetTax={(val: number) => dispatch(setTaxPercent(val))}
                                         onAction={handleAction}
                                         showNotification={showNotification}
                                     />
@@ -895,20 +918,19 @@ export default function SalesPage() {
                 onProcess={handleProcessAndPrint}
             />
 
-            {/* Dialog controlled externally */}
             <SalesActionsDialog
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 title={modalTitle}
-                showFooter={modalTitle !== "Recent Holds" && modalTitle !== "History"}
-                showHeader={modalTitle !== "History"}
+                showFooter={modalTitle !== "Recent Holds" && modalTitle !== "History" && modalTitle !== "Item Pricing"}
+                showHeader={modalTitle !== "History" && modalTitle !== "Item Pricing"}
                 className={modalTitle === "History" ? "sm:max-w-5xl p-0 overflow-hidden" : ""}
                 onSubmit={(e) => {
                     e.preventDefault();
                     setModalOpen(false);
                 }}
             >
-                {modalContent}
+                {renderModalContent()}
             </SalesActionsDialog>
             {printRequested && (
                 <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
