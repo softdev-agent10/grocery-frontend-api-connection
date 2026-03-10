@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion, Variants } from "framer-motion";
+import { motion ,Variants} from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface TableColumn {
@@ -39,12 +39,8 @@ export const DataTable: React.FC<DataTableProps> = ({
   const endIdx = startIdx + itemsPerPage;
   const currentData = data.slice(startIdx, endIdx);
 
-  // Fix: Properly type the variants with Variants from framer-motion
   const rowVariants: Variants = {
-    hidden: { 
-      opacity: 0, 
-      x: -20 
-    },
+    hidden: { opacity: 0, x: -20 },
     visible: (i: number) => ({
       opacity: 1,
       x: 0,
@@ -68,7 +64,7 @@ export const DataTable: React.FC<DataTableProps> = ({
         <table className="w-full">
           {/* Table Header */}
           <thead>
-            <tr className="bg-gradient-to-r from-green-500 to-emerald-500 border-b border-gray-200">
+            <tr className="bg-blue-600 border-b border-gray-200">
               {columns.map((column) => (
                 <th
                   key={column.key}

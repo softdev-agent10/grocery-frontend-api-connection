@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Plus, Edit3, Trash2, Search, Download, Filter, X, Check, FileText, Table as TableIcon, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import DownloadModal from "@/components/download-modal";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -86,6 +87,12 @@ export default function WarrantyApp() {
     setWarranties(warranties.filter(w => w.id !== id));
   };
 
+  const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
+    if (format === 'pdf') downloadAsPDF(scope);
+    else downloadAsCSV(scope);
+    setIsDownloadModalOpen(false);
+  };
+
   const filteredWarranties = useMemo(() => {
     return warranties.filter(w => {
       const matchesSearch = w.productName.toLowerCase().includes(searchTerm.toLowerCase()) || w.upc.includes(searchTerm);
@@ -97,28 +104,28 @@ export default function WarrantyApp() {
 
   const uniqueDurations = Array.from(new Set(warranties.map(w => w.duration))).filter(Boolean);
 
-  const downloadAsCSV = () => {
+  const downloadAsCSV = (scope: 'current' | 'all' = 'current') => {
+    const data = scope === 'current' ? filteredWarranties : warranties;
     const headers = ["Product,Date,UPC,Duration,Status"];
-    const rows = filteredWarranties.map(w => `${w.productName},${w.manufacturerDate},${w.upc},${w.duration},${w.status}`);
+    const rows = data.map(w => `${w.productName},${w.manufacturerDate},${w.upc},${w.duration},${w.status}`);
     const blob = new Blob([[headers, ...rows].join("\n")], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "warranties.csv";
+    a.download = `warranties_${scope}.csv`;
     a.click();
-    setIsDownloadModalOpen(false);
   };
 
-  const downloadAsPDF = () => {
+  const downloadAsPDF = (scope: 'current' | 'all' = 'current') => {
+    const data = scope === 'current' ? filteredWarranties : warranties;
     const doc = new jsPDF();
     doc.text("Warranty Report", 14, 15);
     autoTable(doc, {
       startY: 25,
       head: [["Product", "UPC", "Duration", "Status"]],
-      body: filteredWarranties.map(w => [w.productName, w.upc, w.duration, w.status]),
+      body: data.map(w => [w.productName, w.upc, w.duration, w.status]),
     });
-    doc.save("warranties.pdf");
-    setIsDownloadModalOpen(false);
+    doc.save(`warranties_${scope}.pdf`);
   };
 
   if (!mounted) return null; // Prevents hydration error
@@ -230,23 +237,27 @@ export default function WarrantyApp() {
         </AnimatePresence>
 
         {/* Download Modal */}
-        <AnimatePresence>
-          {isDownloadModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white rounded-2xl w-full max-w-xs shadow-2xl p-6 border">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold">Download As</h3>
-                  <button onClick={() => setIsDownloadModalOpen(false)}><X size={18}/></button>
-                </div>
-                <div className="space-y-3">
-                  <button onClick={downloadAsPDF} className="w-full flex items-center gap-3 p-3 border rounded-xl hover:bg-red-50 hover:border-red-200 transition-all text-sm font-semibold text-zinc-700"><FileText className="text-red-500"/> PDF Document</button>
-                  <button onClick={downloadAsCSV} className="w-full flex items-center gap-3 p-3 border rounded-xl hover:bg-emerald-50 hover:border-emerald-200 transition-all text-sm font-semibold text-zinc-700"><TableIcon className="text-emerald-500"/> CSV Spreadsheet</button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+        <DownloadModal
+          isOpen={isDownloadModalOpen}
+          onClose={() => setIsDownloadModalOpen(false)}
+          onDownload={handleDownload}
+          title="Export Warranties"
+          subtitle="Choose your preferred format"
+        />
       </main>
     </div>
   );
 }
+
+
+  
+
+
+
+
+
+
+
+
+    
+

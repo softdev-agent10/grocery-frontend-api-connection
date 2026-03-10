@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowDownCircle, Plus, Eye, Trash2, DollarSign } from "lucide-react";
+import { ArrowDownCircle, Plus, Eye, Trash2, DollarSign, CheckCircle2, Clock } from "lucide-react";
 import { ToolHeader } from "../components/ToolHeader";
 import { DataTable } from "../components/DataTable";
 import { StatCard } from "../components/StatCard";
 import { EmptyState } from "../components/EmptyState";
+import DownloadModal from "@/components/download-modal";
 
 interface CashInRecord {
   id: string;
@@ -48,6 +49,22 @@ export default function CashInPage() {
   const [searchValue, setSearchValue] = useState("");
   const [records, setRecords] = useState<CashInRecord[]>(mockData);
   const [showModal, setShowModal] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+
+  const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
+    // Simulate file generation
+    const dataToExport = scope === 'current' ? records.slice(0, 5) : records;
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cash-in_${scope}_${new Date().getTime()}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setIsDownloadModalOpen(false);
+  };
 
   const filteredRecords = records.filter(
     (record) =>
@@ -96,10 +113,18 @@ export default function CashInPage() {
         title="Cash In"
         icon={<ArrowDownCircle size={32} />}
         description="Manage and track all cash deposits into the drawer"
-        onDownload={() => alert("Download feature coming soon")}
+        onDownload={() => setIsDownloadModalOpen(true)}
         onFilter={() => alert("Filter feature coming soon")}
         searchValue={searchValue}
         onSearchChange={setSearchValue}
+      />
+
+      <DownloadModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        onDownload={handleDownload}
+        title="Export Cash In Records"
+        subtitle="Choose your preferred format"
       />
 
       {/* Stats Grid */}
@@ -122,13 +147,13 @@ export default function CashInPage() {
           color="blue"
         />
         <StatCard
-          icon={<span className="text-2xl">✓</span>}
+          icon={<CheckCircle2 size={24} />}
           label="Completed"
           value={records.filter((r) => r.status === "completed").length}
           color="green"
         />
         <StatCard
-          icon={<span className="text-2xl">⏳</span>}
+          icon={<Clock size={24} />}
           label="Pending"
           value={records.filter((r) => r.status === "pending").length}
           color="orange"

@@ -28,6 +28,25 @@ const users = [
 
 export default function CustomerModal({ customer, setCustomer }: { customer: { name: string; contact: string } | null; setCustomer: (customer: { name: string; contact: string }) => void }) {
     const [modalOpen, setModalOpen] = useState(false)
+    const [formData, setFormData] = useState({ name: "", dob: "", contact: "", email: "", address: "" })
+
+    const handleSaveCustomer = () => {
+        if (!formData.name || !formData.contact) {
+            alert("Name and Contact Number are required");
+            return;
+        }
+        // Add new customer to the list
+        const newCustomer = {
+            id: (users.length + 1).toString(),
+            name: formData.name,
+            contact: formData.contact,
+        };
+        users.push(newCustomer);
+        setCustomer(newCustomer);
+        // Reset form
+        setFormData({ name: "", dob: "", contact: "", email: "", address: "" });
+        setModalOpen(false);
+    }
 
     return (
 
@@ -85,23 +104,43 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
                     className='sm:max-w-1/2'
                     onSubmit={(e) => {
                         e.preventDefault();
-                        console.log("submitted...");
-                        // TODO: perform validation/save logic here
-                        setModalOpen(false);
+                        handleSaveCustomer();
                     }}
                 >
                     {/* Modal content goes here */}
                     <div className="flex flex-col mt-5">
                         <div className='flex gap-2'>
-                            <Input placeholder="Customer Name" className="mb-4 md:h-12" />
-                            {/* <Input placeholder="Contact Number" className="mb-4 md:h-12" /> */}
-                            <DateOfBirthInput className="mb-4" />
+                            <Input 
+                                placeholder="Customer Name" 
+                                className="mb-4 md:h-12"
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            />
+                            <DateOfBirthInput 
+                                className="mb-4"
+                                onChange={(date: string) => setFormData({ ...formData, dob: date })}
+                            />
                         </div>
                         <div className='flex gap-2'>
-                            <Input placeholder="Contact Number" className="mb-4 md:h-12" />
-                            <Input placeholder="Email Address" className="mb-4 md:h-12" />
+                            <Input 
+                                placeholder="Contact Number" 
+                                className="mb-4 md:h-12"
+                                value={formData.contact}
+                                onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                            />
+                            <Input 
+                                placeholder="Email Address" 
+                                className="mb-4 md:h-12"
+                                value={formData.email}
+                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            />
                         </div>
-                        <Textarea placeholder="Address" className="mb-4 md:h-24" />
+                        <Textarea 
+                            placeholder="Address" 
+                            className="mb-4 md:h-24"
+                            value={formData.address}
+                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        />
                     </div>
                 </SalesActionsDialog>
             )}
