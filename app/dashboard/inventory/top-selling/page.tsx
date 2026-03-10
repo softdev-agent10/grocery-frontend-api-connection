@@ -21,6 +21,7 @@ import {
   Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import DownloadModal from "@/components/download-modal";
 
 interface TopSellingProduct {
   id: number;
@@ -84,6 +85,58 @@ export default function TopSellingPage() {
       setEditingProduct(product);
     }
     setActiveModal(type);
+  };
+
+  const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
+    const dataToExport = scope === 'current' ? filteredProducts.slice(0, 10) : filteredProducts;
+
+    if (format === 'csv') {
+      const headers = ['Product Name', 'UPC', 'Category', 'Brand', 'Price', 'Unit', 'QTY Sold'];
+      const csvContent = [
+        headers.join(','),
+        ...dataToExport.map(p => 
+          `"${p.name}","${p.upc}","${p.category}","${p.brand}","${p.price}","${p.unit}",${p.qtySold}`
+        )
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `top-selling_${scope}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } else if (format === 'pdf') {
+      const pdfContent = `
+Top Selling Products Report - ${scope === 'current' ? 'Current' : 'All'} Pages
+
+Generated on: ${new Date().toLocaleDateString()}
+
+${dataToExport.map((p, i) => `
+${i + 1}. ${p.name}
+   UPC: ${p.upc}
+   Category: ${p.category}
+   Brand: ${p.brand}
+   Price: ${p.price}
+   Unit: ${p.unit}
+   Quantity Sold: ${p.qtySold}
+`).join('\n')}
+`;
+
+      const blob = new Blob([pdfContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `top-selling_${scope}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    }
+
+    setActiveModal(null);
   };
 
   return (
@@ -186,47 +239,13 @@ export default function TopSellingPage() {
             />
             
             {/* Download Modal */}
-            {activeModal === "download" && (
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden"
-              >
-                <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Download size={20} /> Download Options
-                  </h2>
-                  <button onClick={() => setActiveModal(null)} className="hover:bg-blue-700 p-1 rounded-full">
-                    <X size={24} />
-                  </button>
-                </div>
-                <div className="p-6 space-y-6">
-                  <div className="space-y-3">
-                    <h3 className="font-bold text-gray-700 border-b pb-2">Current Page</h3>
-                    <div className="flex gap-3">
-                      <button className="flex-1 flex items-center justify-center gap-2 bg-red-50 text-red-600 border border-red-200 py-2 rounded font-semibold hover:bg-red-100 transition-colors">
-                        <FileText size={18} /> PDF
-                      </button>
-                      <button className="flex-1 flex items-center justify-center gap-2 bg-green-50 text-green-600 border border-green-200 py-2 rounded font-semibold hover:bg-green-100 transition-colors">
-                        <FileText size={18} /> CSV
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <h3 className="font-bold text-gray-700 border-b pb-2">All Pages</h3>
-                    <div className="flex gap-3">
-                      <button className="flex-1 flex items-center justify-center gap-2 bg-red-50 text-red-600 border border-red-200 py-2 rounded font-semibold hover:bg-red-100 transition-colors">
-                        <FileText size={18} /> PDF
-                      </button>
-                      <button className="flex-1 flex items-center justify-center gap-2 bg-green-50 text-green-600 border border-green-200 py-2 rounded font-semibold hover:bg-green-100 transition-colors">
-                        <FileText size={18} /> CSV
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
+            <DownloadModal
+              isOpen={activeModal === "download"}
+              onClose={() => setActiveModal(null)}
+              onDownload={handleDownload}
+              title="Export Products"
+              subtitle="Choose your preferred format"
+            />
 
             {/* Filter Modal */}
             {activeModal === "filter" && (

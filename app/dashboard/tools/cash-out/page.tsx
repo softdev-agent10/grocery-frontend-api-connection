@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUpCircle, Plus, Eye, Trash2, DollarSign } from "lucide-react";
+import { ArrowUpCircle, Plus, Eye, Trash2, DollarSign, CheckCircle2, XCircle } from "lucide-react";
 import { ToolHeader } from "../components/ToolHeader";
 import { DataTable } from "../components/DataTable";
 import { StatCard } from "../components/StatCard";
 import { EmptyState } from "../components/EmptyState";
+import DownloadModal from "@/components/download-modal";
 
 interface CashOutRecord {
   id: string;
@@ -56,6 +57,21 @@ export default function CashOutPage() {
   const [searchValue, setSearchValue] = useState("");
   const [records, setRecords] = useState<CashOutRecord[]>(mockData);
   const [showModal, setShowModal] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+
+  const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
+    const dataToExport = scope === 'current' ? records.slice(0, 5) : records;
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cash-out_${scope}_${new Date().getTime()}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setIsDownloadModalOpen(false);
+  };
 
   const filteredRecords = records.filter(
     (record) =>
@@ -104,10 +120,18 @@ export default function CashOutPage() {
         title="Cash Out"
         icon={<ArrowUpCircle size={32} />}
         description="Track and manage all cash withdrawals from the drawer"
-        onDownload={() => alert("Download feature coming soon")}
+        onDownload={() => setIsDownloadModalOpen(true)}
         onFilter={() => alert("Filter feature coming soon")}
         searchValue={searchValue}
         onSearchChange={setSearchValue}
+      />
+
+      <DownloadModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        onDownload={handleDownload}
+        title="Export Cash Out Records"
+        subtitle="Choose your preferred format"
       />
 
       {/* Stats Grid */}
@@ -130,13 +154,13 @@ export default function CashOutPage() {
           color="blue"
         />
         <StatCard
-          icon={<span className="text-2xl">✓</span>}
+          icon={<CheckCircle2 size={24} />}
           label="Completed"
           value={records.filter((r) => r.status === "completed").length}
           color="green"
         />
         <StatCard
-          icon={<span className="text-2xl">✕</span>}
+          icon={<XCircle size={24} />}
           label="Failed"
           value={records.filter((r) => r.status === "failed").length}
           color="orange"

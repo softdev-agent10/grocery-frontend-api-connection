@@ -459,7 +459,7 @@ const PromotionForm: React.FC<{
             }`}
           >
             <motion.div
-              animate={{ scale: data.status === PromotionStatus.LIVE ? [1, 1.2, 1] : 1 }}
+              animate={{ scale: data.status === PromotionStatus.Active ? [1, 1.2, 1] : 1 }}
               transition={{ duration: 1.5, repeat: Infinity }}
               className={`w-2 h-2 rounded-full ${
                 data.status === PromotionStatus.Active

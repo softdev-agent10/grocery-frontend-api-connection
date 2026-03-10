@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Loader2
 } from "lucide-react";
+import DownloadModal from "@/components/download-modal";
  
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -54,7 +55,7 @@ export default function App() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<LowStockProduct | null>(null);
-  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
   // Email Form State
   const [emailTo, setEmailTo] = useState("Groups");
@@ -139,12 +140,19 @@ export default function App() {
     setIsEditModalOpen(false);
   };
 
+  const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
+    const data = scope === 'current' ? paginatedProducts : filteredProducts;
+    if (format === 'pdf') exportToPDF(data, `low_stock_${scope}_page`);
+    else exportToCSV(data, `low_stock_${scope}_page`);
+    setIsDownloadModalOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-slate-900">
       <div className="  mx-auto space-y-6">
         
         {/* Header Section */}
-        <div className="rounded-2xl bg-gradient-to-br from-orange-600 to-orange-800 p-8 text-white shadow-lg relative overflow-hidden">
+        <div className="rounded-2xl bg-blue-700 p-8 text-white shadow-lg relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl" />
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -159,53 +167,27 @@ export default function App() {
             <div className="flex flex-wrap gap-3">
               <button 
                 onClick={() => setIsEmailModalOpen(true)}
-                className="flex items-center gap-2 bg-white text-orange-700 px-5 py-2.5 rounded-xl font-semibold hover:bg-orange-50 transition-all shadow-sm active:scale-95"
+                className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl font-semibold hover:bg-green-500 transition-all shadow-sm active:scale-95"
               >
                 <Mail size={18} />
                 Send Email Report
               </button>
               <div className="relative">
                 <button 
-                  onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-                  className="flex items-center gap-2 bg-orange-500 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-orange-400 transition-all shadow-sm active:scale-95"
+                  onClick={() => setIsDownloadModalOpen(true)}
+                  className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl font-semibold hover:bg-green-500 transition-all shadow-sm active:scale-95"
                 >
                   <Download size={18} />
                   Download
                 </button>
                 
-                <AnimatePresence>
-                  {isExportDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-20" onClick={() => setIsExportDropdownOpen(false)} />
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 z-30 overflow-hidden"
-                      >
-                        <div className="p-2 space-y-1">
-                          <p className="px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">Current Page</p>
-                          <button onClick={() => { exportToPDF(paginatedProducts, "low_stock_current_page"); setIsExportDropdownOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 rounded-lg transition-colors">
-                            <FileText size={16} className="text-red-500" /> PDF Report
-                          </button>
-                          <button onClick={() => { exportToCSV(paginatedProducts, "low_stock_current_page"); setIsExportDropdownOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 rounded-lg transition-colors">
-                            <TableIcon size={16} className="text-green-600" /> CSV Spreadsheet
-                          </button>
-                          
-                          <div className="h-px bg-gray-100 my-1" />
-                          
-                          <p className="px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">All Pages</p>
-                          <button onClick={() => { exportToPDF(filteredProducts, "low_stock_all_pages"); setIsExportDropdownOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 rounded-lg transition-colors">
-                            <FileText size={16} className="text-red-500" /> PDF Report
-                          </button>
-                          <button onClick={() => { exportToCSV(filteredProducts, "low_stock_all_pages"); setIsExportDropdownOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 rounded-lg transition-colors">
-                            <TableIcon size={16} className="text-green-600" /> CSV Spreadsheet
-                          </button>
-                        </div>
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
+                <DownloadModal
+                  isOpen={isDownloadModalOpen}
+                  onClose={() => setIsDownloadModalOpen(false)}
+                  onDownload={handleDownload}
+                  title="Export Low Stock Report"
+                  subtitle="Choose your preferred format"
+                />
               </div>
             </div>
           </div>

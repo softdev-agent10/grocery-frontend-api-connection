@@ -10,9 +10,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-export function DateOfBirthInput({ className }: { className?: string }) {
+export function DateOfBirthInput({ className, onChange }: { className?: string; onChange?: (date: string) => void }) {
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date | undefined>(undefined)
+
+  const handleDateChange = (newDate: Date | undefined) => {
+    setDate(newDate)
+    if (newDate && onChange) {
+      onChange(newDate.toISOString().split('T')[0])
+    }
+    setOpen(false)
+  }
 
   return (
     <Field className={className || "mx-auto w-44"}>
@@ -33,10 +41,7 @@ export function DateOfBirthInput({ className }: { className?: string }) {
             selected={date}
             defaultMonth={date}
             captionLayout="dropdown"
-            onSelect={(date) => {
-              setDate(date)
-              setOpen(false)
-            }}
+            onSelect={handleDateChange}
           />
         </PopoverContent>
       </Popover>

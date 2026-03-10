@@ -28,6 +28,10 @@ import {
   DollarSign,
   CheckSquare,
   Building2,
+  Sun,
+  Moon,
+  MoonStar,
+  Sunset,
 } from "lucide-react";
 
 /* ---------------- MOCK DATA GENERATORS ---------------- */
@@ -111,23 +115,23 @@ const DEPT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6"];
 const getGreeting = () => {
   const hour = new Date().getHours();
   let greeting = "Good Evening";
-  let emoji = "🌙";
+  let icon = "MoonStar";
   
   if (hour >= 4 && hour < 12) {
     greeting = "Good Morning";
-    emoji = "🌅";
+    icon = "Sun";
   } else if (hour >= 12 && hour < 18) {
     greeting = "Good Afternoon";
-    emoji = "☀️";
+    icon = "Sun";
   } else if (hour >= 18 && hour < 21) {
     greeting = "Good Evening";
-    emoji = "🌆";
+    icon = "Sunset";
   } else {
     greeting = "Good Night";
-    emoji = "🌙";
+    icon = "Moon";
   }
   
-  return { greeting, emoji };
+  return { greeting, icon };
 };
 
 export default function App() {
@@ -136,7 +140,17 @@ export default function App() {
   const [inventoryTimeRange, setInventoryTimeRange] = useState("Today");
 
   // Get dynamic greeting
-  const { greeting, emoji } = useMemo(() => getGreeting(), []);
+  const { greeting, icon } = useMemo(() => getGreeting(), []);
+  
+  // Icon components mapping
+  const iconComponents: { [key: string]: React.ComponentType<any> } = {
+    Sun,
+    Moon,
+    MoonStar,
+    Sunset,
+  };
+  
+  const IconComponent = iconComponents[icon];
 
   // Derived Data for POS Section
   const posStats = useMemo(() => getPOSStats(selectedBranch, posTimeRange), [selectedBranch, posTimeRange]);
@@ -180,13 +194,15 @@ export default function App() {
       <div className="rounded-3xl bg-gradient-to-r from-yellow-400 to-yellow-900 p-20 text-white shadow-xl flex items-center justify-between">
         <div>
           <h1 className="text-3xl md:text-5xl font-black mx-10">
-            {greeting} <span className="text-blue-400"></span>
+            {greeting}
           </h1>
           <p className="text-slate-300 mt-3 mx-10">
             Welcome back, Dashboard
           </p>
         </div>
-        <div className="text-6xl md:text-8xl">{emoji}</div>
+        <div className="text-6xl md:text-8xl">
+          {IconComponent && <IconComponent size={80} strokeWidth={1.5} />}
+        </div>
       </div>
 
       {/* ================= FILTER BAR ================= */}
