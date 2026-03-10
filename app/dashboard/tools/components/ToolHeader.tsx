@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import { Download, Filter, Edit2, Search } from "lucide-react";
 
 interface ToolHeaderProps {
@@ -25,7 +25,8 @@ export const ToolHeader: React.FC<ToolHeaderProps> = ({
   searchValue = "",
   onSearchChange,
 }) => {
-  const containerVariants = {
+  // Fix: Explicitly type the variants
+  const containerVariants: Variants = {
     hidden: { opacity: 0, y: -20 },
     visible: {
       opacity: 1,
@@ -34,7 +35,7 @@ export const ToolHeader: React.FC<ToolHeaderProps> = ({
     },
   };
 
-  const buttonVariants = {
+  const buttonVariants: Variants = {
     hover: {
       scale: 1.05,
       transition: { duration: 0.2 },
