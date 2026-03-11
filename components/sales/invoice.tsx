@@ -14,7 +14,7 @@ interface InvoiceProps {
     cashGiven: number;
     change: number;
     customerName?: string;
-    date: Date;
+    date: Date | string;
     isBasketOnly?: boolean;
 }
 
@@ -30,7 +30,8 @@ export default function Invoice({
     date,
     isBasketOnly = false
 }: InvoiceProps) {
-    const invoiceId = `INV-${date.getTime()}`;
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const invoiceId = `INV-${dateObj.getTime()}`;
     return (
         <div 
             id="pos-invoice"
@@ -54,7 +55,7 @@ export default function Invoice({
                 
                 <div style={{ borderTop: "1px dashed #000", margin: "2mm 0" }} />
                 
-                <p style={{ margin: "1mm 0" }}>Date: {date.toLocaleString()}</p>
+                <p style={{ margin: "1mm 0" }}>Date: {dateObj.toLocaleString()}</p>
                 <p style={{ margin: "1mm 0" }}>Customer: {customerName || 'Guest'}</p>
                 
                 <div style={{ borderTop: "1px dashed #000", margin: "2mm 0" }} />
@@ -149,7 +150,8 @@ export default function Invoice({
  * Helper function to generate HTML string for printing
  */
 export const getInvoiceHtml = (props: InvoiceProps) => {
-    const invoiceId = `INV-${props.date.getTime()}`;
+    const dateObj = typeof props.date === 'string' ? new Date(props.date) : props.date;
+    const invoiceId = `INV-${dateObj.getTime()}`;
     const barcodeSvg = renderToStaticMarkup(
         <Barcode value={invoiceId} displayValue={false} width={1} height={50} format="CODE128" margin={2} />
     );
