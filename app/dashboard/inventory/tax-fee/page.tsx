@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Edit3, Trash2, Percent, DollarSign, ShieldCheck, ShieldAlert, X, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 interface Tax {
@@ -32,6 +32,8 @@ const initialFees: Fee[] = [
 export default function App() {
   const [taxes, setTaxes] = useState<Tax[]>(initialTaxes);
   const [fees, setFees] = useState<Fee[]>(initialFees);
+  const [isClient, setIsClient] = useState(false);
+  const [isPrintMode, setIsPrintMode] = useState(false);
   
   // Modal States
   const [showTaxModal, setShowTaxModal] = useState(false);
@@ -40,6 +42,19 @@ export default function App() {
   // Form States
   const [taxForm, setTaxForm] = useState({ name: "", rate: "", status: true });
   const [feeForm, setFeeForm] = useState({ name: "", type: "Flat" as "Flat" | "Percentage", amount: "", status: true });
+
+  useEffect(() => {
+    setIsClient(true);
+    const mediaQuery = window.matchMedia('print');
+    setIsPrintMode(mediaQuery.matches);
+    
+    const handlePrintChange = (e: MediaQueryListEvent) => {
+      setIsPrintMode(e.matches);
+    };
+    
+    mediaQuery.addEventListener('change', handlePrintChange);
+    return () => mediaQuery.removeEventListener('change', handlePrintChange);
+  }, []);
 
   // Handlers for Taxes
   const handleSaveTax = () => {
@@ -56,7 +71,7 @@ export default function App() {
   };
 
   const deleteTax = (id: number) => {
-    if (window.confirm("Are you sure you want to delete this tax?")) {
+    if (isClient && window.confirm("Are you sure you want to delete this tax?")) {
       setTaxes(taxes.filter(t => t.id !== id));
     }
   };
@@ -81,7 +96,7 @@ export default function App() {
   };
 
   const deleteFee = (id: number) => {
-    if (window.confirm("Are you sure you want to delete this fee?")) {
+    if (isClient && window.confirm("Are you sure you want to delete this fee?")) {
       setFees(fees.filter(f => f.id !== id));
     }
   };
@@ -91,8 +106,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 p-3 sm:p-4 md:p-6 lg:p-8 2xl:p-10">
-      <div className="max-w-7xl mx-auto space-y-8 md:space-y-10 2xl:space-y-12">
+    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 ">
+      <div className=" mx-auto space-y-8 md:space-y-10 2xl:space-y-12">
         
         {/* Header */}
         <header className="bg-blue-600 p-6 md:p-8 2xl:p-10 rounded-2xl md:rounded-3xl flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-4 print:hidden">
@@ -102,7 +117,7 @@ export default function App() {
           </div>
           <div className="flex gap-2 md:gap-3">
             <button 
-              onClick={() => window.print()}
+              onClick={() => isClient && window.print()}
               className="bg-green-500 border border-slate-200 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm hover:bg-green-800 transition-all shadow-sm flex items-center gap-2 active:scale-95"
             >
               <span className="hidden sm:inline">Print Report</span>
@@ -174,7 +189,7 @@ export default function App() {
                           <td className="p-3 md:p-4 2xl:p-6">
                             <button 
                               onClick={() => toggleTaxStatus(tax.id)}
-                              disabled={window.matchMedia('print').matches}
+                              disabled={isPrintMode}
                               className={`inline-flex items-center gap-2 px-2 md:px-3 py-1 rounded-lg md:rounded-xl text-[10px] md:text-xs 2xl:text-sm font-bold border transition-all print:border-none print:bg-transparent ${
                                 tax.status === 'Active' 
                                   ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 print:text-emerald-700' 
@@ -189,7 +204,7 @@ export default function App() {
                             <div className="flex justify-end gap-1 md:gap-2">
                               <button 
                                 onClick={() => {
-                                  const newName = window.prompt("Edit Tax Name:", tax.name);
+                                  const newName = isClient && window.prompt("Edit Tax Name:", tax.name);
                                   if (newName) setTaxes(taxes.map(t => t.id === tax.id ? { ...t, name: newName } : t));
                                 }}
                                 className="p-2 md:p-2.5 2xl:p-3 text-black hover:text-indigo-600 hover:bg-indigo-50 rounded-lg md:rounded-xl 2xl:rounded-2xl transition-all"
@@ -275,7 +290,7 @@ export default function App() {
                           <td className="p-3 md:p-4 2xl:p-6">
                             <button 
                               onClick={() => toggleFeeStatus(fee.id)}
-                              disabled={window.matchMedia('print').matches}
+                              disabled={isPrintMode}
                               className={`inline-flex items-center gap-2 px-2 md:px-3 py-1 rounded-lg md:rounded-xl text-[10px] md:text-xs 2xl:text-sm font-bold border transition-all print:border-none print:bg-transparent ${
                                 fee.status === 'Active' 
                                   ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 print:text-emerald-700' 
@@ -290,7 +305,7 @@ export default function App() {
                             <div className="flex justify-end gap-1 md:gap-2">
                               <button 
                                 onClick={() => {
-                                  const newName = window.prompt("Edit Fee Name:", fee.name);
+                                  const newName = isClient && window.prompt("Edit Fee Name:", fee.name);
                                   if (newName) setFees(fees.map(f => f.id === fee.id ? { ...f, name: newName } : f));
                                 }}
                                 className="p-2 md:p-2.5 2xl:p-3 text-black hover:text-emerald-600 hover:bg-emerald-50 rounded-lg md:rounded-xl 2xl:rounded-2xl transition-all"

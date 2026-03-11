@@ -17,6 +17,7 @@ import {
   Sparkles,
   ShoppingCart,
   Calculator,
+  ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -228,6 +229,7 @@ export default function CreatePromotionPage() {
     status: PromotionStatus.Inactive,
   });
 
+  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const buyProduct = MOCK_PRODUCTS.find((p) => p.id === formData.buyProductId);
   const getProduct = MOCK_PRODUCTS.find((p) => p.id === formData.getProductId);
 
@@ -263,39 +265,81 @@ export default function CreatePromotionPage() {
         </Link>
       </motion.div>
 
-      {/* Type Selection */}
+      {/* Type Selection Dropdown */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="flex gap-2 md:gap-3 p-1 md:p-2 bg-slate-100 rounded-lg md:rounded-lg lg:rounded-xl w-full max-w-md mb-6 md:mb-8 lg:mb-10"
+        className="relative w-full max-w-md mb-6 md:mb-8 lg:mb-10"
       >
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => setFormData({ ...formData, type: PromotionType.BOGO })}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 md:py-2.5 lg:py-3 rounded-lg text-xs md:text-xs lg:text-sm font-bold transition-all ${
-            formData.type === PromotionType.BOGO
-              ? "bg-white text-indigo-600 shadow-lg shadow-indigo-500/30 border border-indigo-200"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
+          onClick={() => setShowTypeDropdown(!showTypeDropdown)}
+          className="w-full flex items-center justify-between px-4 md:px-5 lg:px-6 py-3 md:py-3.5 lg:py-4 bg-white border-2 border-indigo-200 rounded-lg md:rounded-lg lg:rounded-xl text-slate-900 font-bold text-sm md:text-base lg:text-base hover:border-indigo-400 transition-all"
         >
-          <Gift size={16} className="md:w-4 md:h-4 lg:w-5 lg:h-5" />
-          <span>Buy 1 Get 1</span>
+          <div className="flex items-center gap-2">
+            {formData.type === PromotionType.BOGO ? (
+              <>
+                <Gift size={18} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-indigo-600" />
+                <span>Buy 1 Get 1</span>
+              </>
+            ) : (
+              <>
+                <LayoutGrid size={18} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-purple-600" />
+                <span>Bundle</span>
+              </>
+            )}
+          </div>
+          <ChevronDown
+            size={18}
+            className={`md:w-5 md:h-5 lg:w-6 lg:h-6 text-slate-400 transition-transform ${
+              showTypeDropdown ? "rotate-180" : ""
+            }`}
+          />
         </motion.button>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => setFormData({ ...formData, type: PromotionType.BUNDLE })}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 md:py-2.5 lg:py-3 rounded-lg text-xs md:text-xs lg:text-sm font-bold transition-all ${
-            formData.type === PromotionType.BUNDLE
-              ? "bg-white text-indigo-600 shadow-lg shadow-indigo-500/30 border border-indigo-200"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          <LayoutGrid size={16} className="md:w-4 md:h-4 lg:w-5 lg:h-5" />
-          <span>Bundle</span>
-        </motion.button>
+
+        {/* Dropdown Menu */}
+        <AnimatePresence>
+          {showTypeDropdown && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg md:rounded-lg lg:rounded-xl shadow-xl z-50 overflow-hidden"
+            >
+              <motion.button
+                whileHover={{ backgroundColor: "rgb(242 252 255)" }}
+                onClick={() => {
+                  setFormData({ ...formData, type: PromotionType.BOGO });
+                  setShowTypeDropdown(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 md:px-5 lg:px-6 py-3 md:py-3.5 lg:py-4 text-left hover:bg-blue-50 transition-colors border-b border-slate-100"
+              >
+                <Gift size={20} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-indigo-600" />
+                <div>
+                  <div className="font-bold text-slate-900 text-sm md:text-base">Buy 1 Get 1</div>
+                  <div className="text-xs md:text-sm text-slate-500">Offer free items with purchase</div>
+                </div>
+              </motion.button>
+
+              <motion.button
+                whileHover={{ backgroundColor: "rgb(242 252 255)" }}
+                onClick={() => {
+                  setFormData({ ...formData, type: PromotionType.BUNDLE });
+                  setShowTypeDropdown(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 md:px-5 lg:px-6 py-3 md:py-3.5 lg:py-4 text-left hover:bg-blue-50 transition-colors"
+              >
+                <LayoutGrid size={20} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-purple-600" />
+                <div>
+                  <div className="font-bold text-slate-900 text-sm md:text-base">Bundle</div>
+                  <div className="text-xs md:text-sm text-slate-500">Combine multiple items</div>
+                </div>
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* Form & Preview */}

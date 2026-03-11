@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
+import { motion ,Variants} from "framer-motion";
 import { Download, Filter, Edit2, Search } from "lucide-react";
 
 interface ToolHeaderProps {
@@ -25,7 +25,7 @@ export const ToolHeader: React.FC<ToolHeaderProps> = ({
   searchValue = "",
   onSearchChange,
 }) => {
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0, y: -20 },
     visible: {
       opacity: 1,
@@ -34,7 +34,7 @@ export const ToolHeader: React.FC<ToolHeaderProps> = ({
     },
   };
 
-  const buttonVariants = {
+  const buttonVariants: Variants = {
     hover: {
       scale: 1.05,
       transition: { duration: 0.2 },
@@ -52,7 +52,7 @@ export const ToolHeader: React.FC<ToolHeaderProps> = ({
       className="space-y-6"
     >
       {/* Header Section */}
-      <div className="bg-gradient-to-r from-green-500 via-green-400 to-emerald-500 rounded-2xl p-8 shadow-lg">
+      <div className="bg-blue-600 rounded-2xl p-8 shadow-lg">
         <div className="flex items-center gap-4 mb-2">
           <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl text-white">
             {icon}
@@ -107,7 +107,7 @@ export const ToolHeader: React.FC<ToolHeaderProps> = ({
               whileHover="hover"
               whileTap="tap"
               onClick={onFilter}
-              className="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl transition-all duration-300 shadow-md hover:shadow-lg min-w-max"
+              className="flex items-center gap-2 px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-all duration-300 shadow-md hover:shadow-lg min-w-max"
             >
               <Filter size={18} />
               <span className="hidden sm:inline">Filter</span>
@@ -133,7 +133,7 @@ export const ToolHeader: React.FC<ToolHeaderProps> = ({
               whileHover="hover"
               whileTap="tap"
               onClick={onDownload}
-              className="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl transition-all duration-300 shadow-md hover:shadow-lg min-w-max"
+              className="flex items-center gap-2 px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-all duration-300 shadow-md hover:shadow-lg min-w-max"
             >
               <Download size={18} />
               <span className="hidden sm:inline">Download</span>

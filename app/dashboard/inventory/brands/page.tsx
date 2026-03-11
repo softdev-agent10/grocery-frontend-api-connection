@@ -26,6 +26,8 @@ import {
  
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
+import DownloadModal from "@/components/download-modal";
 
 // Extend jsPDF with autotable types
 declare module "jspdf" {
@@ -44,6 +46,13 @@ interface Brand {
   quantity: number;
   upc: string;
   createdOn: string;
+}
+
+interface HistoryItem {
+  id: string;
+  action: "Add" | "Edit" | "Delete";
+  details: string;
+  timestamp: string;
 }
 
 const mockBrands: Brand[] = [
@@ -67,7 +76,7 @@ export default function App() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Brand; direction: "asc" | "desc" } | null>(null);
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [selectedBrands, setSelectedBrands] = useState<number[]>([]);
   
@@ -76,7 +85,7 @@ export default function App() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
-  const [history, setHistory] = useState<{ id: number; action: string; time: string }[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -87,15 +96,11 @@ export default function App() {
     upc: ""
   });
 
-  const downloadMenuRef = useRef<HTMLDivElement>(null);
   const filterMenuRef = useRef<HTMLDivElement>(null);
 
   // Close menus when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (downloadMenuRef.current && !downloadMenuRef.current.contains(event.target as Node)) {
-        setShowDownloadMenu(false);
-      }
       if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
         setShowFilterMenu(false);
       }
@@ -135,12 +140,20 @@ export default function App() {
     setShowFilterMenu(false);
   };
 
-  const addHistory = (action: string) => {
+  const addHistory = (details: string) => {
+    // Determine action based on details
+    const action: "Add" | "Edit" | "Delete" = 
+      details.includes("Added") ? "Add" :
+      details.includes("Updated") ? "Edit" :
+      details.includes("Deleted") ? "Delete" :
+      "Edit";
+
     setHistory(prev => [{
-      id: Date.now(),
+      id: Math.random().toString(36).substr(2, 9),
       action,
-      time: new Date().toLocaleTimeString()
-    }, ...prev].slice(0, 20)); // Keep last 20 actions
+      details,
+      timestamp: new Date().toLocaleString()
+    }, ...prev].slice(0, 50)); // Keep last 50 actions
   };
 
   const handleAddBrand = (e: React.FormEvent) => {
@@ -300,36 +313,28 @@ export default function App() {
           </motion.button>
 
           <div className="flex items-center gap-2">
-            {/* Download Dropdown */}
-            <div className="relative" ref={downloadMenuRef}>
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-                className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 hover:bg-gray-50 transition-all"
-              >
-                <Download size={18} className="text-indigo-600" /> Download
-              </motion.button>
-              
-              <AnimatePresence>
-                {showDownloadMenu && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden"
-                  >
-                    <div className="p-2 bg-gray-50 text-[10px] uppercase tracking-wider font-bold text-gray-500 px-4">Current Page</div>
-                    <button onClick={() => { exportToPDF(currentItems, 'brands_current_page'); setShowDownloadMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 flex items-center gap-2 transition-colors"><FileText size={14} className="text-red-500" /> PDF</button>
-                    <button onClick={() => { exportToCSV(currentItems, 'brands_current_page'); setShowDownloadMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 flex items-center gap-2 transition-colors"><TableIcon size={14} className="text-green-600" /> CSV</button>
-                    
-                    <div className="p-2 bg-gray-50 text-[10px] uppercase tracking-wider font-bold text-gray-500 px-4 border-t">All Pages</div>
-                    <button onClick={() => { exportToPDF(processedBrands, 'brands_all_pages'); setShowDownloadMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 flex items-center gap-2 transition-colors"><FileText size={14} className="text-red-500" /> PDF</button>
-                    <button onClick={() => { exportToCSV(processedBrands, 'brands_all_pages'); setShowDownloadMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 flex items-center gap-2 transition-colors"><TableIcon size={14} className="text-green-600" /> CSV</button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Download Modal */}
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setIsDownloadModalOpen(true)}
+              className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 hover:bg-gray-50 transition-all"
+            >
+              <Download size={18} className="text-indigo-600" /> Download
+            </motion.button>
+
+            <DownloadModal
+              isOpen={isDownloadModalOpen}
+              onClose={() => setIsDownloadModalOpen(false)}
+              onDownload={(scope, format) => {
+                const data = scope === 'current' ? currentItems : processedBrands;
+                const filename = `brands_${scope}_page`;
+                if (format === 'pdf') exportToPDF(data, filename);
+                else exportToCSV(data, filename);
+              }}
+              title="Export Brands"
+              subtitle="Choose your preferred format"
+            />
 
             {/* Filter Dropdown */}
             <div className="relative" ref={filterMenuRef}>
@@ -668,51 +673,14 @@ export default function App() {
           </div>
         )}
 
-        {isHistoryModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-            >
-              <div className="bg-indigo-600 p-6 text-white flex justify-between items-center">
-                <div>
-                  <h2 className="text-xl font-bold">Action History</h2>
-                  <p className="text-indigo-100 text-sm mt-1">Recent activities in your dashboard.</p>
-                </div>
-                <button onClick={() => setIsHistoryModalOpen(false)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                  <XCircle size={24} />
-                </button>
-              </div>
-              <div className="p-6 max-h-[400px] overflow-y-auto">
-                {history.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 italic">No history yet.</div>
-                ) : (
-                  <div className="space-y-4">
-                    {history.map(item => (
-                      <div key={item.id} className="flex items-start gap-3 border-b border-gray-100 pb-3 last:border-0">
-                        <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 shrink-0"></div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{item.action}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{item.time}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="p-4 bg-gray-50 border-t border-gray-100">
-                <button 
-                  onClick={() => setIsHistoryModalOpen(false)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-all"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+        {/* History Modal */}
+        <HistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          history={history}
+          title="Action History"
+          subtitle="Recent activities in your dashboard"
+        />
       </AnimatePresence>
     </div>
   );

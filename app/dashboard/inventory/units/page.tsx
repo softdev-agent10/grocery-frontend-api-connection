@@ -21,6 +21,7 @@ import {
   RotateCcw,
   Check
 } from "lucide-react";
+import DownloadModal from "@/components/download-modal";
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -70,7 +71,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [sortBy, setSortBy] = useState<SortOption | "">("");
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   // Form State
@@ -157,6 +158,13 @@ export default function App() {
     setFormData({ name: "", shortName: "" });
   };
 
+  const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
+    const data = scope === 'current' ? paginatedUnits : filteredAndSortedUnits;
+    if (format === 'pdf') exportPDF(data, `units_${scope}_page`);
+    else exportCSV(data, `units_${scope}_page`);
+    setIsDownloadModalOpen(false);
+  };
+
   // --- Export Functions ---
 
   const exportCSV = (data: Unit[], filename: string) => {
@@ -227,51 +235,23 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Download Dropdown */}
-            <div className="relative">
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-                className="bg-gray-100 text-black px-4 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-blue-800 transition-colors cursor-pointer border border-gray-200"
-              >
-                <Download size={18} /> Download
-              </motion.button>
-              
-              <AnimatePresence>
-                {showDownloadMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowDownloadMenu(false)} />
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 z-20 overflow-hidden"
-                    >
-                      <div className="p-2 space-y-1">
-                        <p className="px-3 py-2 text-[10px] uppercase tracking-wider font-bold text-gray-400">Current Page</p>
-                        <button onClick={() => { exportPDF(paginatedUnits, "current_page_units"); setShowDownloadMenu(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors">
-                          <FileText size={16} /> PDF
-                        </button>
-                        <button onClick={() => { exportCSV(paginatedUnits, "current_page_units"); setShowDownloadMenu(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors">
-                          <TableIcon size={16} /> CSV
-                        </button>
-                        
-                        <div className="h-px bg-gray-100 my-1" />
-                        
-                        <p className="px-3 py-2 text-[10px] uppercase tracking-wider font-bold text-gray-400">All Pages</p>
-                        <button onClick={() => { exportPDF(filteredAndSortedUnits, "all_units"); setShowDownloadMenu(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors">
-                          <FileText size={16} /> PDF
-                        </button>
-                        <button onClick={() => { exportCSV(filteredAndSortedUnits, "all_units"); setShowDownloadMenu(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors">
-                          <TableIcon size={16} /> CSV
-                        </button>
-                      </div>
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Download Modal */}
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setIsDownloadModalOpen(true)}
+              className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 hover:bg-gray-50 transition-all"
+            >
+              <Download size={18} className="text-blue-600" /> Download
+            </motion.button>
+            
+            <DownloadModal
+              isOpen={isDownloadModalOpen}
+              onClose={() => setIsDownloadModalOpen(false)}
+              onDownload={handleDownload}
+              title="Export Units"
+              subtitle="Choose your preferred format"
+            />
 
             {/* Filter Dropdown */}
             <div className="relative">
@@ -337,7 +317,7 @@ export default function App() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-[11px] font-bold tracking-wider">
+              <thead className="bg-blue-600 border-b border-gray-200 text-white uppercase text-[11px] font-bold tracking-wider">
                 <tr>
                   <th className="p-5">Unit Name</th>
                   <th className="p-5">Short Name</th>
@@ -487,7 +467,7 @@ export default function App() {
             >
               <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
                 <h2 className="text-xl font-bold">{editingUnit ? "Edit Unit" : "Create New Unit"}</h2>
-                <button onClick={closeModal} className="hover:bg-white/20 p-1 rounded-lg transition-colors cursor-pointer">
+                <button onClick={closeModal} className="hover:bg-black p-1 rounded-lg transition-colors cursor-pointer">
                   <X size={24} />
                 </button>
               </div>

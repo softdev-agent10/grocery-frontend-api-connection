@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion } from "framer-motion";
+import { motion ,Variants} from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface TableColumn {
@@ -39,7 +39,7 @@ export const DataTable: React.FC<DataTableProps> = ({
   const endIdx = startIdx + itemsPerPage;
   const currentData = data.slice(startIdx, endIdx);
 
-  const rowVariants = {
+  const rowVariants: Variants = {
     hidden: { opacity: 0, x: -20 },
     visible: (i: number) => ({
       opacity: 1,
@@ -47,7 +47,7 @@ export const DataTable: React.FC<DataTableProps> = ({
       transition: {
         delay: i * 0.05,
         duration: 0.3,
-        ease: "easeOut",
+        ease: "easeOut", // This is now valid with Variants type
       },
     }),
   };
@@ -64,12 +64,12 @@ export const DataTable: React.FC<DataTableProps> = ({
         <table className="w-full">
           {/* Table Header */}
           <thead>
-            <tr className="bg-gradient-to-r from-green-500 to-emerald-500 border-b border-gray-200">
+            <tr className="bg-blue-600 border-b border-gray-200">
               {columns.map((column) => (
                 <th
                   key={column.key}
                   className={`px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider ${
-                    column.width || "flex-1"
+                    column.width || ""
                   }`}
                 >
                   {column.label}
@@ -104,14 +104,14 @@ export const DataTable: React.FC<DataTableProps> = ({
                   initial="hidden"
                   animate="visible"
                   onClick={() => onRowClick?.(row)}
-                  className={`hover:bg-green-50 transition-all duration-200 ${
+                  className={`hover:bg-green-50 transition-colors duration-200 ${
                     onRowClick ? "cursor-pointer" : ""
                   }`}
                 >
                   {columns.map((column) => (
                     <td
                       key={`${row.id}-${column.key}`}
-                      className={`px-6 py-4 text-sm text-gray-700 ${column.width || "flex-1"}`}
+                      className={`px-6 py-4 text-sm text-gray-700 ${column.width || ""}`}
                     >
                       {row[column.key]}
                     </td>

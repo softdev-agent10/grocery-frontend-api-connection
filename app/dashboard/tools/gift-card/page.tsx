@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Gift, Plus, Eye, Trash2, Edit2, DollarSign } from "lucide-react";
+import { Gift, Plus, Eye, Trash2, Edit2, DollarSign, CheckCircle2 } from "lucide-react";
 import { ToolHeader } from "../components/ToolHeader";
 import { DataTable } from "../components/DataTable";
 import { StatCard } from "../components/StatCard";
 import { EmptyState } from "../components/EmptyState";
+import DownloadModal from "@/components/download-modal";
 
 interface GiftCard {
   id: string;
@@ -51,8 +52,21 @@ const mockData: GiftCard[] = [
 export default function GiftCardPage() {
   const [searchValue, setSearchValue] = useState("");
   const [records, setRecords] = useState<GiftCard[]>(mockData);
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
+  const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
+    const dataToExport = scope === 'current' ? records.slice(0, 5) : records;
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gift-cards_${scope}_${new Date().getTime()}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setIsDownloadModalOpen(false);
+  };
   const filteredRecords = records.filter(
     (record) =>
       record.cardNumber.toLowerCase().includes(searchValue.toLowerCase())
@@ -95,10 +109,18 @@ export default function GiftCardPage() {
         title="Gift Cards"
         icon={<Gift size={32} />}
         description="Create and manage gift cards for your customers"
-        onDownload={() => alert("Download feature coming soon")}
+        onDownload={() => setIsDownloadModalOpen(true)}
         onFilter={() => alert("Filter feature coming soon")}
         searchValue={searchValue}
         onSearchChange={setSearchValue}
+      />
+
+      <DownloadModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        onDownload={handleDownload}
+        title="Export Gift Cards"
+        subtitle="Choose your preferred format"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -118,13 +140,13 @@ export default function GiftCardPage() {
           color="green"
         />
         <StatCard
-          icon={<span className="text-2xl">✓</span>}
+          icon={<CheckCircle2 size={24} />}
           label="Active Cards"
           value={records.filter((r) => r.status === "active").length}
           color="green"
         />
         <StatCard
-          icon={<span className="text-2xl">✓</span>}
+          icon={<CheckCircle2 size={24} />}
           label="Used Cards"
           value={records.filter((r) => r.status === "used").length}
           color="blue"
