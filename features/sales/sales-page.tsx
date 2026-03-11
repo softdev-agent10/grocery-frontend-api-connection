@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, ReactNode, useMemo } from "react";
+import { useState, ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks";
 import {
@@ -362,7 +362,7 @@ export default function SalesPage() {
         // Add to history
         const newOrder: Order = {
             id: `ORD-${uuidv4()}`,
-            date: new Date(),
+            date: new Date().toISOString(),
             customer: customer?.name || "Guest",
             items: [...items],
             subtotal,

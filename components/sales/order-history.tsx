@@ -17,7 +17,7 @@ interface OrderItem {
 
 export interface Order {
     id: string;
-    date: Date;
+    date: string; 
     customer: string;
     total: number;
     paymentMethod: string;
