@@ -275,10 +275,14 @@ export default function SalesPage() {
 
         if (type === "Buy N Get N") {
             showNotification("Under development", "success");
+            setModalOpen(false);
+            return;
         }
 
         if (type === "Promotions") {
             showNotification("Under development", "success");
+            setModalOpen(false);
+            return
         }
 
         if (type === "Item Pricing") {
