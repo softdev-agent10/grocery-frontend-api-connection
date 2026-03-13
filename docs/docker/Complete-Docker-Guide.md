@@ -31,8 +31,8 @@ Before starting, make sure you have installed:
   </tr>
   <tr>
     <td>Git</td>
-    <td>KursProfi</td>
     <td>Latest</td>
+    <td>git-scm.com</td>
   </tr>
 </table>
 
