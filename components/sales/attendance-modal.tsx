@@ -247,14 +247,6 @@ export default function AttendanceModal({ onClose, initialType = "in" }: Attenda
                                         Back to Staff List
                                     </Button>
                                     
-                                    <div className="text-center mb-2">
-                                        <div className="size-12 rounded-full bg-white shadow-md mx-auto flex items-center justify-center mb-2 border-2 border-blue-50">
-                                            <User className="size-6 text-blue-600" />
-                                        </div>
-                                        <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">{selectedEmployee.name}</h3>
-                                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest opacity-60">{selectedEmployee.role}</p>
-                                    </div>
-
                                     <PinPad 
                                         correctPin="123456" 
                                         onSuccess={handlePinSuccess}

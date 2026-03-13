@@ -66,12 +66,12 @@ export function PinPad({
         <p className="text-gray-400 text-xs font-medium">{description}</p>
       </div>
 
-      <div className="flex justify-center gap-2.5 mb-4">
+      <div className="flex justify-center gap-3 mb-4">
         {[...Array(correctPin.length)].map((_, i) => (
           <div
             key={i}
             className={cn(
-              "size-4 rounded-full border-2 transition-all duration-200",
+              "size-5 sm:size-6 rounded-full border-2 transition-all duration-200",
               success ? "bg-emerald-500 border-emerald-500 scale-110" :
               error ? "bg-red-500 border-red-500 animate-bounce" :
               i < pin.length ? "bg-blue-600 border-blue-600 scale-110" : "border-gray-200 bg-gray-50"
@@ -92,7 +92,7 @@ export function PinPad({
               key={num}
               variant="outline"
               onClick={(e) => handleNumberClick(e, num.toString())}
-              className="h-12 rounded-2xl text-xl font-black text-gray-700 border-gray-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm active:scale-95"
+              className="h-16 rounded-2xl text-3xl font-black text-gray-700 border-gray-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm active:scale-95"
             >
               {num}
             </Button>
@@ -100,23 +100,23 @@ export function PinPad({
           <Button
             variant="ghost"
             onClick={onCancel}
-            className="h-12 rounded-2xl flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            className="h-16 rounded-2xl flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
           >
-            <X className="size-5" />
+            <X className="size-7" />
           </Button>
           <Button
             variant="outline"
             onClick={(e) => handleNumberClick(e, "0")}
-            className="h-12 rounded-2xl text-xl font-black text-gray-700 border-gray-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm active:scale-95"
+            className="h-16 rounded-2xl text-3xl font-black text-gray-700 border-gray-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm active:scale-95"
           >
             0
           </Button>
           <Button
             variant="ghost"
             onClick={handleDelete}
-            className="h-12 rounded-2xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            className="h-16 rounded-2xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
           >
-            <Delete className="size-5" />
+            <Delete className="size-7" />
           </Button>
         </div>
       )}
