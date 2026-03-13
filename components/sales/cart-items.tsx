@@ -9,6 +9,7 @@ export type CartItemType = {
     name: string;
     price: number;
     qty: number;
+    stock: number;
     promotion?: string;
     discountValue?: number;
     discountType?: 'percentage' | 'flat';
@@ -59,14 +60,23 @@ export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
     };
 
     const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+        // Only trigger double tap on the main container, not on children buttons
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'BUTTON' || target.tagName === 'INPUT' || target.closest('button')) {
+            return;
+        }
+
         const now = Date.now();
-        const DOUBLE_TAP_DELAY = 300;
+        const DOUBLE_TAP_DELAY = 500;
 
         if (now - lastTap.current < DOUBLE_TAP_DELAY) {
             // Double tap detected
             onEdit(item);
             // Reset to prevent triple tap from triggering twice
             lastTap.current = 0;
+            setTranslateX(0); // Reset any drag that might have started
+            setIsDragging(false);
+            return; // Don't start dragging on double tap
         } else {
             lastTap.current = now;
         }
@@ -125,7 +135,7 @@ export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
                 }}
                 className={`
           ${item.promotion === "b2g1" && item.qty >= 2 ? "bg-green-100" : "bg-zinc-300"} px-3 py-2 rounded-lg
-          transition-transform duration-200
+          transition-transform duration-200 select-none
           ${isRemoving ? "opacity-0 scale-95" : ""}
           ${isDragging ? "" : "ease-out"}
         `}
@@ -151,6 +161,7 @@ export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
                                     e.stopPropagation();
                                     onUpdate(item.id, Math.max(1, item.qty - 1));
                                 }}
+                                onTouchStart={(e) => e.stopPropagation()}
                                 onDoubleClick={(e) => e.stopPropagation()}
                                 className="w-8 h-8 xl:w-10 xl:h-10 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 border border-gray-300 text-lg font-bold shrink-0"
                                 aria-label="Decrease quantity"
@@ -163,6 +174,7 @@ export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
                                 onBlur={handleInputBlur}
                                 onKeyDown={handleKeyDown}
                                 onClick={(e) => e.stopPropagation()}
+                                onTouchStart={(e) => e.stopPropagation()}
                                 onDoubleClick={(e) => e.stopPropagation()}
                                 className="w-10 xl:w-16 h-8 xl:h-10 text-center text-lg xl:text-2xl font-bold bg-white border-2 border-gray-400 focus:border-blue-500 focus-visible:ring-0 p-0"
                             />
@@ -171,6 +183,7 @@ export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
                                     e.stopPropagation();
                                     onUpdate(item.id, item.qty + 1);
                                 }}
+                                onTouchStart={(e) => e.stopPropagation()}
                                 onDoubleClick={(e) => e.stopPropagation()}
                                 className="w-8 h-8 xl:w-10 xl:h-10 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 border border-gray-300 text-lg font-bold shrink-0"
                                 aria-label="Increase quantity"
@@ -202,6 +215,7 @@ export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
                                     e.stopPropagation();
                                     triggerDelete();
                                 }}
+                                onTouchStart={(e) => e.stopPropagation()}
                                 onDoubleClick={(e) => e.stopPropagation()}
                                 className="p-1 rounded hover:bg-red-100 shrink-0"
                                 aria-label="Delete item"

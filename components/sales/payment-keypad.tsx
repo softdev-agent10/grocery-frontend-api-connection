@@ -1,10 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+import { useAppSelector, useAppDispatch } from "@/lib/redux/hooks";
+import { setKeyInput as setReduxKeyInput } from "@/features/sales/sales-slice";
 
 interface PaymentKeypadProps {
     subtotal: number;
@@ -25,7 +28,13 @@ export default function PaymentKeypad({
     onAction,
     showNotification
 }: PaymentKeypadProps) {
-    const [keyInput, setKeyInput] = useState("");
+    const dispatch = useAppDispatch();
+    const keyInput = useAppSelector(state => state.sales.keyInput);
+
+    const setKeyInput = (val: string | ((prev: string) => string)) => {
+        const newVal = typeof val === 'function' ? val(keyInput) : val;
+        dispatch(setReduxKeyInput(newVal));
+    };
 
     const formatDisplay = (input: string) => {
         if (!input) return "0.00";
@@ -50,10 +59,11 @@ export default function PaymentKeypad({
         });
     };
 
-    const addDot = () => {
-        // In fixed decimal mode, dot is typically not used.
-        // If we want to support it, it could maybe append "00" or just be ignored.
-        // Given the request "5000 for 50", we'll ignore it.
+    const addTripleZero = () => {
+        setKeyInput(prev => {
+            if (!prev || prev === "0") return "0";
+            return prev + "000";
+        });
     };
 
     const addQuickAmount = (amount: number) => {
@@ -155,13 +165,13 @@ export default function PaymentKeypad({
                         ))}
                     </div>
                     <div className="col-span-3 grid grid-cols-3 gap-1 h-full">
-                        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "00", "."].map((k) => (
+                        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "00", "000"].map((k) => (
                             <Button
                                 key={k}
                                 variant="outline"
                                 className="h-full text-sm sm:text-xl xl:text-3xl font-extrabold border-2 border-black bg-white text-black hover:bg-gray-100 p-0"
                                 onClick={() => {
-                                    if (k === ".") addDot();
+                                    if (k === "000") addTripleZero();
                                     else if (k === "00") addDoubleZero();
                                     else addDigit(k);
                                 }}

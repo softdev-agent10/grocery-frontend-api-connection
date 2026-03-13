@@ -1,11 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingCart } from "lucide-react";
+import {
+  ShoppingCart,
+  Tag,
+  ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  ShieldCheck,
+  Smartphone,
+  Loader2,
+  X
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAppSelector } from "@/lib/redux/hooks";
+import { useAppSelector, useAppDispatch } from "@/lib/redux/hooks";
+import { setPaymentStatus } from "@/features/sales/sales-slice";
+import { Button } from "@/components/ui/button";
 import { CartItemType } from "@/components/sales/cart-items";
 
 // Mock Ads
@@ -34,8 +47,57 @@ const ADS = [
 ];
 
 export default function CustomerDisplayPage() {
-  const { items, taxPercent, isTaxFree, discountValue, discountType } = useAppSelector((state) => state.sales);
+  const dispatch = useAppDispatch();
+  const cartItemsEndRef = useRef<HTMLDivElement>(null);
+  const { items, taxPercent, isTaxFree, discountValue, discountType, paymentStatus, paymentMethod } = useAppSelector((state) => state.sales);
   const [currentAd, setCurrentAd] = useState(0);
+  const [countdown, setCountdown] = useState(5);
+
+  // Keyboard shortcuts for simulation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (paymentStatus === 'pending') {
+        if (e.key === 'Enter') {
+          dispatch(setPaymentStatus('success'));
+        } else if (e.key.toLowerCase() === 'd') {
+          dispatch(setPaymentStatus('error'));
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [paymentStatus, dispatch]);
+
+  // Auto-redirect to ads after 5 seconds of success or failure
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    let interval: NodeJS.Timeout;
+
+    if (paymentStatus === 'success' || paymentStatus === 'error') {
+      setCountdown(5);
+      
+      interval = setInterval(() => {
+        setCountdown((prev) => Math.max(0, prev - 1));
+      }, 1000);
+
+      timer = setTimeout(() => {
+        dispatch(setPaymentStatus('idle'));
+      }, 5000);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (interval) clearInterval(interval);
+    };
+  }, [paymentStatus, dispatch]);
+
+  // Auto-scroll to bottom when items are added
+  useEffect(() => {
+    if (cartItemsEndRef.current) {
+      cartItemsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [items.length]);
 
   // Auto-rotate ads
   useEffect(() => {
@@ -127,6 +189,7 @@ export default function CustomerDisplayPage() {
                       </div>
                     );
                   })}
+                  <div ref={cartItemsEndRef} />
                 </div>
 
                 {/* Summary Section (Matching Sales Page Style) */}
@@ -169,8 +232,98 @@ export default function CustomerDisplayPage() {
         {/* Right Panel: Full Screen Ads or Side Ads */}
         <div className="flex-1 bg-white border border-gray-200 shadow-sm rounded-xl overflow-hidden relative">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={`ad-${currentAd}`}
+            {paymentStatus !== 'idle' ? (
+              <motion.div
+                key="payment-display"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="absolute inset-0 bg-white flex flex-col items-center justify-center p-12"
+              >
+                <div className="max-w-2xl w-full flex flex-col items-center gap-8 text-center">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="p-4 bg-blue-50 rounded-[2rem]">
+                      <Smartphone className="size-12 text-blue-600" />
+                    </div>
+                    <div className="text-left">
+                      <h2 className="text-4xl font-black text-gray-900 uppercase tracking-tight">Mobile Payment</h2>
+                      <p className="text-blue-600 font-bold uppercase tracking-[0.2em]">{paymentMethod} selected</p>
+                    </div>
+                  </div>
+
+                  {paymentStatus === 'pending' ? (
+                    <>
+                      <div className="relative group">
+                        <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500 to-indigo-600 rounded-[3rem] opacity-20 blur-2xl group-hover:opacity-30 transition-opacity animate-pulse" />
+                        <div className="relative bg-white p-8 rounded-[2.5rem] shadow-2xl border-4 border-blue-50">
+                          {/* Real development QR code */}
+                          <div className="size-64 bg-white rounded-2xl flex items-center justify-center relative overflow-hidden">
+                            <Image 
+                              src="/assets/qr_under_development.png" 
+                              alt="Payment QR Code" 
+                              fill
+                              className="object-contain p-2"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="flex items-center gap-3 px-6 py-3 bg-gray-50 rounded-2xl border border-gray-100">
+                            <Loader2 className="size-5 text-blue-600 animate-spin" />
+                            <span className="text-xl font-black text-gray-700 uppercase tracking-widest leading-none pt-1">Awaiting Payment...</span>
+                          </div>
+                          <p className="text-gray-400 font-medium italic">Please complete the transaction on your mobile device</p>
+                        </div>
+                      </div>
+                    </>
+                  ) : paymentStatus === 'success' ? (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex flex-col items-center gap-6"
+                    >
+                      <div className="size-32 bg-emerald-100 rounded-full flex items-center justify-center shadow-inner">
+                        <CheckCircle2 className="size-20 text-emerald-600" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-5xl font-black text-gray-900 uppercase tracking-tighter">Payment Success!</h3>
+                        <p className="text-xl text-gray-500 font-medium">Thank you for your purchase. Please collect your receipt.</p>
+                      </div>
+                      <div className="flex flex-col items-center gap-1">
+                        <p className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Redirecting to ads in</p>
+                        <div className="size-12 rounded-full border-2 border-emerald-100 flex items-center justify-center">
+                          <span className="text-xl font-black text-emerald-600">{countdown}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex flex-col items-center gap-6"
+                    >
+                      <div className="size-32 bg-red-100 rounded-full flex items-center justify-center shadow-inner">
+                        <X className="size-20 text-red-600" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-5xl font-black text-gray-900 uppercase tracking-tighter text-red-600">Payment Declined</h3>
+                        <p className="text-xl text-gray-500 font-medium">Transaction failed. Please try again or use another payment method.</p>
+                      </div>
+                      <div className="flex flex-col items-center gap-1">
+                        <p className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Back to ads in</p>
+                        <div className="size-12 rounded-full border-2 border-red-100 flex items-center justify-center">
+                          <span className="text-xl font-black text-red-600">{countdown}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key={`ad-${currentAd}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -213,7 +366,8 @@ export default function CustomerDisplayPage() {
                 </motion.div>
               </div>
             </motion.div>
-          </AnimatePresence>
+          )}
+        </AnimatePresence>
 
           {/* Ad Indicators */}
           <div className="absolute bottom-6 right-8 flex gap-2">

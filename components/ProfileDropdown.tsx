@@ -2,7 +2,9 @@
 
 import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
-import { User, LogOut, UserCircle } from "lucide-react";
+import { LogOut, UserCircle, User } from "lucide-react";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { useRouter } from "next/navigation";
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -13,7 +15,9 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
   isOpen,
   onToggle,
 }) => {
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -138,6 +142,10 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
                 animate="visible"
                 whileHover={{ x: 4 }}
                 whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  onToggle();
+                  setLogoutConfirmOpen(true);
+                }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200 text-left focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 group mt-1"
               >
                 <LogOut size={18} className="flex-shrink-0 group-hover:scale-110 transition-transform" />
@@ -147,6 +155,19 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmationDialog
+        open={logoutConfirmOpen}
+        onOpenChange={setLogoutConfirmOpen}
+        variant="destructive"
+        title="Confirm Logout"
+        description="Are you sure you want to log out? You will need to sign in again to access the dashboard."
+        confirmText="Logout"
+        onConfirm={() => {
+          localStorage.removeItem("token");
+          router.push("/login");
+        }}
+      />
     </div>
   );
 };

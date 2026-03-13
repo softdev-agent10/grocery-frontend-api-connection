@@ -63,7 +63,7 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
                         name="contact"
                         placeholder="452XXXXXXX"
                     /> */}
-                        <div className='flex'>
+                        <div className='flex gap-2'>
                             <SearchInput
                                 items={users}
                                 placeholder="Search users..."
@@ -74,10 +74,10 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
                             />
                             <Button
                                 type="button"
-                                className="w-10 md:h-12"
+                                className="w-36 md:h-12"
                                 onClick={() => setModalOpen(true)}
                             >
-                                +
+                                + Add Customer
                             </Button>
                         </div>
                     </Field>

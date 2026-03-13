@@ -25,15 +25,19 @@ const MANAGERS = [
   { id: "m2", name: "Shift Lead", email: "shift@onebalance.com", avatar: "" },
 ];
 
+const CASHIERS = [
+  { id: "c1", name: "John Cashier", role: "Cashier", avatar: "" },
+  { id: "c2", name: "Jane Smith", role: "Cashier", avatar: "" },
+];
+
 const EMPLOYEES = [
-  { id: "e1", name: "John Cashier", role: "Cashier", avatar: "" },
-  { id: "e2", name: "Sarah Stocker", role: "Inventory", avatar: "" },
-  { id: "e3", name: "Leo Messi", role: "Inventory", avatar: "" },
-  { id: "e4", name: "Cristiano", role: "Inventory", avatar: "" },
+  { id: "e1", name: "Sarah Stocker", role: "Inventory", avatar: "" },
+  { id: "e2", name: "Leo Messi", role: "Inventory", avatar: "" },
+  { id: "e3", name: "Cristiano", role: "Inventory", avatar: "" },
 ];
 
 export default function LoginPage() {
-  const [activeTab, setActiveTab] = useState<"admin" | "manager" | "employee">("employee");
+  const [activeTab, setActiveTab] = useState<"admin" | "manager" | "cashier" | "employee">("cashier");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
@@ -41,6 +45,7 @@ export default function LoginPage() {
   const [step, setStep] = useState<1 | 2>(1); // 1: Password, 2: OTP
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
   // Handle Tab Change
@@ -52,6 +57,7 @@ export default function LoginPage() {
     setPin("");
     setStep(1);
     setError("");
+    setIsSuccess(false);
     setSelectedEmployeeId(null);
   };
 
@@ -107,7 +113,16 @@ export default function LoginPage() {
     await new Promise(r => setTimeout(r, 800));
     
     if (employeePin === "123456") {
-      window.location.href = "/sales";
+      if (activeTab === "cashier") {
+        window.location.href = "/sales";
+      } else {
+        setIsSuccess(true);
+        setTimeout(() => {
+          setIsSuccess(false);
+          setPin("");
+          setSelectedEmployeeId(null);
+        }, 3000);
+      }
     } else {
       setError("Incorrect PIN. Please try again.");
       setPin("");
@@ -143,13 +158,14 @@ export default function LoginPage() {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-[720px] bg-white rounded-[2.5rem] shadow-2xl shadow-blue-100/50 border border-gray-100 relative z-10"
+        className="w-full max-w-[800px] bg-white rounded-[1.5rem] sm:rounded-[2.5rem] shadow-2xl shadow-blue-100/50 border border-gray-100 relative z-10 overflow-hidden"
       >
         {/* Tabs */}
-        <div className="flex p-2 bg-gray-50/80 border-b gap-1">
+        <div className="grid grid-cols-2 sm:flex p-2 bg-gray-50/80 border-b gap-1">
           {[
             { id: "admin", label: "Admin", icon: ShieldCheck },
             { id: "manager", label: "Manager", icon: Briefcase },
+            { id: "cashier", label: "Cashier", icon: UserCircle },
             { id: "employee", label: "Employee", icon: UserCircle },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -159,7 +175,7 @@ export default function LoginPage() {
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id as any)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold transition-all relative overflow-hidden",
+                  "flex items-center justify-center gap-2 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all relative overflow-hidden sm:flex-1",
                   isActive ? "text-white shadow-lg" : "text-gray-500 hover:bg-gray-200/50"
                 )}
               >
@@ -179,7 +195,7 @@ export default function LoginPage() {
 
         <div className="p-8">
           <AnimatePresence mode="wait">
-            {activeTab !== "employee" ? (
+            {(activeTab === "admin" || activeTab === "manager") ? (
               <motion.div key={`${activeTab}-pane`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <AdminManagerPane
                   quickSelectItems={((activeTab === "admin" ? ADMINS : MANAGERS) as any).map((u: any) => ({
@@ -204,9 +220,9 @@ export default function LoginPage() {
                 />
               </motion.div>
             ) : (
-              <motion.div key="employee-pane" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <motion.div key={`${activeTab}-pane`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <EmployeePane
-                  employees={(EMPLOYEES as any).map((e: any) => ({
+                  employees={((activeTab === "cashier" ? CASHIERS : EMPLOYEES) as any).map((e: any) => ({
                     id: e.id,
                     name: e.name,
                     value: e.id,
@@ -217,6 +233,7 @@ export default function LoginPage() {
                   onSelectEmployee={setSelectedEmployeeId}
                   pinLength={pin.length}
                   error={error}
+                  isSuccess={isSuccess}
                   onInput={handlePinInput}
                   onDelete={() => setPin(prev => prev.slice(0, -1))}
                   onClear={() => setPin("")}

@@ -32,7 +32,7 @@ export function DateOfBirthInput({ className, onChange }: { className?: string; 
             id="date"
             className="w-full justify-start font-normal md:h-12"
           >
-            {date ? date.toLocaleDateString() : "Select date"}
+            {date ? date.toLocaleDateString() : "Select DOB"}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

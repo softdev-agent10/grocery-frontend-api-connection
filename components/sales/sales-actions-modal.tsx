@@ -37,7 +37,7 @@ export function SalesActionsDialog({
   if (title === "Calculator" || title === "Discount") {
     return(
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-fit p-0 border-0 bg-transparent shadow-none overflow-visible" showCloseButton={true}>
+        <DialogContent className={cn("sm:max-w-fit p-0 border-0 bg-transparent shadow-none overflow-visible", className)} showCloseButton={true}>
           <VisuallyHidden>
             <DialogTitle>{title}</DialogTitle>
           </VisuallyHidden>
@@ -47,10 +47,10 @@ export function SalesActionsDialog({
     )
   }
 
-  if (title === "Item Pricing" || title === "Quick Add") {
+  if (title === "Item Pricing" || title === "Quick Add" || title === "Working Hours") {
     return(
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-fit p-0 border-0 bg-transparent shadow-none overflow-visible" showCloseButton={false}>
+        <DialogContent className={cn("sm:max-w-fit p-0 border-0 bg-transparent shadow-none overflow-visible flex flex-col", className)} showCloseButton={false}>
           <VisuallyHidden>
             <DialogTitle>{title}</DialogTitle>
           </VisuallyHidden>
@@ -63,16 +63,16 @@ export function SalesActionsDialog({
   return (
 
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("sm:max-w-1/2", className)} showCloseButton={showHeader}>
-        <form onSubmit={onSubmit || ((e) => e.preventDefault())} className="w-full">
+      <DialogContent className={cn("sm:max-w-1/2 flex flex-col", className)} showCloseButton={showHeader}>
+        <form onSubmit={onSubmit || ((e) => e.preventDefault())} className="w-full flex flex-col h-full">
           {!showHeader && title && (
             <VisuallyHidden>
               <DialogTitle>{title}</DialogTitle>
             </VisuallyHidden>
           )}
           {showHeader && (
-            <DialogHeader className="flex flex-row justify-between px-4 py-3 mt-3 rounded-md" style={{ background: "linear-gradient(135deg, #2563eb 0%, #3b4fcf 55%, #4338ca 100%)" }}>
-              {title && <DialogTitle className="uppercase text-4xl font-bold text-white">{title}</DialogTitle>}
+            <DialogHeader className="flex flex-row justify-between items-center px-4 py-3 mt-3 rounded-md" style={{ background: "linear-gradient(135deg, #2563eb 0%, #3b4fcf 55%, #4338ca 100%)" }}>
+              {title && <DialogTitle className="uppercase text-2xl xl:text-4xl font-bold text-white">{title}</DialogTitle>}
               <Search className="size-10 text-white" />
             </DialogHeader>
           )}

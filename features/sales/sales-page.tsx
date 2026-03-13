@@ -19,10 +19,12 @@ import {
     addToHistory,
     setSelectedCategory,
     setSearchQuery,
+    setKeyInput,
     HeldSale,
+    refundOrder,
 } from "./sales-slice";
 import { Button } from "@/components/ui/button";
-import { Banknote, Calculator, ClockFading, Coffee, CookingPot, CreditCard, Download, Gift, HandCoins, History, IdCard, Upload, User, X, PauseCircle, CirclePlus, Apple, Drumstick, Milk, Croissant, Wine, IceCream, Cookie, Home, Banana, Search, BanknoteX, Printer } from "lucide-react";
+import { Banknote, Calculator, ClockFading, Coffee, CookingPot, CreditCard, Download, Gift, HandCoins, History, IdCard, Upload, User, X, PauseCircle, CirclePlus, Apple, Drumstick, Milk, Croissant, Wine, IceCream, Cookie, Home, Banana, Search, BanknoteX, Printer, LogOut, Box } from "lucide-react";
 import { SalesActionsDialog } from "@/components/sales/sales-actions-modal";
 import CustomerModal from "@/components/sales/customer-modal";
 import CalculatorUI from "@/components/sales/calculator";
@@ -33,6 +35,7 @@ import PaymentKeypad from "@/components/sales/payment-keypad";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, ShoppingCart, Beef, Fish, Sandwich, Cake, CupSoda, Trash, Pizza, Popsicle } from "lucide-react";
 import BarcodeScanner from "@/components/sales/barcode-scanner";
+import { useEffect, useRef } from "react";
 import LoyaltyModal from "@/components/sales/loyalty-modal";
 import GiftCardModal from "@/components/sales/giftcard-modal";
 import CashInForm from "@/components/sales/cash-in-form";
@@ -41,8 +44,17 @@ import CashPaymentModal from "@/components/sales/cash-payment-modal";
 import Invoice from "@/components/sales/invoice";
 import DiscountModal from "@/components/sales/discount-modal";
 import QuickAddModal from "@/components/sales/quick-add-modal";
-import OrderHistory, { Order } from "@/components/sales/order-history";
+import OrderHistory, { Order, OrderItem } from "@/components/sales/order-history";
 import ItemPricingModal from "@/components/sales/item-pricing-modal";
+import WorkingHourReport from "@/components/sales/working-hour-report";
+import PaymentOtherModal from "@/components/sales/payment-other-modal";
+import RefundModal from "@/components/sales/refund-modal";
+import AttendanceModal from "@/components/sales/attendance-modal";
+import { PinPad } from "@/components/sales/pin-pad";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useRouter } from "next/navigation";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { cn } from "@/lib/utils";
 
 interface Product {
     id: string;
@@ -88,18 +100,29 @@ const PRODUCTS: Product[] = [
 
 export default function SalesPage() {
     const dispatch = useAppDispatch();
-    const {
-        items,
-        customer,
-        taxPercent,
-        discountValue,
-        discountType,
+    const router = useRouter();
+    const cartItemsEndRef = useRef<HTMLDivElement>(null);
+
+    const { 
+        items, 
+        customer, 
+        taxPercent, 
+        discountValue, 
+        discountType, 
         isTaxFree,
         history,
         heldSales,
         selectedCategory,
         searchQuery,
+        keyInput,
     } = useAppSelector((state) => state.sales);
+
+    // Auto-scroll to bottom when items are added
+    useEffect(() => {
+        if (cartItemsEndRef.current) {
+            cartItemsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [items.length]);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -107,11 +130,13 @@ export default function SalesPage() {
     const [cashGiven, setCashGiven] = useState(0);
     const [modalTitle, setModalTitle] = useState<string>("");
     const [modalType, setModalType] = useState<string | null>(null);
+    const [modalData, setModalData] = useState<any>(null);
     const [keypadResetKey, setKeypadResetKey] = useState(0);
     const [printRequested, setPrintRequested] = useState(false);
     const [isBasketOnlyPrint, setIsBasketOnlyPrint] = useState(false);
     const [reprintOrder, setReprintOrder] = useState<Order | null>(null);
     const [editingItem, setEditingItem] = useState<CartItemType | null>(null);
+    const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
     const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
         setNotification({ message, type });
@@ -185,11 +210,14 @@ export default function SalesPage() {
     };
 
     const handleHistoryRefund = (order: Order) => {
-        showNotification(`Refund processed for ${order.id}`, "success");
-        // In a real app, this would update the backend/store
+        dispatch(refundOrder(order.id));
+        showNotification(`Refund processed successfully for Order ${order.id}`, "success");
     };
 
     function handleAction(type: string, data?: any) {
+        // Reset data for each action
+        setModalData(null);
+
         // If it's a category, just set it
         if (CATEGORIES.find(c => c.name === type)) {
             dispatch(setSelectedCategory(type));
@@ -222,8 +250,41 @@ export default function SalesPage() {
             return;
         }
 
-        if (type === "Refund" || type === "Other") {
+        if (type === "Refund") {
+            setModalTitle("Refund Transaction");
+            setModalType("Refund");
+            setModalOpen(true);
+            return;
+        }
+
+        if (type === "Clock In" || type === "Take Break" || type === "Meal Break") {
+            const attendanceType = type === "Clock In" ? "in" : type === "Take Break" ? "break" : "meal";
+            setModalTitle("Attendance");
+            setModalType("Attendance");
+            setModalData(attendanceType);
+            setModalOpen(true);
+            return;
+        }
+
+        if (type === "Other") {
+            setModalTitle("Other Payments");
+            setModalType("PaymentOther");
+            setModalOpen(true);
+            return;
+        }
+
+        if (type === "Buy N Get N") {
             showNotification("Under development", "success");
+        }
+
+        if (type === "Promotions") {
+            showNotification("Under development", "success");
+        }
+
+        if (type === "Item Pricing") {
+            setModalTitle("Item Pricing");
+            setModalType("Item Pricing");
+            setModalOpen(true);
             return;
         }
 
@@ -237,6 +298,15 @@ export default function SalesPage() {
         switch (modalType) {
             case "Customer":
                 return <CustomerModal customer={customer} setCustomer={(c: { name: string; contact: string } | null) => dispatch(setCustomer(c))} />;
+            case "Attendance":
+                return (
+                    <AttendanceModal 
+                        onClose={() => setModalOpen(false)}
+                        initialType={modalData || "in"}
+                    />
+                );
+            case "PaymentOther":
+                return <PaymentOtherModal onClose={() => setModalOpen(false)} />;
             case "Membership Card Lookup":
                 return <MembershipModal />;
             case "Loyalty Card Lookup":
@@ -244,7 +314,10 @@ export default function SalesPage() {
             case "Find Gift Card":
                 return <GiftCardModal />;
             case "Calculator":
-                return <CalculatorUI />;
+                return <CalculatorUI onCopy={(val) => {
+                    dispatch(setKeyInput(val));
+                    setModalOpen(false);
+                }} />;
             case "CashIn":
                 return <CashInForm />;
             case "CashOut":
@@ -268,6 +341,14 @@ export default function SalesPage() {
                         onCancel={() => setModalOpen(false)}
                     />
                 );
+            case "Refund":
+                return (
+                    <RefundModal 
+                        orders={history}
+                        onRefund={handleHistoryRefund}
+                        onClose={() => setModalOpen(false)}
+                    />
+                );
             case "History":
                 return (
                     <OrderHistory 
@@ -277,6 +358,8 @@ export default function SalesPage() {
                         onRefund={handleHistoryRefund}
                     />
                 );
+            case "Working Hours":
+                return <WorkingHourReport onClose={() => setModalOpen(false)} />;
             case "Item Pricing":
                 if (!editingItem) return null;
                 return (
@@ -386,23 +469,33 @@ export default function SalesPage() {
     };
 
     const handleAddToCart = (product: Product) => {
-        if (product.stock <= 0) return;
+        if (product.stock <= 0) {
+            showNotification(`Product out of stock!`, 'error');
+            return;
+        }
         
         const currentQty = items.find(i => i.id === product.id)?.qty || 0;
-        if (currentQty >= product.stock) return;
+        if (currentQty >= product.stock) {
+            showNotification(`Max stock reached! Available: ${product.stock}`, 'error');
+            return;
+        }
 
         dispatch(addItem({ 
             id: product.id, 
             name: product.name, 
             price: product.price, 
             qty: 1, 
+            stock: product.stock,
             promotion: product.promotion 
         }));
     };
 
     const handleUpdateQuantity = (id: string, qty: number) => {
-        const product = PRODUCTS.find(p => p.id === id);
-        if (product && qty > product.stock) return;
+        const item = items.find(i => i.id === id);
+        if (item && qty > item.stock) {
+            showNotification(`Insufficient stock! Available: ${item.stock}`, 'error');
+            return;
+        }
         dispatch(updateItemQty({ id, qty }));
     };
 
@@ -464,7 +557,10 @@ export default function SalesPage() {
                                     <div className="w-36 text-right">Price</div>
                                     <div className="w-10"></div>
                                 </div>
-                                <div className="space-y-3 mt-2 overflow-y-auto h-[calc(100%-1rem)] xl:h-[calc(100%-3rem)] custom-scrollbar">
+                                <div className={cn(
+                                    "mt-2 h-[calc(100%-1rem)] xl:h-[calc(100%-3rem)] custom-scrollbar",
+                                    items.length > 0 ? "space-y-3 overflow-y-auto" : "overflow-hidden"
+                                )}>
                                     {items.length > 0 ? (
                                         items.map((item) => (
                                             <CartItem 
@@ -479,7 +575,7 @@ export default function SalesPage() {
                                             />
                                         ))
                                     ) : (
-                                        <div className="h-full flex flex-col items-center justify-center py-20 px-4 text-center">
+                                        <div className="h-full flex flex-col items-center justify-center px-4 text-center">
                                             <div className="bg-gray-50 rounded-full p-6 mb-4">
                                                 <ShoppingCart className="size-12 text-gray-300" strokeWidth={1.5} />
                                             </div>
@@ -487,6 +583,7 @@ export default function SalesPage() {
                                             <p className="text-gray-500 max-w-[200px]">Scan a barcode or select products to start a sale</p>
                                         </div>
                                     )}
+                                    <div ref={cartItemsEndRef} />
                                 </div>
                             </div>
                             <div className="row-span-2">
@@ -660,7 +757,7 @@ export default function SalesPage() {
                                                 </h3>
                                             </div>
 
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-5 gap-3">
                                                 {filteredProducts.map((product) => {
                                                     const currentQty = items.find(i => i.id === product.id)?.qty || 0;
                                                     return (
@@ -789,24 +886,6 @@ export default function SalesPage() {
                                                 <p className="text-md xl:text-xl">Cash Out</p>
                                             </div>
                                         </Button>
-                                        {/* <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="w-full h-full border border-black"
-                                            aria-label="Banknote"
-                                            onClick={() => handleAction('Banknote')}
-                                        >
-                                            <Banknote className="size-14 xl:size-20" />
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="w-full h-full border border-black"
-                                            aria-label="Credit Card"
-                                            onClick={() => handleAction('Credit Card')}
-                                        >
-                                            <CreditCard className="size-14 xl:size-20" />
-                                        </Button> */}
                                         <Button
                                             variant="outline"
                                             size="icon"
@@ -843,26 +922,73 @@ export default function SalesPage() {
                                                 <p className="text-md xl:text-xl">Print Basket</p>
                                             </div>
                                         </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="w-full h-full border border-black"
+                                            aria-label="Buy N Get N"
+                                            onClick={() => handleAction('Buy N Get N')}
+                                        >
+                                            <div className="flex flex-col justify-center items-center">
+                                               <Box className="size-14 xl:size-20" />
+                                                <p className="text-md xl:text-xl">Buy N Get N</p>
+                                            </div>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="w-full h-full border border-black"
+                                            aria-label="Promotions"
+                                            onClick={() => handleAction('Promotions')}
+                                        >
+                                            <div className="flex flex-col justify-center items-center">
+                                               <Gift className="size-14 xl:size-20" />
+                                                <p className="text-md xl:text-xl">Promotions</p>
+                                            </div>
+                                        </Button>
                                     </div>
                                     {/* footer section */}
                                     <div className="mt-2 flex flex-col md:flex-row gap-2 justify-between items-center bg-gray-400 px-2 py-2 md:py-1 rounded">
-                                        <div className="flex items-center space-x-2 md:space-x-3">
-                                            <Avatar className="border-2 border-amber-300 size-10 md:size-12 xl:size-16">
-                                                <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-                                                <AvatarFallback>CN</AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                                <p className="text-xs xl:text-lg font-medium">John Doe</p>
-                                                <p className="text-xs text-gray-600">Cashier</p>
-                                            </div>
-                                        </div>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <div className="flex items-center space-x-2 md:space-x-3 cursor-pointer hover:bg-white/10 p-1 rounded-lg transition-colors">
+                                                    <Avatar className="border-2 border-amber-300 size-10 md:size-12 xl:size-16">
+                                                        <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+                                                        <AvatarFallback>CN</AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <p className="text-xs xl:text-lg font-medium text-white">John Doe</p>
+                                                        <p className="text-xs text-gray-200">Cashier</p>
+                                                    </div>
+                                                </div>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-56 p-2 rounded-2xl shadow-2xl border-0 bg-white" align="start" side="top">
+                                                <div className="space-y-1">
+                                                    <button 
+                                                        onClick={() => handleAction("Working Hours")}
+                                                        className="w-full flex items-center gap-3 px-3 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                                                    >
+                                                        <History className="size-4 text-blue-600" />
+                                                        Working History
+                                                    </button>
+                                                    <div className="h-px bg-gray-100 my-1" />
+                                                    <button 
+                                                        onClick={() => setLogoutConfirmOpen(true)}
+                                                        className="w-full flex items-center gap-3 px-3 py-3 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                                                    >
+                                                        <LogOut className="size-4" />
+                                                        Logout
+                                                    </button>
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
                                         <div className="flex gap-2">
                                             <Button
                                                 variant="outline"
                                                 size="icon"
                                                 className="size-10 md:size-12 xl:size-16 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
-                                                aria-label="Recent-1"
-                                                onClick={() => handleAction('Customer')}
+                                                aria-label="Clock In"
+                                                onClick={() => handleAction('Clock In')}
                                             >
                                                 <ClockFading className="size-10" />
                                             </Button>
@@ -870,8 +996,8 @@ export default function SalesPage() {
                                                 variant="outline"
                                                 size="icon"
                                                 className="size-10 md:size-12 xl:size-16 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
-                                                aria-label="Recent-1"
-                                                onClick={() => handleAction('Customer')}
+                                                aria-label="Take Break"
+                                                onClick={() => handleAction('Take Break')}
                                             >
                                                 <Coffee className="size-10" />
                                             </Button>
@@ -879,8 +1005,8 @@ export default function SalesPage() {
                                                 variant="outline"
                                                 size="icon"
                                                 className="size-10 md:size-12 xl:size-16 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
-                                                aria-label="Recent-1"
-                                                onClick={() => handleAction('Customer')}
+                                                aria-label="Meal Break"
+                                                onClick={() => handleAction('Meal Break')}
                                             >
                                                 <CookingPot className="size-10" />
                                             </Button>
@@ -922,9 +1048,9 @@ export default function SalesPage() {
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 title={modalTitle}
-                showFooter={modalTitle !== "Recent Holds" && modalTitle !== "History" && modalTitle !== "Item Pricing"}
-                showHeader={modalTitle !== "History" && modalTitle !== "Item Pricing"}
-                className={modalTitle === "History" ? "sm:max-w-5xl p-0 overflow-hidden" : ""}
+                showFooter={modalTitle !== "Recent Holds" && modalTitle !== "History" && modalTitle !== "Item Pricing" && modalTitle !== "Working Hours" && modalTitle !== "Attendance" && modalTitle !== "Other Payments" && modalTitle !== "Refund Transaction"}
+                showHeader={modalTitle !== "History" && modalTitle !== "Item Pricing" && modalTitle !== "Working Hours" && modalTitle !== "Attendance" && modalTitle !== "Other Payments" && modalTitle !== "Refund Transaction"}
+                className={modalTitle === "History" || modalTitle === "Working Hours" || modalTitle === "Other Payments" || modalTitle === "Refund Transaction" || modalTitle === "Attendance" ? "w-[90%] sm:w-[60%] max-w-[90%] sm:max-w-[60%] h-[90%] sm:h-[80%] max-h-[90%] sm:max-h-[80%] p-0 overflow-hidden" : ""}
                 onSubmit={(e) => {
                     e.preventDefault();
                     setModalOpen(false);
@@ -932,6 +1058,19 @@ export default function SalesPage() {
             >
                 {renderModalContent()}
             </SalesActionsDialog>
+
+            <ConfirmationDialog
+                open={logoutConfirmOpen}
+                onOpenChange={setLogoutConfirmOpen}
+                variant="destructive"
+                title="Confirm Logout"
+                description="Are you sure you want to log out of the POS system? Any unsaved transaction progress may be lost."
+                confirmText="Logout"
+                onConfirm={() => {
+                    localStorage.removeItem("token");
+                    router.push("/login");
+                }}
+            />
             {printRequested && (
                 <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
                     <style>{`

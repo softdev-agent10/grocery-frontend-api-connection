@@ -24,6 +24,9 @@ interface SalesState {
   heldSales: HeldSale[];
   selectedCategory: string | null;
   searchQuery: string;
+  keyInput: string;
+  paymentStatus: 'idle' | 'pending' | 'success' | 'error';
+  paymentMethod: string | null;
 }
 
 const initialState: SalesState = {
@@ -36,7 +39,10 @@ const initialState: SalesState = {
   history: [],
   heldSales: [],
   selectedCategory: null,
-  searchQuery: '',
+  searchQuery: "",
+  keyInput: "",
+  paymentStatus: 'idle',
+  paymentMethod: null,
 };
 
 export const salesSlice = createSlice({
@@ -136,6 +142,21 @@ export const salesSlice = createSlice({
     setSearchQuery: (state, action: PayloadAction<string>) => {
       state.searchQuery = action.payload;
     },
+    setKeyInput: (state, action: PayloadAction<string>) => {
+      state.keyInput = action.payload;
+    },
+    setPaymentStatus: (state, action: PayloadAction<'idle' | 'pending' | 'success' | 'error'>) => {
+      state.paymentStatus = action.payload;
+    },
+    setPaymentMethod: (state, action: PayloadAction<string | null>) => {
+      state.paymentMethod = action.payload;
+    },
+    refundOrder: (state, action: PayloadAction<string>) => {
+      const order = state.history.find(o => o.id === action.payload);
+      if (order) {
+        order.isRefunded = true;
+      }
+    },
   },
 });
 
@@ -155,6 +176,10 @@ export const {
   addToHistory,
   setSelectedCategory,
   setSearchQuery,
+  setKeyInput,
+  setPaymentStatus,
+  setPaymentMethod,
+  refundOrder,
 } = salesSlice.actions;
 
 export default salesSlice.reducer;

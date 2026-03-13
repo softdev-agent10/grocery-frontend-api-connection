@@ -44,7 +44,7 @@ export default function BarcodeScanner({ onScan, minChars = 3, timeout = 100 }: 
                     onScan(buffer.current);
                     buffer.current = "";
                 }
-            } else if (e.key.length === 1) {
+            } else if (e.key && e.key.length === 1) {
                 // Only collect single-character keys
                 buffer.current += e.key;
             }

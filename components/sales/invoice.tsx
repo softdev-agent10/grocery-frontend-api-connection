@@ -1,12 +1,13 @@
 "use client";
 
 import { CartItemType } from "@/components/sales/cart-items";
+import { OrderItem } from "@/components/sales/order-history";
 import Image from "next/image";
 import Barcode from "react-barcode";
 import { renderToStaticMarkup } from "react-dom/server";
 
 interface InvoiceProps {
-    items: CartItemType[];
+    items: (CartItemType | OrderItem)[];
     subtotal: number;
     taxAmount: number;
     discountAmount: number;

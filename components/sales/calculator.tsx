@@ -28,7 +28,7 @@ const calculate = (a: number, b: number, op: Operator) => {
   }
 };
 
-export default function CalculatorUI() {
+export default function CalculatorUI({ onCopy }: { onCopy?: (value: string) => void }) {
   const [state, setState] = useState<CalcState>({
     display: "0",
     input: "0",
@@ -37,6 +37,14 @@ export default function CalculatorUI() {
     waiting: false,
     expression: "",
   });
+
+  const handleCopy = () => {
+    if (onCopy && state.display !== "Error") {
+      // Remove dots and handle cents (keypad uses cents as base)
+      const val = Math.round(parseFloat(state.display) * 100).toString();
+      onCopy(val);
+    }
+  };
 
   const clearAll = () =>
     setState({
@@ -198,6 +206,18 @@ export default function CalculatorUI() {
             <CalcButton onClick={inputDot}>.</CalcButton>
             <CalcButton variant="op" onClick={handleEquals}>=</CalcButton>
           </div>
+
+          {/* Copy to Register Button */}
+          {onCopy && (
+            <div className="mt-6">
+              <button
+                onClick={handleCopy}
+                className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg border border-white/20 uppercase tracking-wide"
+              >
+                Copy to Register
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
