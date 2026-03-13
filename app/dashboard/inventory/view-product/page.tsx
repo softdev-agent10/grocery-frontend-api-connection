@@ -6,16 +6,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { 
-  Plus, 
-  Download, 
-  Filter, 
-  Edit, 
-  Trash2, 
   Search, 
-  History, 
-  Eye, 
-  SquarePen, 
-  ChevronDown,
   X,
   Check,
   Package,
@@ -23,13 +14,28 @@ import {
   FileText,
   Table as TableIcon,
   Clock,
-  AlertCircle
+  AlertCircle,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  ChevronDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
 import DownloadModal from "@/components/download-modal";
+import { ProductModal, ProductFormData } from "@/components/ProductModal";
+import { 
+  AddButton, 
+  EditButton, 
+  DeleteButton, 
+  DownloadButton, 
+  FilterButton, 
+  HistoryButton 
+} from "@/components/toolbar-buttons";
+import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 
 interface Product {
   id: number;
@@ -49,6 +55,19 @@ interface HistoryItem {
   action: "Add" | "Edit" | "Delete";
   details: string;
   timestamp: string;
+}
+
+interface TableViewColumns {
+  checkbox: boolean;
+  name: boolean;
+  upc: boolean;
+  category: boolean;
+  brand: boolean;
+  price: boolean;
+  pricing: boolean;
+  unit: boolean;
+  qty: boolean;
+  status: boolean;
 }
 
 const mockProducts: Product[] = [
@@ -75,23 +94,42 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("All");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const [visibleColumns, setVisibleColumns] = useState<TableViewColumns>({
+    checkbox: true,
+    name: true,
+    upc: true,
+    category: true,
+    brand: true,
+    price: true,
+    pricing: true,
+    unit: true,
+    qty: true,
+    status: true,
+  });
+
+  // Pagination & Sorting State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+  
+  const [tempColumns, setTempColumns] = useState<TableViewColumns>(visibleColumns);
+  const [tempItemsPerPage, setTempItemsPerPage] = useState(itemsPerPage);
   
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
     message: string;
+    product?: Product;
     onConfirm: () => void;
   }>({
     isOpen: false,
     title: "",
     message: "",
+    product: undefined,
     onConfirm: () => {},
   });
-  
-  // Pagination & Sorting State
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Product | 'none', direction: 'asc' | 'desc' }>({ key: 'none', direction: 'asc' });
 
   // Form state
@@ -121,6 +159,35 @@ export default function App() {
       timestamp: new Date().toLocaleString()
     };
     setHistory(prev => [newItem, ...prev].slice(0, 50));
+  };
+
+  const handleEditModalOpen = () => {
+    setTempColumns(visibleColumns);
+    setTempItemsPerPage(itemsPerPage);
+    setIsEditModalOpen(true);
+  };
+
+  const handleApplyTableChanges = () => {
+    setVisibleColumns(tempColumns);
+    setItemsPerPage(tempItemsPerPage);
+    setIsEditModalOpen(false);
+  };
+
+  const handleResetTableDefaults = () => {
+    const defaults: TableViewColumns = {
+      checkbox: true,
+      name: true,
+      upc: true,
+      category: true,
+      brand: true,
+      price: true,
+      pricing: true,
+      unit: true,
+      qty: true,
+      status: true,
+    };
+    setTempColumns(defaults);
+    setTempItemsPerPage(5);
   };
 
   const sortedAndFilteredProducts = useMemo(() => {
@@ -190,7 +257,8 @@ export default function App() {
       setConfirmModal({
         isOpen: true,
         title: "Delete Product",
-        message: `Are you sure you want to delete "${product.name}"? This action cannot be undone.`,
+        message: `Are you sure you want to delete this product? This action cannot be undone.`,
+        product: product,
         onConfirm: () => {
           setProducts(prev => prev.filter(p => p.id !== id));
           addHistory("Delete", `Deleted product: ${product.name}`);
@@ -265,43 +333,26 @@ export default function App() {
       p.name, p.upc, p.category, p.brand, p.price, p.pricing, p.unit, p.qty, p.status
     ]);
     
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(r => r.join(","))
-    ].join("\n");
-    
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `products_${scope}_${new Date().getTime()}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    generateCSV(headers, rows, `products_${scope}_${new Date().getTime()}.csv`);
     addHistory("Download", `Exported ${scope === 'current' ? 'current page' : 'all'} products as CSV`);
     setIsDownloadModalOpen(false);
   };
 
   const downloadPDF = (scope: 'current' | 'all') => {
     const dataToExport = scope === 'current' ? paginatedProducts : sortedAndFilteredProducts;
-    const doc = new jsPDF();
-    doc.text(`Product Inventory Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`, 14, 15);
-    
-    const tableColumn = ["Name", "UPC", "Category", "Price", "QTY", "Status"];
-    const tableRows = dataToExport.map(p => [
-      p.name, p.upc, p.category, p.price, p.qty, p.status
+    const columns = ["Name", "UPC", "Category", "Brand", "Price", "QTY", "Status"];
+    const rows = dataToExport.map(p => [
+      p.name, p.upc, p.category, p.brand, p.price, p.qty, p.status
     ]);
 
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 20,
-      theme: 'grid',
-      headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
+    generatePDFWithLogo({
+      title: `Product Inventory Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+      columns,
+      rows,
+      fileName: `products_${scope}_${new Date().getTime()}.pdf`,
+      scope
     });
     
-    doc.save(`products_${scope}_${new Date().getTime()}.pdf`);
     addHistory("Download", `Exported ${scope === 'current' ? 'current page' : 'all'} products as PDF`);
     setIsDownloadModalOpen(false);
   };
@@ -309,7 +360,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
       {/* Header Section */}
-      <header className="bg-blue-600 px-6 py-8 flex justify-between items-center shadow-lg relative overflow-hidden rounded-2xl">
+    <section className=" rounded-2xl border-b border-slate-200 bg-white  mt-0"> 
+       <header className="bg-blue-600 rounded-2xl px-6 py-8 flex justify-between items-center shadow-lg relative overflow-hidden ">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
           <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[120%] bg-white rotate-12 blur-3xl rounded-full" />
         </div>
@@ -330,34 +382,17 @@ export default function App() {
           animate={{ scale: 1, opacity: 1 }}
           className="text-white relative z-10"
         >
-          <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md border border-white/30 shadow-xl">
+          <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md border  border-white/30 shadow-xl">
             <Package size={40} strokeWidth={2} />
           </div>
         </motion.div>
       </header>
-
-      {/* Toolbar Section */}
-      <div className="p-8 space-y-8">
-        <div className="flex flex-wrap items-center gap-3">
-          <motion.button 
-            whileHover={{ scale: 1.05, y: -2 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => handleOpenModal()}
-            className="flex items-center gap-2  bg-white border  text-slate-700 px-6 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-blue-200"
-          >
-            <Plus size={20} /> Add Product
-          </motion.button>
+ <div className="bg-white p-4 shadow-xl  rounded-2xl mt-4 border border-slate-200 flex flex-wrap items-center gap-3 ">
+          <AddButton onClick={() => handleOpenModal()} label="Add Product" />
           
           {/* Download Dropdown */}
           <div className="relative">
-            <motion.button 
-              whileHover={{ scale: 1.05, y: -2 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsDownloadModalOpen(true)}
-              className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-400 text-slate-700 px-6 py-3 rounded-xl font-bold transition-all shadow-sm"
-            >
-              <Download size={20} /> Download <ChevronDown size={16} />
-            </motion.button>
+            <DownloadButton onClick={() => setIsDownloadModalOpen(true)} />
 
             <DownloadModal
               isOpen={isDownloadModalOpen}
@@ -371,16 +406,9 @@ export default function App() {
             />
           </div>
 
-          {/* Filter Dropdown */}
+          {/* Filter Section - Using Custom Filter Component */}
           <div className="relative">
-            <motion.button 
-              whileHover={{ scale: 1.05, y: -2 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-              className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-400 text-slate-700 px-6 py-3 rounded-xl font-bold transition-all shadow-sm"
-            >
-              <Filter size={20} /> Filter <ChevronDown size={16} className={`transition-transform duration-300 ${isFilterMenuOpen ? 'rotate-180' : ''}`} />
-            </motion.button>
+            <FilterButton onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)} />
 
             <AnimatePresence>
               {isFilterMenuOpen && (
@@ -408,7 +436,7 @@ export default function App() {
                       </button>
                     ))}
 
-                    <div className="p-3 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 border-t border-slate-100">Sort By</div>
+                    <div className="p-3 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b   border-t border-slate-100">Sort By</div>
                     {[
                       { label: "Name (A-Z)", key: "name", dir: "asc" },
                       { label: "Name (Z-A)", key: "name", dir: "desc" },
@@ -450,40 +478,19 @@ export default function App() {
             </AnimatePresence>
           </div>
 
-          <motion.button 
-            whileHover={{ scale: 1.05, y: -2 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => {
-              if (selectedIds.size === 1) {
-                const id = Array.from(selectedIds)[0];
-                const product = products.find(p => p.id === id);
-                if (product) handleOpenModal(product);
-              } else if (selectedIds.size > 1) {
-                alert("Please select only one product to edit.");
-              } else {
-                alert("Please select a product to edit.");
-              }
-            }}
-            className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-400 text-slate-700 px-6 py-3 rounded-xl font-bold transition-all shadow-sm"
-          >
-            <Edit size={20} /> Edit
-          </motion.button>
+          <EditButton 
+            onClick={handleEditModalOpen}
+            variant="text"
+            size="md"
+          />
 
-          <motion.button 
-            whileHover={selectedIds.size > 0 ? { scale: 1.05, y: -2 } : {}}
-            whileTap={selectedIds.size > 0 ? { scale: 0.95 } : {}}
+          <DeleteButton 
             onClick={handleBulkDelete}
             disabled={selectedIds.size === 0}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-md ${
-              selectedIds.size > 0 
-                ? "bg-red-500 hover:bg-red-600 text-white shadow-red-100" 
-                : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-            }`}
-          >
-            <Trash2 size={20} /> Delete {selectedIds.size > 0 && `(${selectedIds.size})`}
-          </motion.button>
+            count={selectedIds.size}
+          />
 
-          <div className="flex-grow max-w-md ml-auto flex relative">
+          <div className="flex-grow:1 max-w-md ml-auto flex relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
               <Search size={20} />
             </div>
@@ -496,45 +503,62 @@ export default function App() {
             />
           </div>
 
-          <motion.button 
-            whileHover={{ scale: 1.05, y: -2 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsHistoryOpen(true)}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-md shadow-slate-200"
-          >
-            <History size={20} /> History
-          </motion.button>
-        </div>
+          <HistoryButton onClick={() => setIsHistoryOpen(true)} />
+        </div> 
+        </section>
+      {/* Toolbar Section */}
+      <div className="p-4 space-y-8">
+       
 
         {/* Table Section */}
         <motion.div 
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden"
+          className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 "
         >
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-2xl">
             <table className="w-full text-left border-collapse ">
               <thead  >
                 <tr className="bg-blue-600 border-b border-slate-100">
-                  <th className="p-6 w-12">
-                    <div className="flex items-center justify-center">
-                      <input 
-                        type="checkbox" 
-                        className="w-5 h-5 rounded-lg bg-blue-600 border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        checked={paginatedProducts.length > 0 && selectedIds.size === paginatedProducts.length}
-                        onChange={handleSelectAll}
-                      />
-                    </div>
-                  </th>
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest text-white">Product Name</th>
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">UPC</th>
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Category</th>
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Brand</th> 
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Price</th>
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Pricing Type</th>
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Unit</th>
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white text-center">QTY</th>
-                  <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Status</th>
+                  {visibleColumns.checkbox && (
+                    <th className="p-6 w-12">
+                      <div className="flex items-center justify-center">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 rounded-lg bg-blue-600 border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          checked={paginatedProducts.length > 0 && selectedIds.size === paginatedProducts.length}
+                          onChange={handleSelectAll}
+                        />
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.name && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest text-white">Product Name</th>
+                  )}
+                  {visibleColumns.upc && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">UPC</th>
+                  )}
+                  {visibleColumns.category && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Category</th>
+                  )}
+                  {visibleColumns.brand && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Brand</th>
+                  )}
+                  {visibleColumns.price && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Price</th>
+                  )}
+                  {visibleColumns.pricing && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Pricing Type</th>
+                  )}
+                  {visibleColumns.unit && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Unit</th>
+                  )}
+                  {visibleColumns.qty && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white text-center">QTY</th>
+                  )}
+                  {visibleColumns.status && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Status</th>
+                  )}
                   <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white text-center">Action</th>
                 </tr>
               </thead>
@@ -548,51 +572,71 @@ export default function App() {
                       key={product.id} 
                       className="hover:bg-blue-50/30 transition-colors group"
                     >
-                      <td className="p-6">
-                        <div className="flex items-center justify-center">
-                          <input 
-                            type="checkbox" 
-                            className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                            checked={selectedIds.has(product.id)}
-                            onChange={() => handleSelectOne(product.id)}
-                          />
-                        </div>
-                      </td>
-                      <td className="p-6">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{product.name}</span>
-                          <span className="text-[10px] text-slate-400 font-mono mt-0.5">ID: #{product.id.toString().padStart(4, '0')}</span>
-                        </div>
-                      </td>
-                      <td className="p-6 text-slate-600 font-mono text-sm">{product.upc}</td>
-                      <td className="p-6">
-                        <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider">
-                          {product.category}
-                        </span>
-                      </td>
-                      <td className="p-6 text-slate-600 font-medium">{product.brand}</td>
-                      <td className="p-6 font-black text-slate-900">{product.price}</td>
-                      <td className="p-6">
-                        <span className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl border border-emerald-100 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 w-fit">
-                          <Lock size={12} strokeWidth={3} /> {product.pricing}
-                        </span>
-                      </td>
-                      <td className="p-6 text-slate-500 font-medium italic">{product.unit}</td>
-                      <td className="p-6 text-center">
-                        <span className={`font-bold ${product.qty < 5 ? 'text-red-500' : 'text-slate-700'}`}>
-                          {product.qty.toFixed(2)}
-                        </span>
-                      </td>
-                      <td className="p-6">
-                        <span className={`flex items-center gap-2 text-xs font-bold ${
-                          product.status === 'Active' ? 'text-emerald-500' : 'text-slate-300'
-                        }`}>
-                          <div className={`w-2 h-2 rounded-full ${
-                            product.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'
-                          }`} />
-                          {product.status}
-                        </span>
-                      </td>
+                      {visibleColumns.checkbox && (
+                        <td className="p-6">
+                          <div className="flex items-center justify-center">
+                            <input 
+                              type="checkbox" 
+                              className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              checked={selectedIds.has(product.id)}
+                              onChange={() => handleSelectOne(product.id)}
+                            />
+                          </div>
+                        </td>
+                      )}
+                      {visibleColumns.name && (
+                        <td className="p-6">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{product.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono mt-0.5">ID: #{product.id.toString().padStart(4, '0')}</span>
+                          </div>
+                        </td>
+                      )}
+                      {visibleColumns.upc && (
+                        <td className="p-6 text-slate-600 font-mono text-sm">{product.upc}</td>
+                      )}
+                      {visibleColumns.category && (
+                        <td className="p-6">
+                          <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider">
+                            {product.category}
+                          </span>
+                        </td>
+                      )}
+                      {visibleColumns.brand && (
+                        <td className="p-6 text-slate-600 font-medium">{product.brand}</td>
+                      )}
+                      {visibleColumns.price && (
+                        <td className="p-6 font-black text-slate-900">{product.price}</td>
+                      )}
+                      {visibleColumns.pricing && (
+                        <td className="p-6">
+                          <span className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl border border-emerald-100 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 w-fit">
+                            <Lock size={12} strokeWidth={3} /> {product.pricing}
+                          </span>
+                        </td>
+                      )}
+                      {visibleColumns.unit && (
+                        <td className="p-6 text-slate-500 font-medium italic">{product.unit}</td>
+                      )}
+                      {visibleColumns.qty && (
+                        <td className="p-6 text-center">
+                          <span className={`font-bold ${product.qty < 5 ? 'text-red-500' : 'text-slate-700'}`}>
+                            {product.qty.toFixed(2)}
+                          </span>
+                        </td>
+                      )}
+                      {visibleColumns.status && (
+                        <td className="p-6">
+                          <span className={`flex items-center gap-2 text-xs font-bold ${
+                            product.status === 'Active' ? 'text-emerald-500' : 'text-slate-300'
+                          }`}>
+                            <div className={`w-2 h-2 rounded-full ${
+                              product.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'
+                            }`} />
+                            {product.status}
+                          </span>
+                        </td>
+                      )}
                       <td className="p-6">
                         <div className="flex justify-center items-center gap-4">
                           <motion.button 
@@ -601,20 +645,14 @@ export default function App() {
                           >
                             <Eye size={20} />
                           </motion.button>
-                          <motion.button 
-                            whileHover={{ scale: 1.2, rotate: -5 }}
+                          <EditButton 
                             onClick={() => handleOpenModal(product)}
-                            className="text-slate-400 hover:text-slate-900 transition-colors"
-                          >
-                            <SquarePen size={20} />
-                          </motion.button>
-                          <motion.button 
-                            whileHover={{ scale: 1.2, rotate: 10 }}
+                            variant="icon"
+                          />
+                          <DeleteButton 
                             onClick={() => handleDelete(product.id)}
-                            className="text-slate-400 hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 size={20} />
-                          </motion.button>
+                            variant="icon"
+                          />
                         </div>
                       </td>
                     </motion.tr>
@@ -715,158 +753,99 @@ export default function App() {
       </div>
 
       {/* Modal Section */}
+      <ProductModal
+        isOpen={isModalOpen}
+        isEditing={editingProduct !== null}
+        onClose={() => setIsModalOpen(false)}
+        onSave={(data) => {
+          if (editingProduct) {
+            setProducts(products.map(p => p.id === editingProduct.id ? { ...p, name: data.name, upc: data.upc, category: data.category, brand: data.brand, price: `$${data.price}`, unit: data.unit, qty: data.quantity, status: "Active" } as Product : p));
+            addHistory("Edit", `Updated product: ${data.name}`);
+          } else {
+            const newProduct: Product = {
+              id: Math.max(0, ...products.map(p => p.id)) + 1,
+              name: data.name,
+              upc: data.upc,
+              category: data.category,
+              brand: data.brand,
+              price: `$${data.price}`,
+              pricing: "Fixed",
+              unit: data.unit,
+              qty: data.quantity,
+              status: "Active"
+            };
+            setProducts([...products, newProduct]);
+            addHistory("Add", `Created new product: ${data.name}`);
+          }
+          setIsModalOpen(false);
+          setEditingProduct(null);
+        }}
+      />
+
+      {/* Edit Table View Modal */}
       <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20"
-            >
-              <div className="bg-blue-600 p-8 flex justify-between items-center text-white relative">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
-                <div className="relative z-10">
-                  <h2 className="text-3xl font-black tracking-tight">
-                    {editingProduct ? "Update Product" : "New Product"}
-                  </h2>
-                  <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1">Fill in the details below</p>
-                </div>
-                <button 
-                  onClick={() => setIsModalOpen(false)}
-                  className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors relative z-10"
-                >    
-                  <X size={24} />
-                </button>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border">
+              <div className="p-6 border-b flex justify-between items-center bg-zinc-50">
+                <h2 className="font-bold text-lg">Edit Table View</h2>
+                <button onClick={() => setIsEditModalOpen(false)}><X size={20}/></button>
               </div>
-              
-              <form onSubmit={handleSubmit} className="p-10 grid grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Product Name</label>
-                  <input 
-                    required
-                    type="text" 
-                    placeholder="e.g. Organic Green Tea"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-slate-800"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">UPC Code</label>
-                  <input 
-                    required
-                    type="text" 
-                    placeholder="12-digit code"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
-                    value={formData.upc}
-                    onChange={(e) => setFormData({ ...formData, upc: e.target.value })}
-                  />
+              <div className="p-6 space-y-6 max-h-96 overflow-y-auto">
+                {/* Table View Columns */}
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-zinc-600 uppercase block">TABLE VIEW</label>
+                  {(Object.keys(tempColumns) as Array<keyof TableViewColumns>).map(col => (
+                    <label key={col} className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={tempColumns[col]}
+                        onChange={() => setTempColumns({...tempColumns, [col]: !tempColumns[col]})}
+                        className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                      />
+                      <span className="text-sm capitalize">
+                        {col === 'checkbox' ? 'Checkbox' : col === 'name' ? 'Product Name' : col === 'upc' ? 'UPC' : col === 'category' ? 'Category' : col === 'brand' ? 'Brand' : col === 'price' ? 'Price' : col === 'pricing' ? 'Pricing' : col === 'unit' ? 'Unit' : col === 'qty' ? 'QTY' : 'Status'}
+                      </span>
+                    </label>
+                  ))}
                 </div>
 
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Category</label>
-                  <input 
-                    required
-                    type="text" 
-                    placeholder="e.g. Beverages"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Brand</label>
-                  <input 
-                    required
-                    type="text" 
-                    placeholder="e.g. Nature's Best"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold"
-                    value={formData.brand}
-                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Price</label>
-                  <div className="relative">
-                    <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
-                    <input 
-                      required
-                      type="text" 
-                      placeholder="0.00"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-black"
-                      value={formData.price?.replace('$', '')}
-                      onChange={(e) => setFormData({ ...formData, price: `$${e.target.value}` })}
-                    />
+                {/* Items Per Page */}
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-zinc-600 uppercase block">ITEMS PER PAGE</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[5, 10, 15, 25, 50].map(num => (
+                      <label key={num} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="itemsPerPage"
+                          value={num}
+                          checked={tempItemsPerPage === num}
+                          onChange={() => setTempItemsPerPage(num)}
+                          className="w-5 h-5 cursor-pointer accent-blue-600"
+                        />
+                        <span className="text-sm">{num}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Unit</label>
-                  <input 
-                    required
-                    type="text" 
-                    placeholder="e.g. pcs, kg, box"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold"
-                    value={formData.unit}
-                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Quantity</label>
-                  <input 
-                    required
-                    type="number" 
-                    step="0.01"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-black"
-                    value={formData.qty}
-                    onChange={(e) => setFormData({ ...formData, qty: parseFloat(e.target.value) })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Status</label>
-                  <select 
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold appearance-none cursor-pointer"
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as "Active" | "Inactive" })}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-
-                <div className="col-span-2 pt-6 flex gap-4">
-                  <motion.button 
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="flex-1 px-8 py-4 border-2 border-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button 
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    className="flex-1 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-100"
-                  >
-                    {editingProduct ? "Save Changes" : "Create Product"}
-                  </motion.button>
-                </div>
-              </form>
+              {/* Buttons */}
+              <div className="p-6 border-t space-y-3 bg-zinc-50">
+                <button
+                  onClick={handleApplyTableChanges}
+                  className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 shadow-md"
+                >
+                  <Check size={18} /> Apply
+                </button>
+                <button
+                  onClick={handleResetTableDefaults}
+                  className="w-full py-2.5 bg-zinc-100 text-zinc-700 font-semibold rounded-lg hover:bg-zinc-200 flex items-center justify-center gap-2"
+                >
+                  <RotateCcw size={18} /> Reset
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -875,7 +854,7 @@ export default function App() {
       {/* Confirmation Modal */}
       <AnimatePresence>
         {confirmModal.isOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -887,25 +866,62 @@ export default function App() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-white/20 p-8"
+              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-white/20"
             >
-              <div className="flex items-center gap-4 text-red-500 mb-6">
-                <div className="bg-red-50 p-3 rounded-2xl">
-                  <AlertCircle size={32} />
+              {/* Header */}
+              <div className="bg-red-50 p-8 border-b border-red-100">
+                <div className="flex items-center gap-4 text-red-500 mb-2">
+                  <div className="bg-red-100 p-3 rounded-2xl">
+                    <AlertCircle size={32} />
+                  </div>
+                  <h2 className="text-2xl font-black tracking-tight">{confirmModal.title}</h2>
                 </div>
-                <h2 className="text-2xl font-black tracking-tight">{confirmModal.title}</h2>
+                <p className="text-slate-600 text-sm ml-16">{confirmModal.message}</p>
               </div>
-              
-              <p className="text-slate-600 font-medium leading-relaxed mb-8">
-                {confirmModal.message}
-              </p>
-              
-              <div className="flex gap-4">
+
+              {/* Product Details */}
+              {confirmModal.product && (
+                <div className="p-8 space-y-4 bg-white border-b border-slate-100">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Product Name</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Category</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.category}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Price</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.price}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Quantity</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.qty}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Brand</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.brand}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Unit</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.unit}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">UPC/PLU Code</p>
+                    <p className="text-sm font-mono text-slate-700">{confirmModal.product.upc}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="p-6 bg-slate-50 flex gap-4">
                 <motion.button 
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                  className="flex-1 px-6 py-4 border-2 border-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+                  className="flex-1 px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-2xl font-bold uppercase tracking-widest hover:bg-slate-100 transition-all"
                 >
                   Cancel
                 </motion.button>
@@ -913,7 +929,7 @@ export default function App() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={confirmModal.onConfirm}
-                  className="flex-1 px-6 py-4 bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-xl shadow-red-100"
+                  className="flex-1 px-6 py-3 bg-red-500 text-white rounded-2xl font-bold uppercase tracking-widest hover:bg-red-600 transition-all shadow-xl shadow-red-100"
                 >
                   Delete
                 </motion.button>

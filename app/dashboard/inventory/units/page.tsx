@@ -19,9 +19,20 @@ import {
   FileText,
   Table as TableIcon,
   RotateCcw,
-  Check
+  Check,
+  History
 } from "lucide-react";
 import DownloadModal from "@/components/download-modal";
+import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
+import { 
+  AddButton, 
+  EditButton, 
+  DeleteButton, 
+  DownloadButton, 
+  FilterButton, 
+  HistoryButton 
+} from "@/components/toolbar-buttons";
+import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -43,6 +54,13 @@ type SortOption =
   | "price-low" | "price-high" 
   | "qty-low" | "qty-high" 
   | "upc-asc" | "upc-desc";
+
+interface HistoryItem {
+  id: string;
+  action: "Add" | "Edit" | "Delete";
+  details: string;
+  timestamp: string;
+}
 
 // --- Mock Data ---
 
@@ -73,6 +91,8 @@ export default function App() {
   const [sortBy, setSortBy] = useState<SortOption | "">("");
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
   // Form State
   const [formData, setFormData] = useState({ name: "", shortName: "" });
@@ -115,11 +135,28 @@ export default function App() {
     setCurrentPage(1);
   }, [searchTerm, itemsPerPage, sortBy]);
 
+  const addHistory = (action: string, details: string) => {
+    const mapAction = (act: string): "Add" | "Edit" | "Delete" => {
+      if (act === "Add") return "Add";
+      if (act === "Delete") return "Delete";
+      return "Edit";
+    };
+
+    const newItem: HistoryItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      action: mapAction(action),
+      details,
+      timestamp: new Date().toLocaleString()
+    };
+    setHistory(prev => [newItem, ...prev].slice(0, 50));
+  };
+
   const handleSave = () => {
     if (!formData.name || !formData.shortName) return;
 
     if (editingUnit) {
       setUnits(prev => prev.map(u => u.id === editingUnit.id ? { ...u, ...formData } : u));
+      addHistory("Edit", `Updated unit: ${formData.name}`);
     } else {
       const newUnit: Unit = {
         id: Math.random().toString(36).substr(2, 9),
@@ -131,13 +168,16 @@ export default function App() {
         createdAt: new Date().toISOString().split('T')[0]
       };
       setUnits(prev => [newUnit, ...prev]);
+      addHistory("Add", `Created new unit: ${formData.name}`);
     }
     closeModal();
   };
 
   const handleDelete = (id: string) => {
+    const unit = units.find(u => u.id === id);
     if (window.confirm("Are you sure you want to delete this unit?")) {
       setUnits(prev => prev.filter(u => u.id !== id));
+      addHistory("Delete", `Deleted unit: ${unit?.name}`);
     }
   };
 
@@ -160,8 +200,21 @@ export default function App() {
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
     const data = scope === 'current' ? paginatedUnits : filteredAndSortedUnits;
-    if (format === 'pdf') exportPDF(data, `units_${scope}_page`);
-    else exportCSV(data, `units_${scope}_page`);
+    const columns = ['Name', 'Short Name', 'Price', 'Quantity', 'UPC', 'Created At'];
+    const rows = data.map(u => [u.name, u.shortName, `$${u.price.toFixed(2)}`, u.quantity, u.upc, u.createdAt]);
+
+    if (format === 'csv') {
+      generateCSV(columns, rows, `units_${scope}_${new Date().getTime()}.csv`);
+    } else if (format === 'pdf') {
+      generatePDFWithLogo({
+        title: `Units Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+        columns,
+        rows,
+        fileName: `units_${scope}_${new Date().getTime()}.pdf`,
+        scope
+      });
+    }
+    
     setIsDownloadModalOpen(false);
   };
 
@@ -197,53 +250,30 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50  font-sans text-gray-900">
-      <div className="    space-y-6">
+      <div className="  p-6  space-y-6">
         
         {/* Header Section */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 p-8 text-white shadow-xl shadow-blue-200/50"
+          className="rounded-2xl bg-linear-to-br from-blue-700 via-blue-600 to-indigo-700 p-8 text-white shadow-xl shadow-blue-200/50"
         >
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-4xl font-bold tracking-tight">Units Management</h1>
               <p className="text-blue-100 mt-2 font-medium opacity-90">Create and manage measurement units for your inventory system.</p>
             </div>
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => openModal()}
-              className="bg-white text-blue-700 px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg hover:bg-blue-50 transition-all cursor-pointer"
-            >
-              <Plus size={20} /> Create Unit
-            </motion.button>
+            <AddButton onClick={() => openModal()} label="Create Unit" />
           </div>
         </motion.div>
 
         {/* Toolbar Section */}
         <div className="flex flex-wrap gap-3 items-center bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-          <div className="relative flex-1 min-w-[280px]">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search units, short names or UPC..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-11 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" 
-            />
-          </div>
+
 
           <div className="flex items-center gap-2">
             {/* Download Modal */}
-            <motion.button 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setIsDownloadModalOpen(true)}
-              className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 hover:bg-gray-50 transition-all"
-            >
-              <Download size={18} className="text-blue-600" /> Download
-            </motion.button>
+            <DownloadButton onClick={() => setIsDownloadModalOpen(true)} />
             
             <DownloadModal
               isOpen={isDownloadModalOpen}
@@ -253,16 +283,11 @@ export default function App() {
               subtitle="Choose your preferred format"
             />
 
+          
+
             {/* Filter Dropdown */}
             <div className="relative">
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowFilterMenu(!showFilterMenu)}
-                className={`px-4 py-3 text-black hover:bg-blue-800 rounded-xl font-semibold text-sm flex items-center gap-2 transition-colors cursor-pointer border ${sortBy ? ' text-black hover:bg-blue-800  border-blue-200' : 'text-black hover:bg-blue-800  border-gray-200  '}`}
-              >
-                <Filter size={18} /> Filter
-              </motion.button>
+              <FilterButton onClick={() => setShowFilterMenu(!showFilterMenu)} />
 
               <AnimatePresence>
                 {showFilterMenu && (
@@ -310,7 +335,19 @@ export default function App() {
                 )}
               </AnimatePresence>
             </div>
+            
           </div>
+                    <div className="relative flex-1 min-w-70">
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Search units, short names or UPC..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-11 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" 
+            />
+          </div>
+            <HistoryButton onClick={() => setIsHistoryOpen(true)} />
         </div>
 
         {/* Table Section */}
@@ -356,22 +393,14 @@ export default function App() {
                         <td className="p-5 text-gray-400">{unit.createdAt}</td>
                         <td className="p-5">
                           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <motion.button 
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
+                            <EditButton 
                               onClick={() => openModal(unit)}
-                              className="text-blue-600 hover:bg-blue-100 p-2.5 rounded-xl transition-colors cursor-pointer"
-                            >
-                              <Edit3 size={18} />
-                            </motion.button>
-                            <motion.button 
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
+                              variant="icon"
+                            />
+                            <DeleteButton 
                               onClick={() => handleDelete(unit.id)}
-                              className="text-red-600 hover:bg-red-100 p-2.5 rounded-xl transition-colors cursor-pointer"
-                            >
-                              <Trash2 size={18} />
-                            </motion.button>
+                              variant="icon"
+                            />
                           </div>
                         </td>
                       </motion.tr>
@@ -467,7 +496,7 @@ export default function App() {
             >
               <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
                 <h2 className="text-xl font-bold">{editingUnit ? "Edit Unit" : "Create New Unit"}</h2>
-                <button onClick={closeModal} className="hover:bg-black p-1 rounded-lg transition-colors cursor-pointer">
+                <button onClick={closeModal} className="hover:bg-white/20 p-1 rounded-lg transition-colors cursor-pointer">
                   <X size={24} />
                 </button>
               </div>
@@ -516,6 +545,12 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      <HistoryModal 
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+      />
     </div>
   );
 }

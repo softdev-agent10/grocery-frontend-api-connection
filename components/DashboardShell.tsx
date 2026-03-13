@@ -75,7 +75,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsOpen(true)}
-              className="lg:hidden p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0 focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="lg:hidden p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-blue-500"
               aria-label="Open menu"
             >
               <Menu size={20} className="text-gray-600" />
@@ -83,7 +83,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
 
             {/* Search Bar */}
             <div className="hidden md:flex items-center bg-gray-50 px-4 py-2 rounded-lg w-full max-w-sm group border border-gray-100 focus-within:border-blue-400 focus-within:bg-white transition-all">
-              <Search size={16} className="text-gray-400 group-focus-within:text-blue-500 flex-shrink-0" />
+              <Search size={16} className="text-gray-400 group-focus-within:text-blue-500 shrink-0" />
               <input
                 type="text"
                 placeholder="Search..."
@@ -117,7 +117,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
               whileHover={{ scale: 1.1, rotate: 180 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleRefresh}
-              className="p-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 rounded-full transition-all flex-shrink-0 focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="p-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 rounded-full transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-blue-500"
               aria-label="Refresh"
             >
               <RotateCw size={20} />
@@ -128,7 +128,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               onClick={toggleFullScreen}
-              className="p-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 rounded-full transition-all flex-shrink-0 focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="p-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 rounded-full transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-blue-500"
               aria-label="Toggle fullscreen"
             >
               <Maximize size={20} />
@@ -136,13 +136,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
 
             {/* Notification Bell */}
             <div className="relative">
-              <motion.button
+              <motion.button 
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
-                className="p-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 rounded-full transition-all flex-shrink-0 focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="p-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 rounded-full transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-blue-500"
                 aria-label="Notifications"
               >
-                <Bell size={20} />
+                <Bell size={20} /> 
                 <motion.span
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
@@ -154,14 +154,14 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
             {/* Profile Dropdown */}
             <div className="pl-3 border-l border-gray-100">
               <ProfileDropdown
-                isOpen={isProfileOpen}
+                isOpen={isProfileOpen} 
                 onToggle={() => setIsProfileOpen(!isProfileOpen)}
               />
             </div>
           </div>
         </motion.nav>
 
-        {/* Main Content */}
+        {/* Main Content */} 
         <motion.main
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

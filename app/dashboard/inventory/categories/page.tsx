@@ -8,27 +8,29 @@ import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
 import DownloadModal from "@/components/download-modal";
+import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 import { 
-  Plus, 
-  Download, 
-  Filter, 
-  Edit, 
-  Trash2, 
+  AddButton, 
+  EditButton, 
+  DeleteButton, 
+  DownloadButton, 
+  FilterButton, 
+  HistoryButton 
+} from "@/components/toolbar-buttons";
+import { 
   Search, 
-  History, 
-  SquarePen, 
-  ChevronDown,
   X,
   Boxes,
-  FileText,
-  Calendar,
-  ArrowUpDown,
-  RotateCcw,
-  Image as ImageIcon,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Package,
-  CheckCircle2
+  CheckCircle2,
+  SquarePen,
+  Trash2,
+  RotateCcw,
+  Image as ImageIcon,
+  Filter
 } from "lucide-react";
 
 
@@ -48,6 +50,16 @@ interface HistoryItem {
   action: "Add" | "Edit" | "Delete";
   details: string;
   timestamp: string;
+}
+
+interface TableViewColumns {
+  checkbox: boolean;
+  categoryName: boolean;
+  description: boolean;
+  taxes: boolean;
+  productCount: boolean;
+  createdOn: boolean;
+  action: boolean;
 }
 
 type ModalType = "add" | "edit" | "download" | "filter" | "history" | "success" | null;
@@ -76,6 +88,21 @@ export default function App() {
   const [successMessage, setSuccessMessage] = useState("");
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [isEditTableViewOpen, setIsEditTableViewOpen] = useState(false);
+
+  // Table view columns state
+  const [visibleColumns, setVisibleColumns] = useState<TableViewColumns>({
+    checkbox: true,
+    categoryName: true,
+    description: true,
+    taxes: true,
+    productCount: true,
+    createdOn: true,
+    action: true
+  });
+
+  const [tempColumns, setTempColumns] = useState<TableViewColumns>(visibleColumns);
+  const [tempItemsPerPage, setTempItemsPerPage] = useState(itemsPerPage);
 
   // Form state for Add/Edit
   const [formData, setFormData] = useState({
@@ -203,6 +230,32 @@ export default function App() {
     setTimeout(() => setActiveModal(null), 2000);
   };
 
+  const handleEditModalOpen = () => {
+    setTempColumns(visibleColumns);
+    setTempItemsPerPage(itemsPerPage);
+    setIsEditTableViewOpen(true);
+  };
+
+  const handleApplyTableChanges = () => {
+    setVisibleColumns(tempColumns);
+    setItemsPerPage(tempItemsPerPage);
+    setIsEditTableViewOpen(false);
+  };
+
+  const handleResetTableDefaults = () => {
+    const defaults: TableViewColumns = {
+      checkbox: true,
+      categoryName: true,
+      description: true,
+      taxes: true,
+      productCount: true,
+      createdOn: true,
+      action: true
+    };
+    setTempColumns(defaults);
+    setTempItemsPerPage(5);
+  };
+
   const addHistory = (action: string, details: string) => {
     const mapAction = (act: string): "Add" | "Edit" | "Delete" => {
       if (act === "Add") return "Add";
@@ -222,16 +275,32 @@ export default function App() {
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
     const dataToExport = scope === 'current' ? paginatedCategories : filteredCategories;
     
-    // Simulate file generation
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `categories_${scope}_${new Date().getTime()}.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+    if (format === 'csv') {
+      const headers = ["Category Name", "Description", "Product Count", "Status", "Created Date"];
+      const rows = dataToExport.map((cat: any) => [
+        cat.name,
+        cat.description || '',
+        cat.productCount || 0,
+        cat.status || 'Active',
+        cat.createdDate || new Date().toLocaleDateString()
+      ]);
+      generateCSV(headers, rows, `categories_${scope}_${new Date().getTime()}.csv`);
+    } else {
+      const columns = ["Category Name", "Description", "Product Count", "Status"];
+      const rows = dataToExport.map((cat: any) => [
+        cat.name,
+        cat.description || '',
+        cat.productCount || 0,
+        cat.status || 'Active'
+      ]);
+      generatePDFWithLogo({
+        title: `Categories Report (${scope === 'current' ? 'Current Page' : 'All'})`,
+        columns,
+        rows,
+        fileName: `categories_${scope}_${new Date().getTime()}.pdf`,
+        scope
+      });
+    }
 
     showSuccess(`${format.toUpperCase()} file for ${scope} page(s) downloaded!`);
     setActiveModal(null);
@@ -261,38 +330,23 @@ export default function App() {
       {/* Toolbar Section */}
       <div className="  mx-auto px-6 mt-6 relative z-20">
         <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-200 flex flex-wrap items-center gap-3">
-          <button 
-            onClick={() => openModal("add")}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold transition-all   hover:shadow-blue-200 shadow-lg active:scale-95 group"
-          >
-            <Plus size={20} className="group-hover:rotate-90 transition-transform" /> Add Category
-          </button>
+          <AddButton onClick={() => openModal("add")} label="Add Category" />
           
-          <button 
-            onClick={() => openModal("download")}
-            className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-xl font-bold border  border-slate-200 transition-all shadow-sm active:scale-95"
-          >
-            <Download size={20} className="text-indigo-600" /> Download <ChevronDown size={16} />
-          </button>
+          <DownloadButton onClick={() => openModal("download")} />
 
-          <button 
-            onClick={() => openModal("filter")}
-            className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-xl font-bold border border-slate-200 transition-all shadow-sm active:scale-95"
-          >
-            <Filter size={20} className="text-indigo-600" /> Filter <ChevronDown size={16} />
-          </button>
+          <FilterButton onClick={() => openModal("filter")} />
 
-          <button 
+          <EditButton 
+            onClick={handleEditModalOpen} 
+            variant="text"
+            size="md"
+          />
+
+          <DeleteButton 
             onClick={handleBulkDelete}
             disabled={selectedIds.size === 0}
-            className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all shadow-sm ${
-              selectedIds.size > 0 
-                ? "bg-rose-500 hover:bg-rose-600 text-white" 
-                : "bg-slate-100 text-slate-400 cursor-not-allowed"
-            }`}
-          >
-            <Trash2 size={20} /> Delete {selectedIds.size > 0 && `(${selectedIds.size})`}
-          </button>
+            count={selectedIds.size}
+          />
 
           <div className="flex-grow max-w-md ml-auto relative">
             <input 
@@ -305,13 +359,7 @@ export default function App() {
             <Search size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" />
           </div>
 
-          <button 
-            onClick={() => openModal("history")}
-            className="p-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all"
-            title="History"
-          >
-            <History size={20} />
-          </button>
+          <HistoryButton onClick={() => openModal("history")} />
         </div>
 
         {/* Stats Bar */}
@@ -350,23 +398,23 @@ export default function App() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
+                <tr className="bg-blue-600 border-b border-slate-200">
                   <th className="p-5 w-16">
                     <div className="flex items-center justify-center">
                       <input 
                         type="checkbox" 
-                        className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        className="w-5 h-5  rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                         checked={paginatedCategories.length > 0 && selectedIds.size === paginatedCategories.length}
                         onChange={handleSelectAll}
                       />
                     </div>
                   </th>
-                  <th className="p-5 font-bold text-xs text-slate-500 uppercase tracking-widest">Category Name</th>
-                  <th className="p-5 font-bold text-xs text-slate-500 uppercase tracking-widest">Description</th>
-                  <th className="p-5 font-bold text-xs text-slate-500 uppercase tracking-widest">Taxes</th>
-                  <th className="p-5 font-bold text-xs text-slate-500 uppercase tracking-widest">Products</th>
-                  <th className="p-5 font-bold text-xs text-slate-500 uppercase tracking-widest">Created On</th>
-                  <th className="p-5 font-bold text-xs text-slate-500 uppercase tracking-widest text-center">Action</th>
+                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Category Name</th>
+                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Description</th>
+                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Taxes</th>
+                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Products</th>
+                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Created On</th>
+                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -412,20 +460,14 @@ export default function App() {
                       <td className="p-5 text-slate-500 text-sm font-medium">{category.createdOn}</td>
                       <td className="p-5">
                         <div className="flex justify-center items-center gap-3">
-                          <button 
-                            onClick={() => openModal("edit", category)}
-                            className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
-                            title="Edit"
-                          >
-                            <SquarePen size={18} />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(category.id)}
-                            className="p-2 text-rose-500 hover:bg-rose-100 rounded-lg transition-all"
-                            title="Delete"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          <EditButton 
+                            onClick={() => openModal("edit", category)} 
+                            variant="icon"
+                          />
+                          <DeleteButton 
+                            onClick={() => handleDelete(category.id)} 
+                            variant="icon"
+                          />
                         </div>
                       </td>
                     </motion.tr>
@@ -510,7 +552,7 @@ export default function App() {
       {/* Modals */}
       <AnimatePresence>
         {activeModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -699,6 +741,92 @@ export default function App() {
               title="Activity Log"
               subtitle="Recent category actions"
             />
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Table View Modal - Separate from activeModal */}
+      <AnimatePresence>
+        {isEditTableViewOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsEditTableViewOpen(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
+            >
+              <div className="bg-indigo-600 p-6 flex justify-between items-center text-white">
+                <h2 className="text-xl font-black uppercase tracking-tight">
+                  Edit Table View
+                </h2>
+                <button onClick={() => setIsEditTableViewOpen(false)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="p-8 space-y-6 max-h-96 overflow-y-auto">
+                {/* Table View Columns */}
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-600 uppercase block">TABLE VIEW</label>
+                  {(Object.keys(tempColumns) as Array<keyof TableViewColumns>).map(col => (
+                    <label key={col} className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={tempColumns[col]}
+                        onChange={() => setTempColumns({...tempColumns, [col]: !tempColumns[col]})}
+                        className="w-5 h-5 rounded cursor-pointer accent-indigo-600"
+                      />
+                      <span className="text-sm capitalize">
+                        {col === 'checkbox' ? 'Checkbox' : col === 'categoryName' ? 'Category Name' : col === 'description' ? 'Description' : col === 'taxes' ? 'Taxes' : col === 'productCount' ? 'Product Count' : col === 'createdOn' ? 'Created On' : 'Action'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Items Per Page */}
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-600 uppercase block">ITEMS PER PAGE</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[5, 10, 15, 25, 50].map(num => (
+                      <label key={num} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="itemsPerPage"
+                          value={num}
+                          checked={tempItemsPerPage === num}
+                          onChange={() => setTempItemsPerPage(num)}
+                          className="w-5 h-5 cursor-pointer accent-indigo-600"
+                        />
+                        <span className="text-sm">{num}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="p-6 border-t space-y-3 bg-slate-50">
+                <button
+                  onClick={handleApplyTableChanges}
+                  className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg transition-all"
+                >
+                  <CheckCircle2 size={20} /> Apply
+                </button>
+                <button
+                  onClick={handleResetTableDefaults}
+                  className="w-full py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 flex items-center justify-center gap-2 transition-all"
+                >
+                  <RotateCcw size={20} /> Reset
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

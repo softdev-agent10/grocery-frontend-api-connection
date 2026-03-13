@@ -59,7 +59,7 @@ export default function PromotionPage() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl md:rounded-3xl 2xl:rounded-4xl p-6 md:p-8 2xl:p-12 mb-6 md:mb-8 2xl:mb-10 shadow-lg m-4 md:m-6 2xl:m-8"
+        className="bg-linear-to-r from-blue-600 to-indigo-600 rounded-2xl md:rounded-3xl 2xl:rounded-4xl p-6 md:p-8 2xl:p-12 mb-6 md:mb-8 2xl:mb-10 shadow-lg m-4 md:m-6 2xl:m-8"
       >
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <motion.div
@@ -94,7 +94,7 @@ export default function PromotionPage() {
         transition={{ delay: 0.2, duration: 0.5 }}
         className="bg-white rounded-2xl md:rounded-3xl 2xl:rounded-4xl shadow-xl border border-indigo-100/30 overflow-hidden m-4 md:m-6 2xl:m-8"
       >
-        <div className="p-4 md:p-6 2xl:p-8 border-b border-indigo-100/30 bg-gradient-to-r from-indigo-50/50 to-blue-50/50 flex items-center justify-between">
+        <div className="p-4 md:p-6 2xl:p-8 border-b border-indigo-100/30 bg-linear-to-r from-indigo-50/50 to-blue-50/50 flex items-center justify-between">
           <h2 className="text-lg md:text-2xl 2xl:text-3xl font-black text-indigo-900 tracking-tight">
             Active Promotions
           </h2>

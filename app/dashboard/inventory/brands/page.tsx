@@ -11,14 +11,11 @@ import {
   Edit3, 
   Trash2, 
   Search, 
-  Download, 
-  Filter, 
   ChevronLeft, 
   ChevronRight, 
   MoreVertical,
   CheckCircle,
   XCircle,
-  History,
   ArrowUpDown,
   FileText,
   Table as TableIcon
@@ -28,6 +25,15 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
 import DownloadModal from "@/components/download-modal";
+import { 
+  AddButton, 
+  EditButton, 
+  DeleteButton, 
+  DownloadButton, 
+  FilterButton, 
+  HistoryButton 
+} from "@/components/toolbar-buttons";
+import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 
 // Extend jsPDF with autotable types
 declare module "jspdf" {
@@ -228,57 +234,6 @@ export default function App() {
     }
   };
 
-  // Export Logic
-  const exportToCSV = (data: Brand[], filename: string) => {
-    const headers = ["Brand Name", "Slug", "Products", "Status", "Price", "Quantity", "UPC", "Created On"];
-    const csvContent = [
-      headers.join(","),
-      ...data.map(b => [
-        `"${b.name}"`,
-        `"${b.slug}"`,
-        b.products,
-        `"${b.status}"`,
-        b.price,
-        b.quantity,
-        `"${b.upc}"`,
-        `"${b.createdOn}"`
-      ].join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `${filename}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const exportToPDF = (data: Brand[], filename: string) => {
-    const doc = new jsPDF();
-    const tableColumn = ["Brand Name", "Slug", "Products", "Status", "Price", "Quantity", "UPC", "Created On"];
-    const tableRows = data.map(b => [
-      b.name,
-      b.slug,
-      b.products,
-      b.status,
-      `$${b.price}`,
-      b.quantity,
-      b.upc,
-      b.createdOn
-    ]);
-
-    doc.autoTable({
-      head: [tableColumn],
-      body: tableRows,
-      startY: 20,
-    });
-    doc.text("Brands Report", 14, 15);
-    doc.save(`${filename}.pdf`);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50  font-sans text-gray-900">
       <div className=" mx-auto space-y-6">
@@ -287,7 +242,7 @@ export default function App() {
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-gradient-to-br from-indigo-600 via-blue-600 to-blue-700 p-8 text-white shadow-xl overflow-hidden relative"
+          className="rounded-2xl bg-linear-to-br from-indigo-600 via-blue-600 to-blue-700 p-8 text-white shadow-xl overflow-hidden relative"
         >
           <div className="relative z-10">
             <h1 className="text-4xl font-bold tracking-tight">Brands Dashboard</h1>
@@ -313,39 +268,43 @@ export default function App() {
           </motion.button>
 
           <div className="flex items-center gap-2">
-            {/* Download Modal */}
-            <motion.button 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setIsDownloadModalOpen(true)}
-              className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 hover:bg-gray-50 transition-all"
-            >
-              <Download size={18} className="text-indigo-600" /> Download
-            </motion.button>
+            <DownloadButton onClick={() => setIsDownloadModalOpen(true)} />
 
             <DownloadModal
               isOpen={isDownloadModalOpen}
               onClose={() => setIsDownloadModalOpen(false)}
               onDownload={(scope, format) => {
                 const data = scope === 'current' ? currentItems : processedBrands;
-                const filename = `brands_${scope}_page`;
-                if (format === 'pdf') exportToPDF(data, filename);
-                else exportToCSV(data, filename);
+                const columns = ["Brand Name", "Slug", "Products", "Status", "Price", "Quantity", "UPC", "Created On"];
+                const rows = data.map(b => [
+                  b.name,
+                  b.slug,
+                  b.products,
+                  b.status,
+                  b.price,
+                  b.quantity,
+                  b.upc,
+                  b.createdOn
+                ]);
+
+                if (format === 'csv') {
+                  generateCSV(columns, rows, `brands_${scope}_${new Date().getTime()}.csv`);
+                } else if (format === 'pdf') {
+                  generatePDFWithLogo({
+                    title: `Brands Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+                    columns,
+                    rows,
+                    fileName: `brands_${scope}_${new Date().getTime()}.pdf`,
+                    scope
+                  });
+                }
               }}
               title="Export Brands"
               subtitle="Choose your preferred format"
             />
 
-            {/* Filter Dropdown */}
             <div className="relative" ref={filterMenuRef}>
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowFilterMenu(!showFilterMenu)}
-                className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 hover:bg-gray-50 transition-all"
-              >
-                <Filter size={18} className="text-indigo-600" /> Filter
-              </motion.button>
+              <FilterButton onClick={() => setShowFilterMenu(!showFilterMenu)} />
 
               <AnimatePresence>
                 {showFilterMenu && (
@@ -372,18 +331,12 @@ export default function App() {
               </AnimatePresence>
             </div>
 
-            <motion.button 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setIsHistoryModalOpen(true)}
-              className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 hover:bg-gray-50 transition-all"
-            >
-              <History size={18} className="text-indigo-600" /> History
-            </motion.button>
+          
           </div>
 
           <div className="ml-auto flex items-center bg-gray-50 px-4 rounded-xl border border-gray-200 w-full md:w-72 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
             <Search size={18} className="text-gray-400" />
+
             <input 
               type="text" 
               placeholder="Search products..." 
@@ -392,6 +345,8 @@ export default function App() {
               className="bg-transparent border-none outline-none ml-3 py-2.5 text-sm w-full placeholder:text-gray-400" 
             />
           </div>
+
+          <HistoryButton onClick={() => setIsHistoryModalOpen(true)} />
         </div>
 
         {/* Table Section */}

@@ -209,7 +209,7 @@ export default function HelpPage() {
                     <motion.div
                       animate={{ rotate: expandedId === faq.id ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
-                      className="flex-shrink-0 text-gray-400"
+                      className="shrink-0 text-gray-400"
                     >
                       <ChevronDown className="h-5 w-5" />
                     </motion.div>

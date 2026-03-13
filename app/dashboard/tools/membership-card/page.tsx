@@ -8,6 +8,7 @@ import { DataTable } from "../components/DataTable";
 import { StatCard } from "../components/StatCard";
 import { EmptyState } from "../components/EmptyState";
 import DownloadModal from "@/components/download-modal";
+import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 
 interface MembershipCard {
   id: string;
@@ -60,15 +61,21 @@ export default function MembershipCardPage() {
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
     const dataToExport = scope === 'current' ? records.slice(0, 5) : records;
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `membership-cards_${scope}_${new Date().getTime()}.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+    const columns = ['Member Name', 'Member ID', 'Membership Type', 'Join Date', 'Renewal Date', 'Status'];
+    const rows = dataToExport.map(r => [r.memberName, r.memberId, r.membershipType, r.joinDate, r.renewalDate, r.status]);
+
+    if (format === 'csv') {
+      generateCSV(columns, rows, `membership-cards_${scope}_${new Date().getTime()}.csv`);
+    } else if (format === 'pdf') {
+      generatePDFWithLogo({
+        title: `Membership Cards Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+        columns,
+        rows,
+        fileName: `membership-cards_${scope}_${new Date().getTime()}.pdf`,
+        scope
+      });
+    }
+    
     setIsDownloadModalOpen(false);
   };
   const filteredRecords = records.filter(
@@ -200,7 +207,7 @@ export default function MembershipCardPage() {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowModal(true)}
-          className="w-full md:w-auto flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl"
+          className="w-full md:w-auto flex items-center gap-2 px-6 py-3 bg-linear-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl"
         >
           <Plus size={20} />
           Add Member

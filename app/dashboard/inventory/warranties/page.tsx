@@ -1,10 +1,18 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
-import { Plus, Edit3, Trash2, Search, Download, Filter, X, Check, FileText, Table as TableIcon, ChevronDown } from "lucide-react";
+import { Plus, Edit3, Trash2, Search, Download, Filter, X, Check, FileText, Table as TableIcon, ChevronDown, RotateCcw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import DownloadModal from "@/components/download-modal";
+import { 
+  AddButton, 
+  EditButton, 
+  DeleteButton, 
+  DownloadButton, 
+  FilterButton 
+} from "@/components/toolbar-buttons";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 
 interface Warranty {
   id: number;
@@ -24,6 +32,16 @@ const MOCK_DATA: Warranty[] = [
   { id: 4, productName: "Dell XPS 13", manufacturerDate: "2022-11-12", upc: "088304910293", description: "Expired hardware warranty.", duration: "1 Year", status: "Inactive" },
 ];
 
+interface TableViewColumns {
+  checkbox: boolean;
+  productName: boolean;
+  manufacturerDate: boolean;
+  upc: boolean;
+  description: boolean;
+  duration: boolean;
+  action: boolean;
+}
+
 export default function WarrantyApp() {
   const [warranties, setWarranties] = useState<Warranty[]>(MOCK_DATA);
   const [mounted, setMounted] = useState(false); // Hydration fix
@@ -31,10 +49,26 @@ export default function WarrantyApp() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingWarranty, setEditingWarranty] = useState<Warranty | null>(null);
   
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [durationFilter, setDurationFilter] = useState<string>("All");
+  const [sortBy, setSortBy] = useState<string>("nameAZ");
+
+  const [visibleColumns, setVisibleColumns] = useState<TableViewColumns>({
+    checkbox: true,
+    productName: true,
+    manufacturerDate: true,
+    upc: true,
+    description: true,
+    duration: true,
+    action: true,
+  });
+
+  const [itemsPerPage, setItemsPerPage] = useState(15);
+  const [tempColumns, setTempColumns] = useState<TableViewColumns>(visibleColumns);
+  const [tempItemsPerPage, setTempItemsPerPage] = useState(itemsPerPage);
 
   const [formData, setFormData] = useState<Partial<Warranty>>({
     productName: "",
@@ -48,6 +82,7 @@ export default function WarrantyApp() {
   // Next.js hydration fix: Shudhu browser-e render hobe
   useEffect(() => {
     setMounted(true);
+  
     fetchWarranties();
   }, []);
 
@@ -93,39 +128,84 @@ export default function WarrantyApp() {
     setIsDownloadModalOpen(false);
   };
 
+  const handleEditModalOpen = () => {
+    setTempColumns(visibleColumns);
+    setTempItemsPerPage(itemsPerPage);
+    setIsEditModalOpen(true);
+  };
+
+  const handleApplyTableChanges = () => {
+    setVisibleColumns(tempColumns);
+    setItemsPerPage(tempItemsPerPage);
+    setIsEditModalOpen(false);
+  };
+
+  const handleResetTableDefaults = () => {
+    const defaults: TableViewColumns = {
+      checkbox: true,
+      productName: true,
+      manufacturerDate: true,
+      upc: true,
+      description: true,
+      duration: true,
+      action: true,
+    };
+    setTempColumns(defaults);
+    setTempItemsPerPage(15);
+  };
+
   const filteredWarranties = useMemo(() => {
-    return warranties.filter(w => {
+    let filtered = warranties.filter(w => {
       const matchesSearch = w.productName.toLowerCase().includes(searchTerm.toLowerCase()) || w.upc.includes(searchTerm);
       const matchesStatus = statusFilter === "All" || w.status === statusFilter;
       const matchesDuration = durationFilter === "All" || w.duration === durationFilter;
       return matchesSearch && matchesStatus && matchesDuration;
     });
-  }, [warranties, searchTerm, statusFilter, durationFilter]);
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "nameAZ":
+          return a.productName.localeCompare(b.productName);
+        case "nameZA":
+          return b.productName.localeCompare(a.productName);
+        case "dateOldest":
+          return new Date(a.manufacturerDate).getTime() - new Date(b.manufacturerDate).getTime();
+        case "dateNewest":
+          return new Date(b.manufacturerDate).getTime() - new Date(a.manufacturerDate).getTime();
+        case "durationAsc":
+          return a.duration.localeCompare(b.duration);
+        case "durationDesc":
+          return b.duration.localeCompare(a.duration);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [warranties, searchTerm, statusFilter, durationFilter, sortBy]);
 
   const uniqueDurations = Array.from(new Set(warranties.map(w => w.duration))).filter(Boolean);
 
   const downloadAsCSV = (scope: 'current' | 'all' = 'current') => {
     const data = scope === 'current' ? filteredWarranties : warranties;
-    const headers = ["Product,Date,UPC,Duration,Status"];
-    const rows = data.map(w => `${w.productName},${w.manufacturerDate},${w.upc},${w.duration},${w.status}`);
-    const blob = new Blob([[headers, ...rows].join("\n")], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `warranties_${scope}.csv`;
-    a.click();
+    const headers = ["Product", "Date", "UPC", "Duration", "Status"];
+    const rows = data.map(w => [w.productName, w.manufacturerDate, w.upc, w.duration, w.status]);
+    generateCSV(headers, rows, `warranties_${scope}_${new Date().getTime()}.csv`);
   };
 
   const downloadAsPDF = (scope: 'current' | 'all' = 'current') => {
     const data = scope === 'current' ? filteredWarranties : warranties;
-    const doc = new jsPDF();
-    doc.text("Warranty Report", 14, 15);
-    autoTable(doc, {
-      startY: 25,
-      head: [["Product", "UPC", "Duration", "Status"]],
-      body: data.map(w => [w.productName, w.upc, w.duration, w.status]),
+    const columns = ["Product", "Date", "UPC", "Duration", "Status"];
+    const rows = data.map(w => [w.productName, w.manufacturerDate, w.upc, w.duration, w.status]);
+    
+    generatePDFWithLogo({
+      title: `Warranty Report (${scope === 'current' ? 'Current Page' : 'All'})`,
+      columns,
+      rows,
+      fileName: `warranties_${scope}_${new Date().getTime()}.pdf`,
+      scope
     });
-    doc.save(`warranties_${scope}.pdf`);
   };
 
   if (!mounted) return null; // Prevents hydration error
@@ -140,43 +220,80 @@ export default function WarrantyApp() {
             <h1 className="text-3xl font-bold text-white">Warranties</h1>
             <p className="text-white">Manage and track product warranty coverage.</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setIsDownloadModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 rounded-lg text-sm font-medium hover:bg-zinc-50 shadow-sm"><Download size={16}/> Download</button>
-            <button onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)} className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition-all ${isFilterPanelOpen ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-zinc-200'}`}><Filter size={16}/> Filter</button>
-            <button onClick={() => { setEditingWarranty(null); setIsModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-md shadow-blue-200"><Plus size={16}/> Add New</button>
-          </div>
         </div>
 
         {/* Filter Panel */}
         <AnimatePresence>
           {isFilterPanelOpen && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase">Status</label>
-                <div className="flex gap-2">
-                  {["All", "Active", "Inactive"].map(s => (
-                    <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1 rounded-md text-sm ${statusFilter === s ? 'bg-blue-600 text-white' : 'bg-zinc-100 text-zinc-600'}`}>{s}</button>
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm overflow-hidden w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase block mb-3">Status</label>
+                  <div className="flex flex-col gap-2">
+                    {["All", "Active", "Inactive"].map(s => (
+                      <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-2 rounded-md text-sm text-left ${statusFilter === s ? 'bg-blue-600 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase block mb-3">Duration</label>
+                  <select value={durationFilter} onChange={(e) => setDurationFilter(e.target.value)} className="w-full p-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="All">All Durations</option>
+                    {uniqueDurations.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-zinc-400 uppercase block mb-3">Sort By Name</label>
+                <div className="space-y-2">
+                  {[
+                    { value: "nameAZ", label: "Name (A-Z)" },
+                    { value: "nameZA", label: "Name (Z-A)" }
+                  ].map(option => (
+                    <label key={option.value} className="flex items-center gap-2 cursor-pointer hover:bg-zinc-50 p-1 rounded">
+                      <input type="radio" name="sortName" value={option.value} checked={sortBy === option.value} onChange={() => setSortBy(option.value)} className="w-4 h-4 cursor-pointer" />
+                      <span className="text-sm">{option.label}</span>
+                    </label>
                   ))}
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase">Duration</label>
-                <select value={durationFilter} onChange={(e) => setDurationFilter(e.target.value)} className="w-full p-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm outline-none">
-                  <option value="All">All Durations</option>
-                  {uniqueDurations.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
+
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-zinc-400 uppercase block mb-3">Sort By Date</label>
+                <div className="space-y-2">
+                  {[
+                    { value: "dateOldest", label: "Date (Oldest)" },
+                    { value: "dateNewest", label: "Date (Newest)" }
+                  ].map(option => (
+                    <label key={option.value} className="flex items-center gap-2 cursor-pointer hover:bg-zinc-50 p-1 rounded">
+                      <input type="radio" name="sortDate" value={option.value} checked={sortBy === option.value} onChange={() => setSortBy(option.value)} className="w-4 h-4 cursor-pointer" />
+                      <span className="text-sm">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-end">
-                <button onClick={() => { setStatusFilter("All"); setDurationFilter("All"); setSearchTerm(""); }} className="text-sm text-blue-600 font-medium">Reset Filters</button>
+
+              <div className="md:col-span-2 lg:col-span-4 pt-2 border-t flex gap-3">
+                <button onClick={() => { setStatusFilter("All"); setDurationFilter("All"); setSearchTerm(""); setSortBy("nameAZ"); }} className="text-sm text-blue-600 font-medium px-3 py-1.5 hover:bg-blue-50 rounded">↻ Reset Filters</button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
-          <input type="text" placeholder="Search product or UPC..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm transition-all" />
+        {/* Search and Actions */}
+        <div className="flex gap-3 items-center justify-between">
+          <div className="flex gap-2">
+            <DownloadButton onClick={() => setIsDownloadModalOpen(true)} />
+            <FilterButton onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)} />
+          </div>
+          <div className="w-80 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+            <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-3 py-2.5 bg-white border border-zinc-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none shadow-sm transition-all text-sm" />
+          </div>
         </div>
 
         {/* Table */}
@@ -184,27 +301,28 @@ export default function WarrantyApp() {
           <table className="w-full text-left">
             <thead className="  border-b border-zinc-200 bg-blue-600">
               <tr>
-                <th className="p-4 text-xs font-semibold text-white uppercase">Product</th>
-                <th className="p-4 text-xs font-semibold text-white uppercase">UPC</th>
-                <th className="p-4 text-xs font-semibold text-white uppercase">Duration</th>
-                <th className="p-4 text-xs font-semibold text-white uppercase text-right">Actions</th>
+                {visibleColumns.checkbox && <th className="p-4 text-xs font-semibold text-white uppercase"><input type="checkbox" className="w-4 h-4" /></th>}
+                {visibleColumns.productName && <th className="p-4 text-xs font-semibold text-white uppercase">Product</th>}
+                {visibleColumns.manufacturerDate && <th className="p-4 text-xs font-semibold text-white uppercase">Date</th>}
+                {visibleColumns.upc && <th className="p-4 text-xs font-semibold text-white uppercase">UPC</th>}
+                {visibleColumns.description && <th className="p-4 text-xs font-semibold text-white uppercase">Description</th>}
+                {visibleColumns.duration && <th className="p-4 text-xs font-semibold text-white uppercase">Duration</th>}
+              
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
               {filteredWarranties.map((w) => (
                 <tr key={w.id} className="group hover:bg-zinc-50/50 transition-colors">
-                  <td className="p-4">
+                  {visibleColumns.checkbox && <td className="p-4"><input type="checkbox" className="w-4 h-4" /></td>}
+                  {visibleColumns.productName && <td className="p-4">
                     <div className="font-semibold text-zinc-900">{w.productName}</div>
                     <div className={`mt-1 inline-flex px-2 py-0.5 rounded text-[10px] font-bold ${w.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-100 text-zinc-500'}`}>{w.status}</div>
-                  </td>
-                  <td className="p-4 text-sm font-mono text-zinc-500">{w.upc}</td>
-                  <td className="p-4 text-sm text-zinc-600"><span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">{w.duration}</span></td>
-                  <td className="p-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => { setEditingWarranty(w); setFormData(w); setIsModalOpen(true); }} className="p-2 text-black hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
-                      <button onClick={() => handleDelete(w.id)} className="p-2 text-black hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
-                    </div>
-                  </td>
+                  </td>}
+                  {visibleColumns.manufacturerDate && <td className="p-4 text-sm text-zinc-600">{w.manufacturerDate}</td>}
+                  {visibleColumns.upc && <td className="p-4 text-sm font-mono text-zinc-500">{w.upc}</td>}
+                  {visibleColumns.description && <td className="p-4 text-sm text-zinc-600">{w.description}</td>}
+                  {visibleColumns.duration && <td className="p-4 text-sm text-zinc-600"><span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">{w.duration}</span></td>}
+         
                 </tr>
               ))}
             </tbody>
@@ -231,6 +349,75 @@ export default function WarrantyApp() {
                   </div>
                   <button type="submit" className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"><Check size={18}/> {editingWarranty ? 'Update' : 'Create'}</button>
                 </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Edit Table View Modal */}
+        <AnimatePresence>
+          {isEditModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+              <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border">
+                <div className="p-6 border-b flex justify-between items-center bg-zinc-50">
+                  <h2 className="font-bold text-lg">Edit Table View</h2>
+                  <button onClick={() => setIsEditModalOpen(false)}><X size={20}/></button>
+                </div>
+                <div className="p-6 space-y-6 max-h-96 overflow-y-auto">
+                  {/* Table View Columns */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-zinc-600 uppercase block">TABLE VIEW</label>
+                    {(Object.keys(tempColumns) as Array<keyof TableViewColumns>).map(col => (
+                      <label key={col} className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={tempColumns[col]}
+                          onChange={() => setTempColumns({...tempColumns, [col]: !tempColumns[col]})}
+                          className="w-5 h-5 rounded cursor-pointer accent-blue-600"
+                        />
+                        <span className="text-sm capitalize">
+                          {col === 'checkbox' ? 'Checkbox' : col === 'productName' ? 'Product Name' : col === 'manufacturerDate' ? 'Manufacturer Date' : col === 'upc' ? 'UPC' : col === 'description' ? 'Description' : col === 'duration' ? 'Duration' : 'Action'}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {/* Items Per Page */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-zinc-600 uppercase block">ITEMS PER PAGE</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[10, 15, 25, 50, 100].map(num => (
+                        <label key={num} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="itemsPerPage"
+                            value={num}
+                            checked={tempItemsPerPage === num}
+                            onChange={() => setTempItemsPerPage(num)}
+                            className="w-5 h-5 cursor-pointer accent-blue-600"
+                          />
+                          <span className="text-sm">{num}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Buttons */}
+                <div className="p-6 border-t space-y-3 bg-zinc-50">
+                  <button
+                    onClick={handleApplyTableChanges}
+                    className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 shadow-md"
+                  >
+                    <Check size={18} /> Apply
+                  </button>
+                  <button
+                    onClick={handleResetTableDefaults}
+                    className="w-full py-2.5 bg-zinc-100 text-zinc-700 font-semibold rounded-lg hover:bg-zinc-200 flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw size={18} /> Reset
+                  </button>
+                </div>
               </motion.div>
             </div>
           )}
