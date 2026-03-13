@@ -6,7 +6,7 @@ import { Package } from "lucide-react";
 export default function InventoryHome() {
   return (
     <div className="w-full space-y-6">
-      <div className="rounded-lg bg-gradient-to-r from-blue-600 to-blue-800 p-8 text-white">
+      <div className="rounded-lg bg-linear-to-r from-blue-600 to-blue-800 p-8 text-white">
         <div className="flex items-center gap-3">
           <Package size={32} />
           <div>

@@ -103,7 +103,7 @@ export default function OpenCashDrawerPage() {
             className="bg-blue-50 border-l-4 border-blue-500 p-6 rounded-r-xl"
           >
             <div className="flex gap-3">
-              <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+              <AlertCircle className="text-blue-600 shrink-0 mt-0.5" size={20} />
               <div>
                 <p className="font-bold text-blue-900 mb-1">Instructions</p>
                 <p className="text-sm text-blue-700">

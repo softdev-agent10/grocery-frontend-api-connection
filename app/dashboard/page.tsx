@@ -191,7 +191,7 @@ export default function App() {
     <div className="w-full min-h-screen bg-white p-4 md:p-8 space-y-12 font-sans">
 
       {/* ================= HEADER ================= */}
-      <div className="rounded-3xl bg-gradient-to-r from-yellow-400 to-yellow-900 p-20 text-white shadow-xl flex items-center justify-between">
+      <div className="rounded-3xl bg-linear-to-r from-yellow-400 to-yellow-900 p-20 text-white shadow-xl flex items-center justify-between">
         <div>
           <h1 className="text-3xl md:text-5xl font-black mx-10">
             {greeting}
@@ -257,23 +257,31 @@ export default function App() {
       {/* ================= SALES TREND & TOP PRODUCTS ================= */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <ChartCard title="Sales Trend">
-          <AreaChart data={salesTrend}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="name" axisLine={false} tickLine={false} />
-            <YAxis axisLine={false} tickLine={false} />
-            <Tooltip />
-            <Area type="monotone" dataKey="sales" stroke="#2dd4bf" fill="#f0fdfa" strokeWidth={3} />
-          </AreaChart>
+          <div className="w-full h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={salesTrend}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} />
+                <Tooltip />
+                <Area type="monotone" dataKey="sales" stroke="#2dd4bf" fill="#f0fdfa" strokeWidth={3} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </ChartCard>
 
         <ChartCard title="Top Selling Products">
-          <BarChart data={topProducts}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="name" axisLine={false} tickLine={false} />
-            <YAxis axisLine={false} tickLine={false} />
-            <Tooltip />
-            <Bar dataKey="qty" fill="#c4b5fd" radius={[4,4,0,0]} barSize={60} />
-          </BarChart>
+          <div className="w-full h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topProducts}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} />
+                <Tooltip />
+                <Bar dataKey="qty" fill="#c4b5fd" radius={[4,4,0,0]} barSize={60} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </ChartCard>
       </div>
 
@@ -315,33 +323,41 @@ export default function App() {
       {/* ================= NEW: PAYMENT & HOURLY SALES ================= */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <ChartCard title="Payment Method Distribution">
-          <PieChart>
-            <Pie
-              data={paymentDist}
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={100}
-              paddingAngle={5}
-              dataKey="value"
-            >
-              {paymentDist.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip />
-            <Legend />
-          </PieChart>
+          <div className="w-full h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={paymentDist}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {paymentDist.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </ChartCard>
 
         <ChartCard title="Hourly Sales">
-          <LineChart data={hourlySales}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="time" axisLine={false} tickLine={false} />
-            <YAxis axisLine={false} tickLine={false} />
-            <Tooltip />
-            <Line type="monotone" dataKey="sales" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
-          </LineChart>
+          <div className="w-full h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={hourlySales}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="time" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} />
+                <Tooltip />
+                <Line type="monotone" dataKey="sales" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </ChartCard>
       </div>
 
@@ -374,37 +390,45 @@ export default function App() {
       {/* ================= STOCK & SUPPLIER ================= */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <ChartCard title="Stock Distribution">
-          <PieChart>
-            <Pie 
-              data={[{ name: "track", value: invStats.totalQty }]} 
-              dataKey="value" 
-              cx="50%" 
-              cy="50%" 
-              outerRadius={120} 
-            >
-              <Cell fill={STOCK_COLORS[0]} />
-            </Pie>
-            <Tooltip />
-          </PieChart>
-          <div className="flex justify-center items-center gap-2 mt-[-20px]">
+          <div className="w-full h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie 
+                  data={[{ name: "track", value: invStats.totalQty }]} 
+                  dataKey="value" 
+                  cx="50%" 
+                  cy="50%" 
+                  outerRadius={120} 
+                >
+                  <Cell fill={STOCK_COLORS[0]} />
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex justify-center items-center gap-2 -mt-5">
              <div className="w-3 h-3 bg-[#ff4d6d]"></div>
              <span className="text-xs font-bold text-gray-600">track</span>
           </div>
         </ChartCard>
 
         <ChartCard title="Supplier Performance">
-          <BarChart data={[
-            { name: "track", performance: selectedBranch === "Dhaka Branch" ? 582 : 182 },
-            { name: "track", performance: 282 },
-            { name: "track", performance: 482 },
-            { name: "track", performance: 682 },
-          ]}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="name" axisLine={false} tickLine={false} />
-            <YAxis axisLine={false} tickLine={false} domain={[0, 800]} />
-            <Tooltip />
-            <Bar dataKey="performance" fill="#93c5fd" barSize={300} />
-          </BarChart>
+          <div className="w-full h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={[
+                { name: "track", performance: selectedBranch === "Dhaka Branch" ? 582 : 182 },
+                { name: "track", performance: 282 },
+                { name: "track", performance: 482 },
+                { name: "track", performance: 682 },
+              ]}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} domain={[0, 800]} />
+                <Tooltip />
+                <Bar dataKey="performance" fill="#93c5fd" barSize={300} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </ChartCard>
       </div>
 
@@ -477,7 +501,7 @@ export default function App() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 ">
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-lg">
             <h3 className="text-indigo-400 font-bold mb-8 text-lg">Employee vs Total Sales</h3>
-            <div className="h-[400px]">
+            <div className="w-full h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={employeeSalesData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -497,7 +521,7 @@ export default function App() {
 
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-lg">
             <h3 className="text-indigo-400 font-bold mb-8 text-lg">Department Distribution</h3>
-            <div className="h-[400px] relative">
+            <div className="w-full h-80 relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -601,7 +625,7 @@ export default function App() {
         {/* Growth Chart */}
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-lg">
           <h3 className="text-indigo-400 font-bold mb-8 text-lg">Employee Growth</h3>
-          <div className="h-[400px]">
+          <div className="w-full h-80">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={employeeGrowthData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <defs>
@@ -664,11 +688,7 @@ const EmployeeStatCard = ({ title, value, detail, icon }: any) => (
 const ChartCard = ({ title, children }: any) => (
   <div className="bg-white p-6 rounded-2xl shadow border border-gray-100">
     <h3 className="text-blue-600 font-bold mb-6">{title}</h3>
-    <div className="h-[300px]">
-      <ResponsiveContainer width="100%" height="100%">
-        {children}
-      </ResponsiveContainer>
-    </div>
+    {children}
   </div>
 );
 

@@ -4,19 +4,21 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   AlertCircle, 
   Search, 
-  Download, 
-  Filter, 
   Mail, 
-  Edit2, 
   ChevronLeft, 
   ChevronRight, 
   X, 
   FileText, 
   Table as TableIcon,
+  Check,
   CheckCircle2,
-  Loader2
+  Loader2,
+  RotateCcw,
+  SquarePen
 } from "lucide-react";
 import DownloadModal from "@/components/download-modal";
+import { DownloadButton, FilterButton, EditButton } from "@/components/toolbar-buttons";
+import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
  
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -28,28 +30,54 @@ interface LowStockProduct {
   currentStock: number;
   reorderLevel: number;
   unit: string;
+  price: string;
   status: "Critical" | "Warning";
 }
 
+interface TableViewColumns {
+  name: boolean;
+  category: boolean;
+  currentStock: boolean;
+  reorderLevel: boolean;
+  unit: boolean;
+  price: boolean;
+  status: boolean;
+}
+
 const INITIAL_MOCK_DATA: LowStockProduct[] = [
-  { id: 1, name: "Chicken Breast", category: "Poultry", currentStock: 4, reorderLevel: 10, unit: "kg", status: "Critical" },
-  { id: 2, name: "Milk 1 Liter", category: "Dairy", currentStock: 7, reorderLevel: 15, unit: "L", status: "Warning" },
-  { id: 3, name: "Butter 500g", category: "Dairy", currentStock: 3, reorderLevel: 8, unit: "pcs", status: "Critical" },
-  { id: 4, name: "Eggs (Dozen)", category: "Dairy", currentStock: 12, reorderLevel: 20, unit: "box", status: "Warning" },
-  { id: 5, name: "Salmon Fillet", category: "Seafood", currentStock: 2, reorderLevel: 5, unit: "kg", status: "Critical" },
-  { id: 6, name: "Basmati Rice", category: "Grains", currentStock: 15, reorderLevel: 50, unit: "kg", status: "Critical" },
-  { id: 7, name: "Olive Oil 500ml", category: "Pantry", currentStock: 5, reorderLevel: 10, unit: "bottle", status: "Warning" },
-  { id: 8, name: "Flour 1kg", category: "Pantry", currentStock: 8, reorderLevel: 25, unit: "bag", status: "Critical" },
-  { id: 9, name: "Sugar 1kg", category: "Pantry", currentStock: 10, reorderLevel: 15, unit: "bag", status: "Warning" },
-  { id: 10, name: "Coffee Beans", category: "Beverages", currentStock: 1, reorderLevel: 5, unit: "kg", status: "Critical" },
+  { id: 1, name: "Chicken Breast", category: "Poultry", currentStock: 4, reorderLevel: 10, unit: "kg", price: "$180.00", status: "Critical" },
+  { id: 2, name: "Milk 1 Liter", category: "Dairy", currentStock: 7, reorderLevel: 15, unit: "L", price: "$90.00", status: "Warning" },
+  { id: 3, name: "Butter 500g", category: "Dairy", currentStock: 3, reorderLevel: 8, unit: "pcs", price: "$250.00", status: "Critical" },
+  { id: 4, name: "Eggs (Dozen)", category: "Dairy", currentStock: 12, reorderLevel: 20, unit: "box", price: "$130.00", status: "Warning" },
+  { id: 5, name: "Salmon Fillet", category: "Seafood", currentStock: 2, reorderLevel: 5, unit: "kg", price: "$450.00", status: "Critical" },
+  { id: 6, name: "Basmati Rice", category: "Grains", currentStock: 15, reorderLevel: 50, unit: "kg", price: "$25.00", status: "Critical" },
+  { id: 7, name: "Olive Oil 500ml", category: "Pantry", currentStock: 5, reorderLevel: 10, unit: "bottle", price: "$42.00", status: "Warning" },
+  { id: 8, name: "Flour 1kg", category: "Pantry", currentStock: 8, reorderLevel: 25, unit: "bag", price: "$15.00", status: "Critical" },
+  { id: 9, name: "Sugar 1kg", category: "Pantry", currentStock: 10, reorderLevel: 15, unit: "bag", price: "$18.00", status: "Warning" },
+  { id: 10, name: "Coffee Beans", category: "Beverages", currentStock: 1, reorderLevel: 5, unit: "kg", price: "$280.00", status: "Critical" },
 ];
 
 export default function App() {
   const [products, setProducts] = useState<LowStockProduct[]>(INITIAL_MOCK_DATA);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [sortConfig, setSortConfig] = useState<{ key: keyof LowStockProduct | 'none', direction: 'asc' | 'desc' }>({ key: 'none', direction: 'asc' });
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  const [visibleColumns, setVisibleColumns] = useState<TableViewColumns>({
+    name: true,
+    category: true,
+    currentStock: true,
+    reorderLevel: true,
+    unit: true,
+    price: true,
+    status: true,
+  });
+
+  const [tempColumns, setTempColumns] = useState<TableViewColumns>(visibleColumns);
+  const [tempItemsPerPage, setTempItemsPerPage] = useState(itemsPerPage);
 
   // Modals
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -65,15 +93,57 @@ export default function App() {
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
 
-  // Filtered and Paginated Data
+  const handleEditModalOpen = () => {
+    setTempColumns(visibleColumns);
+    setTempItemsPerPage(itemsPerPage);
+    setIsEditModalOpen(true);
+  };
+
+  const handleApplyTableChanges = () => {
+    setVisibleColumns(tempColumns);
+    setIsEditModalOpen(false);
+  };
+
+  const handleResetTableDefaults = () => {
+    const defaults: TableViewColumns = {
+      name: true,
+      category: true,
+      currentStock: true,
+      reorderLevel: true,
+      unit: true,
+      price: true,
+      status: true,
+    };
+    setTempColumns(defaults);
+  };
+
+  // Filtered and Sorted Paginated Data
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
+    let result = products.filter(p => {
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            p.category.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "All" || p.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [products, searchTerm, statusFilter]);
+
+    if (sortConfig.key !== 'none') {
+      result.sort((a, b) => {
+        let aValue: any = a[sortConfig.key as keyof LowStockProduct];
+        let bValue: any = b[sortConfig.key as keyof LowStockProduct];
+
+        if (sortConfig.key === 'price') {
+          aValue = parseFloat(a.price.replace('$', '').replace(',', ''));
+          bValue = parseFloat(b.price.replace('$', '').replace(',', ''));
+        }
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [products, searchTerm, statusFilter, sortConfig]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const paginatedProducts = filteredProducts.slice(
@@ -83,7 +153,7 @@ export default function App() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, sortConfig]);
 
   // Export Functions
   const exportToCSV = (data: LowStockProduct[], filename: string) => {
@@ -142,8 +212,21 @@ export default function App() {
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
     const data = scope === 'current' ? paginatedProducts : filteredProducts;
-    if (format === 'pdf') exportToPDF(data, `low_stock_${scope}_page`);
-    else exportToCSV(data, `low_stock_${scope}_page`);
+    const columns = ['Product Name', 'Category', 'Current Stock', 'Reorder Level', 'Unit', 'Status'];
+    const rows = data.map(p => [p.name, p.category, p.currentStock, p.reorderLevel, p.unit, p.status]);
+
+    if (format === 'csv') {
+      generateCSV(columns, rows, `low-stock_${scope}_${new Date().getTime()}.csv`);
+    } else if (format === 'pdf') {
+      generatePDFWithLogo({
+        title: `Low Stock Products Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+        columns,
+        rows,
+        fileName: `low-stock_${scope}_${new Date().getTime()}.pdf`,
+        scope
+      });
+    }
+    
     setIsDownloadModalOpen(false);
   };
 
@@ -164,36 +247,129 @@ export default function App() {
                 <p className="text-orange-100 mt-1">Real-time inventory monitoring & reporting</p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-3">
+            
+          </div>
+        </div>
+
+       
+
+        {/* Filters & Search Section */}
+        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+         <div className="flex flex-wrap gap-3">
               <button 
                 onClick={() => setIsEmailModalOpen(true)}
-                className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl font-semibold hover:bg-green-500 transition-all shadow-sm active:scale-95"
+                className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl font-semibold hover:bg-gray-200 transition-all shadow-sm active:scale-95"
               >
                 <Mail size={18} />
                 Send Email Report
               </button>
+              <DownloadButton onClick={() => setIsDownloadModalOpen(true)} />
+              <DownloadModal
+                isOpen={isDownloadModalOpen}
+                onClose={() => setIsDownloadModalOpen(false)}
+                onDownload={handleDownload}
+                title="Export Low Stock Report"
+                subtitle="Choose your preferred format"
+              />
+        
               <div className="relative">
-                <button 
-                  onClick={() => setIsDownloadModalOpen(true)}
-                  className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl font-semibold hover:bg-green-500 transition-all shadow-sm active:scale-95"
-                >
-                  <Download size={18} />
-                  Download
-                </button>
-                
-                <DownloadModal
-                  isOpen={isDownloadModalOpen}
-                  onClose={() => setIsDownloadModalOpen(false)}
-                  onDownload={handleDownload}
-                  title="Export Low Stock Report"
-                  subtitle="Choose your preferred format"
-                />
+                <FilterButton onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)} />
+                {isFilterMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setIsFilterMenuOpen(false)} />
+                    <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 z-20 overflow-hidden max-h-[80vh] overflow-y-auto"
+                  >
+                    <div className="p-3 bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">Status</div>
+                    {["All", "Critical", "Warning"].map((status) => (
+                      <button 
+                        key={status}
+                        onClick={() => {
+                          setStatusFilter(status);
+                          setIsFilterMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm font-semibold transition-colors ${
+                          statusFilter === status ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {status} {statusFilter === status && <Check size={16} />}
+                      </button>
+                    ))}
+
+                    <div className="p-3 bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b  border-t border-gray-100">Sort By Name</div>
+                    {[
+                      { label: "Name (A-Z)", key: "name", dir: "asc" },
+                      { label: "Name (Z-A)", key: "name", dir: "desc" },
+                    ].map((sort) => (
+                      <button 
+                        key={sort.label}
+                        onClick={() => {
+                          setSortConfig({ key: sort.key as any, direction: sort.dir as any });
+                          setIsFilterMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm font-semibold transition-colors ${
+                          sortConfig.key === sort.key && sortConfig.direction === sort.dir ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {sort.label} {sortConfig.key === sort.key && sortConfig.direction === sort.dir && <Check size={16} />}
+                      </button>
+                    ))}
+
+                    <div className="p-3 bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b  border-t border-gray-100">Sort By Price</div>
+                    {[
+                      { label: "Price (Low to High)", key: "price", dir: "asc" },
+                      { label: "Price (High to Low)", key: "price", dir: "desc" },
+                    ].map((sort) => (
+                      <button 
+                        key={sort.label}
+                        onClick={() => {
+                          setSortConfig({ key: sort.key as any, direction: sort.dir as any });
+                          setIsFilterMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm font-semibold transition-colors ${
+                          sortConfig.key === sort.key && sortConfig.direction === sort.dir ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {sort.label} {sortConfig.key === sort.key && sortConfig.direction === sort.dir && <Check size={16} />}
+                      </button>
+                    ))}
+
+                    <button 
+                      onClick={() => {
+                        setStatusFilter("All");
+                        setSortConfig({ key: 'none', direction: 'asc' });
+                        setSearchTerm("");
+                        setIsFilterMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors border-t border-gray-100"
+                    >
+                      <X size={16} /> Reset Filters
+                    </button>
+                  </motion.div>
+                </>
+              )}
               </div>
+                    <EditButton onClick={handleEditModalOpen} />
             </div>
+       
+        
+             <div className="relative w-full md:w-96">
+            
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search by product or category..." 
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
 
-        {/* Stats Section */}
+         {/* Stats Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
             <p className="text-gray-500 text-sm font-medium">Total Low Stock Items</p>
@@ -206,32 +382,6 @@ export default function App() {
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
             <p className="text-gray-500 text-sm font-medium">Warning Items</p>
             <p className="text-4xl font-bold text-yellow-600 mt-2">{filteredProducts.filter(p => p.status === 'Warning').length}</p>
-          </div>
-        </div>
-
-        {/* Filters & Search Section */}
-        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search by product or category..." 
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <Filter size={18} className="text-gray-400" />
-            <select 
-              className="flex-1 md:flex-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="All">All Statuses</option>
-              <option value="Critical">Critical Only</option>
-              <option value="Warning">Warning Only</option>
-            </select>
           </div>
         </div>
 
@@ -276,7 +426,7 @@ export default function App() {
                         onClick={() => { setEditingProduct(item); setIsEditModalOpen(true); }}
                         className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-100 rounded-lg transition-all"
                       >
-                        <Edit2 size={16} />
+                        <SquarePen size={16} />
                       </button>
                     </td>
                   </tr>
@@ -516,6 +666,55 @@ export default function App() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Table View Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && !editingProduct && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border">
+              <div className="p-6 border-b flex justify-between items-center bg-zinc-50">
+                <h2 className="font-bold text-lg">Edit Table View</h2>
+                <button onClick={() => setIsEditModalOpen(false)}><X size={20}/></button>
+              </div>
+              <div className="p-6 space-y-6 max-h-96 overflow-y-auto">
+                {/* Table View Columns */}
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-zinc-600 uppercase block">TABLE VIEW</label>
+                  {(Object.keys(tempColumns) as Array<keyof TableViewColumns>).map(col => (
+                    <label key={col} className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={tempColumns[col]}
+                        onChange={() => setTempColumns({...tempColumns, [col]: !tempColumns[col]})}
+                        className="w-5 h-5 rounded cursor-pointer accent-orange-600"
+                      />
+                      <span className="text-sm capitalize">
+                        {col === 'name' ? 'Product Name' : col === 'category' ? 'Category' : col === 'currentStock' ? 'Current Stock' : col === 'reorderLevel' ? 'Reorder Level' : col === 'unit' ? 'Unit' : col === 'price' ? 'Price' : 'Status'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="p-6 border-t space-y-3 bg-zinc-50">
+                <button
+                  onClick={handleApplyTableChanges}
+                  className="w-full py-2.5 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 flex items-center justify-center gap-2 shadow-md"
+                >
+                  <Check size={18} /> Apply
+                </button>
+                <button
+                  onClick={handleResetTableDefaults}
+                  className="w-full py-2.5 bg-zinc-100 text-zinc-700 font-semibold rounded-lg hover:bg-zinc-200 flex items-center justify-center gap-2"
+                >
+                  <RotateCcw size={18} /> Reset
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

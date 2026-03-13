@@ -22,7 +22,7 @@ export default function UserQuickSelect({ label, items, selectedValue, onSelect 
   return (
     <div className="flex flex-col h-full min-h-0">
       <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3 px-1">{label}</Label>
-      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2 max-h-[400px]">
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2 max-h-100">
         {items.map((u) => {
           const isSelected = selectedValue === u.value || selectedValue === u.id;
           return (

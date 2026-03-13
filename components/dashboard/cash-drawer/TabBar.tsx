@@ -30,8 +30,8 @@ export function TabBar({ currentTab, onTabChange }: TabBarProps) {
               key={tab.id}
               id={tab.id}
               label={tab.label}
-              icon={<Icon size={18} className="flex-shrink-0" />}
-              isActive={currentTab === tab.id}
+              icon={<Icon size={18} className="shrink-0" />}
+              isActive={currentTab === tab.id}        
               onClick={onTabChange}
               isMobile={true}
             />

@@ -88,7 +88,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
           transition={{ duration: 0.2 }}
           className="w-9 h-9 rounded-lg flex items-center justify-center border transition-all"
         >
-          <User size={18} className="flex-shrink-0" />
+          <User size={18} className="shrink-0" />
         </motion.div>
       </motion.button>
 
@@ -127,7 +127,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
                 whileTap={{ scale: 0.98 }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-all duration-200 text-left focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 group"
               >
-                <UserCircle size={18} className="flex-shrink-0 group-hover:scale-110 transition-transform" />
+                <UserCircle size={18} className="shrink-0 group-hover:scale-110 transition-transform" />
                 <span>My Profile</span>
               </motion.button>
 
@@ -140,7 +140,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
                 whileTap={{ scale: 0.98 }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200 text-left focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 group mt-1"
               >
-                <LogOut size={18} className="flex-shrink-0 group-hover:scale-110 transition-transform" />
+                <LogOut size={18} className="shrink-0 group-hover:scale-110 transition-transform" />
                 <span className="font-bold">Logout</span>
               </motion.button>
             </div>

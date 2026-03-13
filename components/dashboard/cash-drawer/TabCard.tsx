@@ -50,7 +50,7 @@ export function TabCard({
       aria-pressed={isActive}
       aria-label={`${label} tab`}
     >
-      <span className="flex-shrink-0">{icon}</span>
+      <span className="shrink-0">{icon}</span>
       {!isMobile && <span className="hidden md:inline">{label}</span>}
       {isMobile && <span>{label}</span>}
     </motion.button>

@@ -17,7 +17,7 @@ export default function Home() {
         {/* Welcome card */}
         <div className="w-full max-w-2xl text-center">
           <h1 className="mb-4 text-6xl font-black tracking-tight">
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <span className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               OneBalance
             </span>
           </h1>
@@ -25,7 +25,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/sales"
-              className="rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-4 text-white font-semibold hover:from-blue-700 hover:to-purple-700 transition-all hover:scale-105 shadow-lg hover:shadow-xl"
+              className="rounded-lg bg-linear-to-r from-blue-600 to-purple-600 px-8 py-4 text-white font-semibold hover:from-blue-700 hover:to-purple-700 transition-all hover:scale-105 shadow-lg hover:shadow-xl"
             >
               Go to Sales
             </a>

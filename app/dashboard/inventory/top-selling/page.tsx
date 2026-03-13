@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import DownloadModal from "@/components/download-modal";
+import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 
 interface TopSellingProduct {
   id: number;
@@ -49,6 +50,28 @@ const mockTopSelling: TopSellingProduct[] = [
 
 type ModalType = "download" | "filter" | "edit" | null;
 
+interface TableViewColumns {
+  productName: boolean;
+  upc: boolean;
+  category: boolean;
+  brand: boolean;
+  price: boolean;
+  unit: boolean;
+  qtySold: boolean;
+  viewProduct: boolean;
+}
+
+const defaultColumns: TableViewColumns = {
+  productName: true,
+  upc: true,
+  category: true,
+  brand: true,
+  price: true,
+  unit: true,
+  qtySold: true,
+  viewProduct: false,
+};
+
 export default function TopSellingPage() {
   const [products, setProducts] = useState<TopSellingProduct[]>(mockTopSelling);
   const [searchQuery, setSearchQuery] = useState("");
@@ -58,6 +81,12 @@ export default function TopSellingPage() {
   // Filter state
   const [sortBy, setSortBy] = useState("QTY Sold (High to Low)");
   const [dateFilter, setDateFilter] = useState("Current (Last 30 Days)");
+  
+  // Table view state
+  const [visibleColumns, setVisibleColumns] = useState<TableViewColumns>(defaultColumns);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [tempColumns, setTempColumns] = useState<TableViewColumns>(defaultColumns);
+  const [tempItemsPerPage, setTempItemsPerPage] = useState(10);
 
   const filteredProducts = useMemo(() => {
     let result = products.filter(p => 
@@ -84,56 +113,39 @@ export default function TopSellingPage() {
     if (type === "edit" && product) {
       setEditingProduct(product);
     }
+    if (type === "edit") {
+      setTempColumns({ ...visibleColumns });
+      setTempItemsPerPage(itemsPerPage);
+    }
     setActiveModal(type);
+  };
+
+  const handleApplyTableChanges = () => {
+    setVisibleColumns({ ...tempColumns });
+    setItemsPerPage(tempItemsPerPage);
+    setActiveModal(null);
+  };
+
+  const handleResetTableDefaults = () => {
+    setTempColumns({ ...defaultColumns });
+    setTempItemsPerPage(10);
   };
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
     const dataToExport = scope === 'current' ? filteredProducts.slice(0, 10) : filteredProducts;
+    const columns = ['Product Name', 'UPC', 'Category', 'Brand', 'Price', 'Unit', 'QTY Sold'];
+    const rows = dataToExport.map(p => [p.name, p.upc, p.category, p.brand, p.price, p.unit, p.qtySold]);
 
     if (format === 'csv') {
-      const headers = ['Product Name', 'UPC', 'Category', 'Brand', 'Price', 'Unit', 'QTY Sold'];
-      const csvContent = [
-        headers.join(','),
-        ...dataToExport.map(p => 
-          `"${p.name}","${p.upc}","${p.category}","${p.brand}","${p.price}","${p.unit}",${p.qtySold}`
-        )
-      ].join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `top-selling_${scope}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      generateCSV(columns, rows, `top-selling_${scope}_${new Date().getTime()}.csv`);
     } else if (format === 'pdf') {
-      const pdfContent = `
-Top Selling Products Report - ${scope === 'current' ? 'Current' : 'All'} Pages
-
-Generated on: ${new Date().toLocaleDateString()}
-
-${dataToExport.map((p, i) => `
-${i + 1}. ${p.name}
-   UPC: ${p.upc}
-   Category: ${p.category}
-   Brand: ${p.brand}
-   Price: ${p.price}
-   Unit: ${p.unit}
-   Quantity Sold: ${p.qtySold}
-`).join('\n')}
-`;
-
-      const blob = new Blob([pdfContent], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `top-selling_${scope}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      generatePDFWithLogo({
+        title: `Top Selling Products Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+        columns,
+        rows,
+        fileName: `top-selling_${scope}_${new Date().getTime()}.pdf`,
+        scope
+      });
     }
 
     setActiveModal(null);
@@ -152,34 +164,34 @@ ${i + 1}. ${p.name}
       </header>
 
       {/* Toolbar Section */}
-      <div className="p-6 space-y-6">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="p-6 space-y-6 ">
+        <div className="flex flex-wrap items-center gap-3  bg-white p-4 rounded-2xl shadow-xl border border-slate-200">
           <button 
             onClick={() => openModal("download")}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded font-semibold transition-all shadow-md active:scale-95"
+            className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-400 text-slate-700 px-6 py-3 rounded-xl font-bold transition-all shadow-sm"
           >
             <Download size={18} /> Download <ChevronDown size={14} />
           </button>
 
           <button 
             onClick={() => openModal("filter")}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded font-semibold transition-all shadow-md active:scale-95"
+            className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-400 text-slate-700 px-6 py-3 rounded-xl font-bold transition-all shadow-sm"
           >
             <Filter size={18} /> Filter <ChevronDown size={14} />
           </button>
 
           <button 
             onClick={() => openModal("edit")}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded font-semibold transition-all shadow-md active:scale-95"
+            className="flex items-center gap-2 bg-white border border-slate-200 hover:border-blue-400 text-slate-700 px-6 py-3 rounded-xl font-bold transition-all shadow-sm"
           >
             <Edit size={18} /> Edit <ChevronDown size={14} />
           </button>
 
-          <div className="flex-grow max-w-md ml-auto relative">
+          <div className="flex-grow:1 max-w-md ml-auto relative">
             <input 
               type="text" 
               placeholder="Search products..." 
-              className="w-full border border-gray-300 rounded px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 shadow-sm"
+              className="w-full border border-gray-300 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 shadow-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -192,31 +204,33 @@ ${i + 1}. ${p.name}
           <table className="w-full text-left border-collapse">
             <thead className="bg-blue-600 text-white">
               <tr>
-                <th className="p-4 font-bold text-sm tracking-wider">Product Name</th>
-                <th className="p-4 font-bold text-sm tracking-wider">UPC</th>
-                <th className="p-4 font-bold text-sm tracking-wider">Category</th>
-                <th className="p-4 font-bold text-sm tracking-wider">Brand</th>
-                <th className="p-4 font-bold text-sm tracking-wider">Price</th>
-                <th className="p-4 font-bold text-sm tracking-wider">Unit</th>
-                <th className="p-4 font-bold text-sm tracking-wider">QTY Sold</th>
+                {visibleColumns.productName && <th className="p-4 font-bold text-sm tracking-wider">Product Name</th>}
+                {visibleColumns.upc && <th className="p-4 font-bold text-sm tracking-wider">UPC</th>}
+                {visibleColumns.category && <th className="p-4 font-bold text-sm tracking-wider">Category</th>}
+                {visibleColumns.brand && <th className="p-4 font-bold text-sm tracking-wider">Brand</th>}
+                {visibleColumns.price && <th className="p-4 font-bold text-sm tracking-wider">Price</th>}
+                {visibleColumns.unit && <th className="p-4 font-bold text-sm tracking-wider">Unit</th>}
+                {visibleColumns.qtySold && <th className="p-4 font-bold text-sm tracking-wider">QTY Sold</th>}
+                {visibleColumns.viewProduct && <th className="p-4 font-bold text-sm tracking-wider text-right">Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.length > 0 ? (
-                filteredProducts.map((product) => (
+              {filteredProducts.slice(0, itemsPerPage).length > 0 ? (
+                filteredProducts.slice(0, itemsPerPage).map((product) => (
                   <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="p-4 font-medium text-gray-800">{product.name}</td>
-                    <td className="p-4 text-gray-600">{product.upc}</td>
-                    <td className="p-4 text-gray-600">{product.category}</td>
-                    <td className="p-4 text-gray-600">{product.brand}</td>
-                    <td className="p-4 font-medium text-gray-800">{product.price}</td>
-                    <td className="p-4 text-gray-600">{product.unit}</td>
-                    <td className="p-4 font-bold text-gray-800">{product.qtySold.toFixed(2)}</td>
+                    {visibleColumns.productName && <td className="p-4 font-medium text-gray-800">{product.name}</td>}
+                    {visibleColumns.upc && <td className="p-4 text-gray-600">{product.upc}</td>}
+                    {visibleColumns.category && <td className="p-4 text-gray-600">{product.category}</td>}
+                    {visibleColumns.brand && <td className="p-4 text-gray-600">{product.brand}</td>}
+                    {visibleColumns.price && <td className="p-4 font-medium text-gray-800">{product.price}</td>}
+                    {visibleColumns.unit && <td className="p-4 text-gray-600">{product.unit}</td>}
+                    {visibleColumns.qtySold && <td className="p-4 font-bold text-gray-800">{product.qtySold.toFixed(2)}</td>}
+                    {visibleColumns.viewProduct && <td className="p-4 text-right"><button className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors">View Product</button></td>}
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-gray-500 italic">
+                  <td colSpan={Object.values(visibleColumns).filter(v => v).length} className="p-12 text-center text-gray-500 italic">
                     No products found matching your search.
                   </td>
                 </tr>
@@ -314,7 +328,7 @@ ${i + 1}. ${p.name}
               </motion.div>
             )}
 
-            {/* Edit Modal (Placeholder for context) */}
+            {/* Edit Modal (Table View Settings) */}
             {activeModal === "edit" && (
               <motion.div 
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -324,24 +338,75 @@ ${i + 1}. ${p.name}
               >
                 <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
                   <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Edit size={20} /> Edit Top Selling
+                    <Edit size={20} /> Edit View Settings
                   </h2>
                   <button onClick={() => setActiveModal(null)} className="hover:bg-blue-700 p-1 rounded-full">
                     <X size={24} />
                   </button>
                 </div>
-                <div className="p-8 text-center space-y-4">
-                  <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
-                    <SquarePen size={32} />
+                <div className="p-6 space-y-6 max-h-96 overflow-y-auto">
+                  {/* Table View Section */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700">Table View</h3>
+                    <div className="space-y-2">
+                      {[
+                        { key: 'productName' as const, label: 'Product Name', icon: '📦' },
+                        { key: 'upc' as const, label: 'UPC', icon: '🏷️' },
+                        { key: 'category' as const, label: 'Category', icon: '📂' },
+                        { key: 'brand' as const, label: 'Brand', icon: '🎯' },
+                        { key: 'price' as const, label: 'Price', icon: '💰' },
+                        { key: 'unit' as const, label: 'Unit', icon: '📏' },
+                        { key: 'qtySold' as const, label: 'QTY Sold', icon: '📊' },
+                        { key: 'viewProduct' as const, label: 'View Product', icon: '👁️' },
+                      ].map(column => (
+                        <label key={column.key} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded transition-colors">
+                          <input 
+                            type="checkbox" 
+                            checked={tempColumns[column.key]}
+                            onChange={(e) => setTempColumns({ ...tempColumns, [column.key]: e.target.checked })}
+                            className="w-4 h-4 accent-blue-600 cursor-pointer"
+                          />
+                          <span className="text-sm font-medium text-gray-700">{column.icon} {column.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                  <h3 className="text-xl font-bold text-gray-800">Edit Mode Active</h3>
-                  <p className="text-gray-500">You can now modify the top selling parameters or manually adjust rankings.</p>
-                  <button 
-                    onClick={() => setActiveModal(null)}
-                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow-md hover:bg-blue-700 transition-colors"
-                  >
-                    Got it
-                  </button>
+
+                  {/* Items Per Page Section */}
+                  <div className="space-y-3 pt-4 border-t border-gray-100">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700">Items Per Page</h3>
+                    <div className="space-y-2">
+                      {[10, 15, 25, 50, 100].map(num => (
+                        <label key={num} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded transition-colors">
+                          <input 
+                            type="radio" 
+                            name="itemsPerPage"
+                            value={num}
+                            checked={tempItemsPerPage === num}
+                            onChange={(e) => setTempItemsPerPage(Number(e.target.value))}
+                            className="w-4 h-4 accent-blue-600 cursor-pointer"
+                          />
+                          <span className="text-sm font-medium text-gray-700">{num} items</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="space-y-2 pt-4 border-t border-gray-100">
+                    <button 
+                      onClick={handleApplyTableChanges}
+                      className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      ✓ Apply Changes
+                    </button>
+                    <button 
+                      onClick={handleResetTableDefaults}
+                      className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                    >
+                      ↻ Reset to Default
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}
