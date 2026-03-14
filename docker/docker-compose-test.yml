@@ -1,0 +1,23 @@
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.test
+    ports:
+      - "3001:3000"  # Different port to avoid conflict
+    environment:
+      - NODE_ENV=test
+      - NEXT_PUBLIC_API_URL=https://test-api.example.com
+      - NEXT_PUBLIC_APP_URL=https://test.example.com
+      - DEBUG=true
+      - TEST_MODE=true
+    env_file:
+      - ../.env.test
+    # NO volumes! Like production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

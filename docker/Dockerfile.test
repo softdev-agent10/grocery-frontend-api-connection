@@ -1,0 +1,28 @@
+# Build stage
+FROM node:22-slim AS build
+
+WORKDIR /src
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npm run build
+
+# Test stage (same as production but with test config)
+FROM node:22-slim AS test
+
+WORKDIR /src
+
+COPY --from=build /src/.next ./.next
+COPY --from=build /src/node_modules ./node_modules
+COPY --from=build /src/package*.json ./
+COPY --from=build /src/public ./public
+
+# Optional: Add testing tools
+RUN npm install -g jest cypress
+
+EXPOSE 3000
+
+# Run with test flags
+CMD ["npm", "start"]
