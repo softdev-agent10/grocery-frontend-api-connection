@@ -290,14 +290,14 @@ export default function App() {
         <TableCard title="Recent Transactions" headers={["Time","Product","Amount","Payment","Status"]}>
           <tr className="border-b">
             <td className="p-4 text-gray-500">{posTimeRange === "Yesterday" ? "Yesterday 12:52 AM" : "12:52:07 AM"}</td>
-            <td className="p-4">3 items</td>
+            <td className="p-4">3 Products</td>
             <td className="p-4">{selectedBranch === "Dhaka Branch" ? "$900.00" : "$600.00"}</td>
             <td className="p-4">cash</td>
             <td className="p-4 text-gray-400">completed</td>
           </tr>
           <tr className="border-b">
             <td className="p-4 text-gray-500">{posTimeRange === "Yesterday" ? "Yesterday 9:57 PM" : "9:57:51 PM"}</td>
-            <td className="p-4">1 items</td>
+            <td className="p-4">1 Products</td>
             <td className="p-4">$450.00</td>
             <td className="p-4">cash</td>
             <td className="p-4 text-gray-400">completed</td>
@@ -381,9 +381,9 @@ export default function App() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard title="Total Products Qty" value={invStats.totalQty.toString()} detail="14 unique products" />
-          <StatCard title="Low Stock Items" value={invStats.lowStock.toString()} detail="0 out of stock" isAlert />
+          <StatCard title="Low Stock Products" value={invStats.lowStock.toString()} detail="0 out of stock" isAlert />
           <StatCard title="Product Categories" value={invStats.categories.toString()} detail="across all branches" />
-          <StatCard title="Out of Stock" value={invStats.outOfStock.toString()} detail="items need restocking" />
+          <StatCard title="Out of Stock" value={invStats.outOfStock.toString()} detail="products need restocking" />
         </div>
       </section>
 
@@ -458,9 +458,9 @@ export default function App() {
       {/* ================= EMPLOYEE MANAGEMENT DASHBOARD ================= */}
       {/* ================================================================= */}
       
-      <div className="bg-white mx-8 md:-mx-8 p-4 md:p-8 space-y-8 text-black   ">
+      {/* <div className="bg-white mx-8 md:-mx-8 p-4 md:p-8 space-y-8 text-black   ">
         
-        {/* Header Section */}
+        Header Section 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border p-6 rounded-2xl hover:border-blue-300">
           <h2 className="text-3xl text-black  font-bold">Employee Management Dashboard</h2>
           <div className="bg-white border border-gray-200 px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-semibold ">
@@ -469,7 +469,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        Stats Grid 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <EmployeeStatCard 
             title="Total Employees" 
@@ -497,7 +497,7 @@ export default function App() {
           />
         </div>
 
-        {/* Charts Section */}
+        Charts Section 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 ">
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-lg">
             <h3 className="text-indigo-400 font-bold mb-8 text-lg">Employee vs Total Sales</h3>
@@ -551,7 +551,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Tables Section */}
+        Tables Section 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 ">
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-lg overflow-hidden hover:border-blue-300">
             <div className="flex justify-between items-center mb-6">
@@ -622,7 +622,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Growth Chart */}
+        Growth Chart 
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-lg">
           <h3 className="text-indigo-400 font-bold mb-8 text-lg">Employee Growth</h3>
           <div className="w-full h-80">
@@ -654,7 +654,7 @@ export default function App() {
           </div>
         </div>
 
-      </div>
+      </div> */}
     </div>
   );
 }

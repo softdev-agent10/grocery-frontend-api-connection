@@ -52,6 +52,7 @@ export default function CustomerDisplayPage() {
   const { items, taxPercent, isTaxFree, discountValue, discountType, paymentStatus, paymentMethod } = useAppSelector((state) => state.sales);
   const [currentAd, setCurrentAd] = useState(0);
   const [countdown, setCountdown] = useState(5);
+  const [cartProducts, setCartProducts] = useState<CartItemType[]>([]);
 
   // Keyboard shortcuts for simulation
   useEffect(() => {
@@ -97,7 +98,12 @@ export default function CustomerDisplayPage() {
     if (cartItemsEndRef.current) {
       cartItemsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [items.length]);
+
+    setCartProducts(items);
+
+    console.log("cartProducts from Redux:", items);
+
+  }, [items]); 
 
   // Auto-rotate ads
   useEffect(() => {
@@ -127,7 +133,7 @@ export default function CustomerDisplayPage() {
       <div className="flex-1 flex gap-2 min-h-0">
         {/* Left Panel: Cart (Matching Sales Page Layout) */}
         <AnimatePresence>
-          {items.length > 0 && (
+          {cartProducts.length > 0 && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: "400px", opacity: 1 }}
@@ -142,12 +148,12 @@ export default function CustomerDisplayPage() {
                     <h2 className="font-black text-gray-900 uppercase tracking-tight">Shopping Cart</h2>
                   </div>
                   <span className="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                    {items.length} Items
+                    {cartProducts.length} Items
                   </span>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-                  {items.map((item) => {
+                  {cartProducts.map((item) => {
                     const itemSubtotal = item.price * item.qty;
                     const hasDiscount = item.discountValue && item.discountValue > 0;
                     const itemDiscount = hasDiscount

@@ -58,9 +58,9 @@ export default function QuickAddModal({ onConfirm, onCancel }: QuickAddModalProp
                 <div className="flex items-center gap-3">
                     <Zap className="size-6 sm:size-8 text-white fill-white" />
                     <div>
-                        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight">Quick Add</h2>
+                        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight">Quick Sell</h2>
                         <p className="text-white/80 text-sm sm:text-base lg:text-lg mt-1 font-medium italic">
-                            Add multiple items with custom prices quickly
+                            Add multiple products with custom prices quickly
                         </p>
                     </div>
                 </div>
@@ -137,20 +137,20 @@ export default function QuickAddModal({ onConfirm, onCancel }: QuickAddModalProp
                     ))}
                 </div>
 
-                {/* Add Another Item Button */}
+                {/* Add Another Product Button */}
                 <button 
                     onClick={addItem}
                     className="w-full py-3 sm:py-4 border-2 border-dashed border-[#6366f1]/30 hover:border-[#6366f1] text-[#6366f1] font-bold text-base sm:text-lg rounded-3xl transition-all hover:bg-[#6366f1]/5 flex items-center justify-center gap-3 group"
                 >
                     <Plus className="size-5 sm:size-6 transition-transform group-hover:scale-110" />
-                    <span>Add Another Item</span>
+                    <span>Add Another Product</span>
                 </button>
             </div>
 
             {/* Footer */}
             <div className="p-4 sm:p-5 lg:p-6 bg-gray-50/50 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <span className="text-xs sm:text-sm lg:text-base font-semibold text-gray-400">
-                    {items.length} {items.length === 1 ? 'item' : 'items'}
+                    {items.length} {items.length === 1 ? 'product' : 'products'}
                 </span>
                 <div className="flex gap-3 sm:gap-4 w-full sm:w-auto">
                     <Button 

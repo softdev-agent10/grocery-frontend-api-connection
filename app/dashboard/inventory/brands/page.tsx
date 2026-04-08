@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  Search, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  Plus,
+  Edit3,
+  Trash2,
+  Search,
+  ChevronLeft,
+  ChevronRight,
   MoreVertical,
   CheckCircle,
   XCircle,
@@ -20,20 +20,21 @@ import {
   FileText,
   Table as TableIcon
 } from "lucide-react";
- 
+
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
 import DownloadModal from "@/components/download-modal";
-import { 
-  AddButton, 
-  EditButton, 
-  DeleteButton, 
-  DownloadButton, 
-  FilterButton, 
-  HistoryButton 
+import {
+  AddButton,
+  EditButton,
+  DeleteButton,
+  DownloadButton,
+  FilterButton,
+  HistoryButton
 } from "@/components/toolbar-buttons";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
+import { createBrands, getBrands, updateBrands } from "@/app/services/brand/brand.service";
 
 // Extend jsPDF with autotable types
 declare module "jspdf" {
@@ -43,15 +44,14 @@ declare module "jspdf" {
 }
 
 interface Brand {
-  id: number;
-  name: string;
-  slug: string;
-  products: number;
-  status: "Active" | "Inactive";
-  price: number;
-  quantity: number;
-  upc: string;
-  createdOn: string;
+  id: number,
+  name: string,
+  branch_id: string,
+  brand_image: string,
+  created_at: string,
+  updated_at: string,
+  created_by: string,
+  product_count: number
 }
 
 interface HistoryItem {
@@ -61,23 +61,110 @@ interface HistoryItem {
   timestamp: string;
 }
 
-const mockBrands: Brand[] = [
-  { id: 1, name: "Apple", slug: "apple", products: 120, status: "Active", price: 999, quantity: 50, upc: "UPC001", createdOn: "2023-10-01" },
-  { id: 2, name: "Samsung", slug: "samsung", products: 85, status: "Active", price: 799, quantity: 30, upc: "UPC002", createdOn: "2023-10-05" },
-  { id: 3, name: "Sony", slug: "sony", products: 45, status: "Inactive", price: 599, quantity: 15, upc: "UPC003", createdOn: "2023-10-10" },
-  { id: 4, name: "Microsoft", slug: "microsoft", products: 60, status: "Active", price: 1200, quantity: 20, upc: "UPC004", createdOn: "2023-11-01" },
-  { id: 5, name: "Google", slug: "google", products: 30, status: "Active", price: 899, quantity: 10, upc: "UPC005", createdOn: "2023-11-15" },
-  { id: 6, name: "Amazon", slug: "amazon", products: 200, status: "Active", price: 49, quantity: 500, upc: "UPC006", createdOn: "2023-12-01" },
-  { id: 7, name: "Tesla", slug: "tesla", products: 10, status: "Inactive", price: 45000, quantity: 5, upc: "UPC007", createdOn: "2024-01-10" },
-  { id: 8, name: "Nike", slug: "nike", products: 150, status: "Active", price: 120, quantity: 100, upc: "UPC008", createdOn: "2024-01-15" },
-  { id: 9, name: "Adidas", slug: "adidas", products: 130, status: "Active", price: 110, quantity: 80, upc: "UPC009", createdOn: "2024-02-01" },
-  { id: 10, name: "Puma", slug: "puma", products: 90, status: "Inactive", price: 80, quantity: 60, upc: "UPC010", createdOn: "2024-02-10" },
-  { id: 11, name: "Intel", slug: "intel", products: 40, status: "Active", price: 300, quantity: 25, upc: "UPC011", createdOn: "2024-02-15" },
-  { id: 12, name: "AMD", slug: "amd", products: 35, status: "Active", price: 280, quantity: 22, upc: "UPC012", createdOn: "2024-03-01" },
-];
+// const mockBrands: Brand[] = [
+//   { id: 1, name: "Apple", slug: "apple", products: 120, status: "Active", price: 999, quantity: 50, upc: "UPC001", createdOn: "2023-10-01" },
+//   { id: 2, name: "Samsung", slug: "samsung", products: 85, status: "Active", price: 799, quantity: 30, upc: "UPC002", createdOn: "2023-10-05" },
+//   { id: 3, name: "Sony", slug: "sony", products: 45, status: "Inactive", price: 599, quantity: 15, upc: "UPC003", createdOn: "2023-10-10" },
+//   { id: 4, name: "Microsoft", slug: "microsoft", products: 60, status: "Active", price: 1200, quantity: 20, upc: "UPC004", createdOn: "2023-11-01" },
+//   { id: 5, name: "Google", slug: "google", products: 30, status: "Active", price: 899, quantity: 10, upc: "UPC005", createdOn: "2023-11-15" },
+//   { id: 6, name: "Amazon", slug: "amazon", products: 200, status: "Active", price: 49, quantity: 500, upc: "UPC006", createdOn: "2023-12-01" },
+//   { id: 7, name: "Tesla", slug: "tesla", products: 10, status: "Inactive", price: 45000, quantity: 5, upc: "UPC007", createdOn: "2024-01-10" },
+//   { id: 8, name: "Nike", slug: "nike", products: 150, status: "Active", price: 120, quantity: 100, upc: "UPC008", createdOn: "2024-01-15" },
+//   { id: 9, name: "Adidas", slug: "adidas", products: 130, status: "Active", price: 110, quantity: 80, upc: "UPC009", createdOn: "2024-02-01" },
+//   { id: 10, name: "Puma", slug: "puma", products: 90, status: "Inactive", price: 80, quantity: 60, upc: "UPC010", createdOn: "2024-02-10" },
+//   { id: 11, name: "Intel", slug: "intel", products: 40, status: "Active", price: 300, quantity: 25, upc: "UPC011", createdOn: "2024-02-15" },
+//   { id: 12, name: "AMD", slug: "amd", products: 35, status: "Active", price: 280, quantity: 22, upc: "UPC012", createdOn: "2024-03-01" },
+// ];
+
+// const mockBrands: Brand[] = [
+//   {
+//     id: 1, name: "Apple", branch_id: "branch1", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 2, name: "Samsung", branch_id: "branch2", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 3, name: "Sony", branch_id: "branch3", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 4, name: "Microsoft", branch_id: "branch4", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 5, name: "Google", branch_id: "branch5", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 6, name: "Amazon", branch_id: "branch6", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 7, name: "Tesla", branch_id: "branch7", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 8, name: "Nike", branch_id: "branch8", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 9, name: "Adidas", branch_id: "branch9", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 10, name: "Puma", branch_id: "branch10", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 11, name: "Intel", branch_id: "branch11", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+//   {
+//     id: 12, name: "AMD", branch_id: "branch12", brand_image: "images/apple.jpg",
+//     created_at: new Date(),
+//     updated_at: new Date(),
+//     created_by: "",
+//     product_count: 0
+//   },
+// ];
 
 export default function App() {
-  const [brands, setBrands] = useState<Brand[]>(mockBrands);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -85,7 +172,7 @@ export default function App() {
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [selectedBrands, setSelectedBrands] = useState<number[]>([]);
-  
+
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -96,10 +183,7 @@ export default function App() {
   // Form states
   const [formData, setFormData] = useState({
     name: "",
-    status: "Active" as "Active" | "Inactive",
-    price: 0,
-    quantity: 0,
-    upc: ""
+    brand_image: "",
   });
 
   const filterMenuRef = useRef<HTMLDivElement>(null);
@@ -113,15 +197,33 @@ export default function App() {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+
+
+  }, []);
+
+  useEffect(() => {
+    async function fetchBrands() {
+      try {
+        const data = await getBrands({
+          branchId: 1234567890,
+          token: "1234",
+        });
+        console.log("Fetched brands data:", data.data.items); // Log the fetched data
+
+        setBrands(data.data.items);
+      } catch (error) {
+        console.error("Error fetching brands:", error);
+      }
+    }
+    fetchBrands();
   }, []);
 
   // Filter and Sort Logic
   const processedBrands = useMemo(() => {
-    let filtered = brands.filter(b => 
-      b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      b.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      b.upc.toLowerCase().includes(searchTerm.toLowerCase())
+    let filtered = brands.filter(b =>
+      b.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
 
     if (sortConfig) {
       filtered.sort((a, b) => {
@@ -148,11 +250,11 @@ export default function App() {
 
   const addHistory = (details: string) => {
     // Determine action based on details
-    const action: "Add" | "Edit" | "Delete" = 
+    const action: "Add" | "Edit" | "Delete" =
       details.includes("Added") ? "Add" :
-      details.includes("Updated") ? "Edit" :
-      details.includes("Deleted") ? "Delete" :
-      "Edit";
+        details.includes("Updated") ? "Edit" :
+          details.includes("Deleted") ? "Delete" :
+            "Edit";
 
     setHistory(prev => [{
       id: Math.random().toString(36).substr(2, 9),
@@ -164,48 +266,116 @@ export default function App() {
 
   const handleAddBrand = (e: React.FormEvent) => {
     e.preventDefault();
+
     const newBrand: Brand = {
       id: Math.max(0, ...brands.map(b => b.id)) + 1,
+      branch_id: `branch${Math.max(0, ...brands.map(b => b.id)) + 1}`,
       name: formData.name,
-      slug: formData.name.toLowerCase().replace(/\s+/g, '-'),
-      products: 0,
-      status: formData.status,
-      price: formData.price,
-      quantity: formData.quantity,
-      upc: formData.upc || `UPC${Math.floor(Math.random() * 1000)}`,
-      createdOn: new Date().toISOString().split('T')[0]
+      brand_image: formData.brand_image,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      created_by: "Current User", // Replace with actual user
+      product_count: 0
     };
+    // TODO: Call API to save new brand to backend
+    const createBrand = async (p0: { branchId: number; token: string; name: string; image: string; }) =>  {
+      try {        
+        const data = await createBrands({  
+          branchId: 1234567890, token: "1234", name: newBrand.name, image:"" });
+        console.log("Created brand response:", data);
+      } catch (error) {
+        console.error("Error creating brand:", error);
+      }
+    };
+
+    createBrand({ branchId: 1234567890, token: "1234", name: newBrand.name, image: newBrand.brand_image });
+
     setBrands([newBrand, ...brands]);
     addHistory(`Added brand: ${newBrand.name}`);
+    setFormData({ name: "", brand_image: "", });
     setIsAddModalOpen(false);
-    setFormData({ name: "", status: "Active", price: 0, quantity: 0, upc: "" });
+
   };
 
-  const handleEditBrand = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingBrand) return;
-    
-    const updatedBrands = brands.map(b => 
-      b.id === editingBrand.id 
-        ? { ...b, ...formData, slug: formData.name.toLowerCase().replace(/\s+/g, '-') } 
+    const updateBrand = async ({
+      brandId,
+      branchId,
+      token,
+      name,
+      brand_image,
+    }: {
+      brandId: number;
+      branchId: number;
+      token: string;
+      name: string;
+      brand_image: string;
+    }) => {
+      try {
+        const data = await updateBrands({
+          brandId,
+          branchId,
+          token,
+          name,
+          brand_image,
+        });
+
+        console.log("Updated brand response:", data);
+        return data;
+      } catch (error) {
+        console.error("Error updating brand:", error);
+        throw error;
+      }
+    };
+
+const handleEditBrand = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingBrand) return;
+
+  try {
+    await updateBrand({
+      brandId: editingBrand.id,
+      branchId: 1234567890,
+      token: "1234",
+      name: formData.name,
+      brand_image: "images/apple.jpg", // Replace with actual image handling
+    });
+
+    // ✅ Update UI AFTER success
+    const updatedBrands = brands.map((b) =>
+      b.id === editingBrand.id
+        ? {
+            ...b,
+            ...formData,
+            slug: formData.name.toLowerCase().replace(/\s+/g, "-"),
+          }
         : b
     );
+
     setBrands(updatedBrands);
     addHistory(`Updated brand: ${formData.name}`);
+
+    // ✅ Cleanup
     setIsEditModalOpen(false);
     setEditingBrand(null);
-    setFormData({ name: "", status: "Active", price: 0, quantity: 0, upc: "" });
-  };
+    setFormData({ name: "", brand_image: "" });
+
+  } catch (error) {
+    console.error("Update failed:", error);
+    // Optional: show toast/snackbar here
+  }
+};
+
+
 
   const openEditModal = (brand: Brand) => {
     setEditingBrand(brand);
     setFormData({
       name: brand.name,
-      status: brand.status,
-      price: brand.price,
-      quantity: brand.quantity,
-      upc: brand.upc
+      brand_image: brand.brand_image
     });
+
+    console.log("Opening edit modal for brand:", brand.id, brand.name); // Log the brand being edited
+
     setIsEditModalOpen(true);
   };
 
@@ -237,9 +407,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50  font-sans text-gray-900">
       <div className=" mx-auto space-y-6">
-        
+
         {/* Header Section */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl bg-linear-to-br from-indigo-600 via-blue-600 to-blue-700 p-8 text-white shadow-xl overflow-hidden relative"
@@ -255,13 +425,13 @@ export default function App() {
 
         {/* Toolbar Section */}
         <div className="flex flex-wrap gap-3 items-center bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-          <motion.button 
+          <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => {
-              setFormData({ name: "", status: "Active", price: 0, quantity: 0, upc: "" });
+              setFormData({ name: "", brand_image: "", });
               setIsAddModalOpen(true);
-            }} 
+            }}
             className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200"
           >
             <Plus size={18} /> Add Brand
@@ -275,16 +445,14 @@ export default function App() {
               onClose={() => setIsDownloadModalOpen(false)}
               onDownload={(scope, format) => {
                 const data = scope === 'current' ? currentItems : processedBrands;
-                const columns = ["Brand Name", "Slug", "Products", "Status", "Price", "Quantity", "UPC", "Created On"];
+                const columns = ["Brand Name", "Products", "Created By", "Created On"];
                 const rows = data.map(b => [
                   b.name,
-                  b.slug,
-                  b.products,
-                  b.status,
-                  b.price,
-                  b.quantity,
-                  b.upc,
-                  b.createdOn
+                  b.brand_image,
+                  b.branch_id,
+                  b.created_by,
+                  b.created_at,
+
                 ]);
 
                 if (format === 'csv') {
@@ -308,7 +476,7 @@ export default function App() {
 
               <AnimatePresence>
                 {showFilterMenu && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -318,12 +486,6 @@ export default function App() {
                     <div className="max-h-64 overflow-y-auto">
                       <button onClick={() => handleSort('name', 'asc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">Name (A-Z)</button>
                       <button onClick={() => handleSort('name', 'desc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">Name (Z-A)</button>
-                      <button onClick={() => handleSort('price', 'asc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">Price (Low to High)</button>
-                      <button onClick={() => handleSort('price', 'desc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">Price (High to Low)</button>
-                      <button onClick={() => handleSort('quantity', 'asc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">Quantity (Low to High)</button>
-                      <button onClick={() => handleSort('quantity', 'desc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">Quantity (High to Low)</button>
-                      <button onClick={() => handleSort('upc', 'asc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">UPC (Ascending)</button>
-                      <button onClick={() => handleSort('upc', 'desc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">UPC (Descending)</button>
                     </div>
                     <button onClick={() => { setSortConfig(null); setShowFilterMenu(false); }} className="w-full text-left px-4 py-3 text-sm font-semibold text-red-600 border-t hover:bg-red-50 transition-colors">Reset Filters</button>
                   </motion.div>
@@ -331,18 +493,18 @@ export default function App() {
               </AnimatePresence>
             </div>
 
-          
+
           </div>
 
           <div className="ml-auto flex items-center bg-gray-50 px-4 rounded-xl border border-gray-200 w-full md:w-72 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
             <Search size={18} className="text-gray-400" />
 
-            <input 
-              type="text" 
-              placeholder="Search products..." 
+            <input
+              type="text"
+              placeholder="Search products..."
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              className="bg-transparent border-none outline-none ml-3 py-2.5 text-sm w-full placeholder:text-gray-400" 
+              className="bg-transparent border-none outline-none ml-3 py-2.5 text-sm w-full placeholder:text-gray-400"
             />
           </div>
 
@@ -356,9 +518,9 @@ export default function App() {
               <thead className="bg-indigo-600 text-white">
                 <tr>
                   <th className="p-4 w-12">
-                    <input 
-                      type="checkbox" 
-                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" 
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       checked={selectedBrands.length === currentItems.length && currentItems.length > 0}
                       onChange={toggleSelectAll}
                     />
@@ -366,42 +528,57 @@ export default function App() {
                   <th className="p-4 font-semibold uppercase tracking-wider text-xs">Brand Name</th>
                   <th className="p-4 font-semibold uppercase tracking-wider text-xs">Created On</th>
                   <th className="p-4 font-semibold uppercase tracking-wider text-xs">Products</th>
-                  <th className="p-4 font-semibold uppercase tracking-wider text-xs">Status</th>
+                  <th className="p-4 font-semibold uppercase tracking-wider text-xs">Created By</th>
                   <th className="p-4 font-semibold uppercase tracking-wider text-xs text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 <AnimatePresence mode="popLayout">
                   {currentItems.map((brand) => (
-                    <motion.tr 
+                    <motion.tr
                       layout
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      key={brand.id} 
+                      key={brand.id+(Math.random()*1000).toString()} // Use a more stable key in production
                       className={`hover:bg-indigo-50/30 transition-colors ${selectedBrands.includes(brand.id) ? 'bg-indigo-50/50' : ''}`}
                     >
                       <td className="p-4">
-                        <input 
-                          type="checkbox" 
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" 
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                           checked={selectedBrands.includes(brand.id)}
                           onChange={() => toggleSelectBrand(brand.id)}
                         />
                       </td>
                       <td className="p-4">
-                        <div className="flex flex-col">
+                        <div className="flex flex-row items-center gap-3">
+                          {/* <span className="text-xs text-gray-500">Slug: {brand.brand_image}</span> */}
+                          <span className="rounded-full">
+                            <img
+                            className="rounded-full border-2 border-slate-200"
+                              src="/desipayments_logo.png"
+                              width={50}
+                              height={50}
+                              alt="brand"
+                            />
+                          </span>
                           <span className="font-bold text-gray-900">{brand.name}</span>
-                          <span className="text-xs text-gray-500">Slug: {brand.slug}</span>
+
                         </div>
                       </td>
-                      <td className="p-4 text-gray-600 font-medium">{brand.createdOn}</td>
+                      <td className="p-4 text-gray-600 font-medium">{new Date(brand.created_at).toLocaleDateString()}</td>
                       <td className="p-4">
                         <span className="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-xs font-bold ring-1 ring-indigo-200">
-                          {brand.products}
+                          {brand.product_count}
                         </span>
                       </td>
                       <td className="p-4">
+                        <span className="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-xs font-bold ring-1 ring-indigo-200">
+                          {brand.created_by || "Unknown"}
+                        </span>
+                      </td>
+                      {/* <td className="p-4">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
                           brand.status === 'Active' 
                             ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' 
@@ -410,10 +587,10 @@ export default function App() {
                           {brand.status === 'Active' ? <CheckCircle size={12} /> : <XCircle size={12} />}
                           {brand.status}
                         </span>
-                      </td>
+                      </td> */}
                       <td className="p-4 text-right">
                         <div className="flex justify-end gap-1">
-                          <motion.button 
+                          <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => openEditModal(brand)}
@@ -421,7 +598,7 @@ export default function App() {
                           >
                             <Edit3 size={18} />
                           </motion.button>
-                          <motion.button 
+                          <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => handleDelete(brand.id)}
@@ -450,7 +627,7 @@ export default function App() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Items per page</span>
-                <select 
+                <select
                   value={itemsPerPage}
                   onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
                   className="bg-white border border-gray-200 rounded-lg text-xs font-bold py-1.5 px-3 focus:ring-2 focus:ring-indigo-500/20 outline-none"
@@ -468,7 +645,7 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              <motion.button 
+              <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 disabled={currentPage === 1}
@@ -477,7 +654,7 @@ export default function App() {
               >
                 <ChevronLeft size={20} />
               </motion.button>
-              
+
               <div className="flex items-center gap-1">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                   <motion.button
@@ -485,18 +662,17 @@ export default function App() {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setCurrentPage(page)}
-                    className={`w-9 h-9 rounded-lg text-xs font-bold transition-all ${
-                      currentPage === page 
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+                    className={`w-9 h-9 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
                         : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
+                      }`}
                   >
                     {page}
                   </motion.button>
                 ))}
               </div>
 
-              <motion.button 
+              <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 disabled={currentPage === totalPages || totalPages === 0}
@@ -511,7 +687,7 @@ export default function App() {
 
         {/* Footer Actions */}
         <div className="flex justify-end gap-3">
-          <motion.button 
+          <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => {
@@ -520,14 +696,14 @@ export default function App() {
               setSortConfig(null);
               setSearchTerm("");
               setSelectedBrands([]);
-              setBrands(mockBrands);
+              setBrands([]);
               setHistory([]);
             }}
             className="px-6 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-all"
           >
             Reset to Default
           </motion.button>
-          <motion.button 
+          <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => {
@@ -545,7 +721,7 @@ export default function App() {
       <AnimatePresence>
         {(isAddModalOpen || isEditModalOpen) && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
@@ -558,65 +734,43 @@ export default function App() {
               <form onSubmit={isAddModalOpen ? handleAddBrand : handleEditBrand} className="p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Brand Name</label>
-                  <input 
+                  <input
                     required
-                    type="text" 
+                    type="text"
                     value={formData.name}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
                     placeholder="e.g. Microsoft"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Price ($)</label>
-                    <input 
-                      type="number" 
-                      value={formData.price}
-                      onChange={e => setFormData({ ...formData, price: Number(e.target.value) })}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Quantity</label>
-                    <input 
-                      type="number" 
-                      value={formData.quantity}
-                      onChange={e => setFormData({ ...formData, quantity: Number(e.target.value) })}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                    />
-                  </div>
-                </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">UPC Code</label>
-                  <input 
-                    type="text" 
-                    value={formData.upc}
-                    onChange={e => setFormData({ ...formData, upc: e.target.value })}
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Brand Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                    placeholder="Optional"
+                    onChange={e => {
+                      const file = e.target.files?.[0]; 
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setFormData({ ...formData, brand_image: reader.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
-                  <select 
-                    value={formData.status}
-                    onChange={e => setFormData({ ...formData, status: e.target.value as "Active" | "Inactive" })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
                 <div className="flex gap-3 pt-4">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }}
                     className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-all"
                   >
                     Cancel
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200"
                   >
@@ -630,6 +784,7 @@ export default function App() {
 
         {/* History Modal */}
         <HistoryModal
+        key={"history-modal"}
           isOpen={isHistoryModalOpen}
           onClose={() => setIsHistoryModalOpen(false)}
           history={history}

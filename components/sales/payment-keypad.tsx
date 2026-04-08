@@ -112,7 +112,7 @@ export default function PaymentKeypad({
     return (
         <div className="bg-white p-1 rounded flex flex-col h-full overflow-hidden shadow-inner border border-gray-100 relative">
             <div className="flex-1 flex flex-col gap-1 min-h-0">
-                {/* Quick Add Buttons on Top for small screens/Nest Hub, Left for very large screens */}
+                {/* Quick Add / Quick Sell Buttons on Top for small screens/Nest Hub, Left for very large screens */}
                 <div className="grid grid-cols-4 xl:hidden gap-1 shrink-0">
                     {[10, 50, 100, 200].map((amt) => (
                         <Button
@@ -151,7 +151,7 @@ export default function PaymentKeypad({
                     </Button>
                 </div>
                 <div className="flex-1 grid grid-cols-4 xl:grid-cols-5 gap-1 min-h-0">
-                    {/* Quick Add Buttons on Left for very large screens */}
+                    {/* Quick Add /Quick Sell Buttons on Left for very large screens */}
                     <div className="hidden xl:grid grid-rows-4 gap-1 h-full">
                         {[10, 50, 100, 200].map((amt) => (
                             <Button

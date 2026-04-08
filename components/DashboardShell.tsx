@@ -20,12 +20,16 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] =  useState<Date | null>(null);
 
   // Update time every second
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+   const update = () => setCurrentTime(new Date());
+
+    update(); // set immediately
+    const interval = setInterval(update, 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Close sidebar on large screens
@@ -46,6 +50,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
       document.exitFullscreen().catch(() => {});
     }
   };
+
+   if (!currentTime) return null;
 
   const handleRefresh = () => window.location.reload();
 

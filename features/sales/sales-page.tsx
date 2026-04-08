@@ -335,7 +335,7 @@ export default function SalesPage() {
                         onCancel={handleCancelDiscount}
                     />
                 );
-            case "Quick Add":
+            case "Quick Sell":
                 return (
                     <QuickAddModal
                         onConfirm={(newItems: CartItemType[]) => {
@@ -397,7 +397,8 @@ export default function SalesPage() {
                                         <div>
                                             <p className="font-bold">{sale.customer?.name || "Guest"}</p>
                                             <p className="text-sm text-gray-500">
-                                                {sale.items.length} items • ${sale.items.reduce((sum, item) => sum + item.price * item.qty, 0).toFixed(2)}
+                                                {sale.items.length} Products
+                                                 • ${sale.items.reduce((sum, item) => sum + item.price * item.qty, 0).toFixed(2)}
                                             </p>
                                             <p className="text-xs text-gray-400">{new Date(sale.heldAt).toLocaleString()}</p>
                                         </div>
@@ -472,6 +473,7 @@ export default function SalesPage() {
         }, 300);
     };
 
+    //TODO: Add to cart logic
     const handleAddToCart = (product: Product) => {
         if (product.stock <= 0) {
             showNotification(`Product out of stock!`, 'error');
@@ -492,6 +494,8 @@ export default function SalesPage() {
             stock: product.stock,
             promotion: product.promotion 
         }));
+
+        localStorage.setItem("cartProducts", JSON.stringify(items));
     };
 
     const handleUpdateQuantity = (id: string, qty: number) => {
@@ -710,11 +714,11 @@ export default function SalesPage() {
                                     <Button
                                         variant="outline"
                                         className="h-8 sm:h-10 md:h-12 border-2 border-gray-400 hover:bg-gray-100 px-3 sm:px-4 rounded-xl shrink-0 flex items-center justify-center"
-                                        onClick={() => handleAction('Quick Add')}
+                                        onClick={() => handleAction('Quick Sell')}
                                     >
                                         <CirclePlus className="size-5" />
-                                        <span className="hidden sm:inline text-sm font-semibold">Quick Add</span>
-                                        <span className="sm:hidden text-xs font-semibold">Add</span>
+                                        <span className="hidden sm:inline text-sm font-semibold">Quick Sell</span>
+                                        <span className="sm:hidden text-xs font-semibold">Sell</span>
                                     </Button>
                                 </div>
 
@@ -735,7 +739,7 @@ export default function SalesPage() {
                                                             {cat.name}
                                                         </span>
                                                         <span className="text-xs xl:text-sm font-medium text-gray-400 mt-1 uppercase tracking-wide">
-                                                            {cat.count} Items In Stock
+                                                            {cat.count} Products In Stock
                                                         </span>
                                                     </div>
                                                 </div>

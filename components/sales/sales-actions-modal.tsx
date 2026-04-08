@@ -47,7 +47,7 @@ export function SalesActionsDialog({
     )
   }
 
-  if (title === "Item Pricing" || title === "Quick Add" || title === "Working Hours") {
+  if (title === "Item Pricing" || title === "Quick Sell" || title === "Working Hours") {
     return(
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className={cn("sm:max-w-fit p-0 border-0 bg-transparent shadow-none overflow-visible flex flex-col", className)} showCloseButton={false}>
