@@ -250,7 +250,7 @@ export default function OutOfStocks() {
 
         {/* Stats Section */}
         <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-          <p className="text-gray-600 text-sm font-semibold">Total Out of Stock Items</p>
+          <p className="text-gray-600 text-sm font-semibold">Total Out of Stock Products</p>
           <p className="text-4xl font-bold text-red-600 mt-2">{filteredProducts.length}</p>
         </div>
 
@@ -263,7 +263,7 @@ export default function OutOfStocks() {
                   <input type="checkbox" className="w-4 h-4 cursor-pointer" />
                 </th>
                 {visibleColumns.name && <th className="p-4 font-bold text-sm tracking-wider">Product Name</th>}
-                {visibleColumns.category && <th className="p-4 font-bold text-sm tracking-wider">Category</th>}
+                {visibleColumns.category && <th className="p-4 font-bold text-sm tracking-wider">Department</th>}
                 {visibleColumns.upc_code && <th className="p-4 font-bold text-sm tracking-wider">UPC Code</th>}
                 {visibleColumns.plu_code && <th className="p-4 font-bold text-sm tracking-wider">PLU Code</th>}
                 {visibleColumns.last_updated && <th className="p-4 font-bold text-sm tracking-wider">Last Updated</th>}

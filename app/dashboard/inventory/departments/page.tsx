@@ -227,7 +227,7 @@ export default function App() {
       setEditingCategory(category);
       setFormData({
         name: category.name,
-        description: category.description,
+        description: category.description ?? "",
         taxes: category.taxes,
         fees: category.fees,
         is_active: category.is_active,
