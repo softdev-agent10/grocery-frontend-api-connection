@@ -5,8 +5,8 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { 
-  Search, 
+import {
+  Search,
   X,
   Check,
   Package,
@@ -27,28 +27,72 @@ import autoTable from "jspdf-autotable";
 import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
 import DownloadModal from "@/components/download-modal";
 import { ProductModal, ProductFormData } from "@/components/ProductModal";
-import { 
-  AddButton, 
-  EditButton, 
-  DeleteButton, 
-  DownloadButton, 
-  FilterButton, 
-  HistoryButton 
+import {
+  AddButton,
+  EditButton,
+  DeleteButton,
+  DownloadButton,
+  FilterButton,
+  HistoryButton
 } from "@/components/toolbar-buttons";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
+import { get } from "http";
+import ProductModalOverView from "@/components/ProductModalOverView";
+import { getCategories } from "@/app/services/categories/service.categories";
+import { getBrands } from "@/app/services/brand/brand.service";
+import { getProducts, getProductById, createProduct, updateProduct } from "@/app/services/product/service.product";
+import SkeletonTable from "@/components/dashboard/SkeletonTable/SkeletonTable";
+import loading from "@/app/loading";
+import { se } from "date-fns/locale";
+import { s } from "framer-motion/client";
 
-interface Product {
+type Product = {
   id: number;
   name: string;
   upc: string;
-  category: string;
-  brand: string;
-  price: string;
-  pricing: string;
-  unit: string;
-  qty: number;
-  status: "Active" | "Inactive";
-}
+  category: Category;
+  brand: Brand;
+  selling_price: string;
+  quantity: number;
+  in_stock: boolean;
+  plu: string | null;
+};
+
+// type productFormData = {
+//   name: string,
+//   category_id: number,
+//   brand_id: number,
+//   unit_id: number,
+//   upc_code: string,
+//   plu_code: string,
+//   description: string,
+//   buying_price: number,
+//   selling_price: number,
+//   custom_price: number,
+//   quantity: number,
+//   quantity_alert: number,
+//   discount: number,
+//   age_verification: boolean,
+//   ebt_eligible: boolean,
+//   sold_by_weight: boolean,
+//   is_refundable: boolean,
+//   warranty_period: string,
+//   warranty_description: string,
+//   manufacturer_date: Date,
+//   expiration_date: Date,
+//   image_url: string,
+//   is_available: boolean
+// };
+
+type Category = {
+  id: number;
+  name: string;
+};
+
+type Brand = {
+  id: number;
+  name: string;
+};
 
 interface HistoryItem {
   id: string;
@@ -61,30 +105,130 @@ interface TableViewColumns {
   checkbox: boolean;
   name: boolean;
   upc: boolean;
+  plu: boolean;
   category: boolean;
   brand: boolean;
-  price: boolean;
-  pricing: boolean;
-  unit: boolean;
-  qty: boolean;
-  status: boolean;
+  selling_price: boolean;
+  quantity: boolean;
+  in_stock: boolean;
 }
 
-const mockProducts: Product[] = [
-  { id: 1, name: "Alovera", upc: "CUSTOM33552923", category: "Skincare", brand: "Nature", price: "$600.00", pricing: "Fixed", unit: "pcs", qty: 1.0, status: "Inactive" },
-  { id: 2, name: "Artichoke - Hearts, Canned", upc: "744889933567", category: "Canned Food", brand: "Gourmet", price: "$3.00", pricing: "Fixed", unit: "can", qty: 194.0, status: "Active" },
-  { id: 3, name: "Beef - Diced", upc: "952877402759", category: "Meat", brand: "Butcher", price: "$100.00", pricing: "Fixed", unit: "kg", qty: 10.0, status: "Active" },
-  { id: 4, name: "Beef - Diced Prime", upc: "952877402750", category: "Meat", brand: "Butcher", price: "$8888.88", pricing: "Fixed", unit: "kg", qty: 9.0, status: "Active" },
-  { id: 5, name: "Beef Mince", upc: "952877402753", category: "Meat", brand: "Butcher", price: "$120.00", pricing: "Fixed", unit: "kg", qty: 5.0, status: "Active" },
-  { id: 6, name: "Butter 500g", upc: "952877402789", category: "Dairy", brand: "Farm", price: "$250.00", pricing: "Fixed", unit: "pack", qty: 9.0, status: "Active" },
-  { id: 7, name: "Chicken Breast", upc: "952877402751", category: "Meat", brand: "Poultry", price: "$180.00", pricing: "Fixed", unit: "kg", qty: 3.0, status: "Active" },
-  { id: 8, name: "Cola 500ml", upc: "CUSTOM56498022", category: "Beverage", brand: "SodaCo", price: "$10.00", pricing: "Fixed", unit: "bottle", qty: 1.0, status: "Active" },
-  { id: 9, name: "Eggs 12 Pack", upc: "952877402757", category: "Dairy", brand: "Farm", price: "$130.00", pricing: "Fixed", unit: "box", qty: 8.0, status: "Active" },
-  { id: 10, name: "Milk 1 Liter", upc: "952877402758", category: "Dairy", brand: "Farm", price: "$90.00", pricing: "Fixed", unit: "bottle", qty: 6.0, status: "Active" },
-];
+// const mockProducts: Product[] = [
+//   {
+//     id: 1,
+//     name: "Aloe Vera Gel",
+//     upc: "100000000001",
+//     plu: "PLU001",
+//     category: { id: 1, name: "Skincare" },
+//     brand: { id: 1, name: "NatureCare" },
+//     selling_price: "$12.50",
+//     quantity: 25,
+//     in_stock: true,
+//   },
+//   {
+//     id: 2,
+//     name: "Organic Honey 500g",
+//     upc: "100000000002",
+//     plu: "PLU002",
+//     category: { id: 2, name: "Groceries" },
+//     brand: { id: 2, name: "SweetFarm" },
+//     selling_price: "$8.99",
+//     quantity: 10,
+//     in_stock: true,
+//   },
+//   {
+//     id: 3,
+//     name: "Brown Bread",
+//     upc: "100000000003",
+//     plu: null,
+//     category: { id: 3, name: "Bakery" },
+//     brand: { id: 3, name: "DailyFresh" },
+//     selling_price: "$2.50",
+//     quantity: 0,
+//     in_stock: false,
+//   },
+//   {
+//     id: 4,
+//     name: "Milk 1 Liter",
+//     upc: "100000000004",
+//     plu: "PLU004",
+//     category: { id: 4, name: "Dairy" },
+//     brand: { id: 4, name: "FarmHouse" },
+//     selling_price: "$1.80",
+//     quantity: 50,
+//     in_stock: true,
+//   },
+//   {
+//     id: 5,
+//     name: "Chicken Breast",
+//     upc: "100000000005",
+//     plu: null,
+//     category: { id: 5, name: "Meat" },
+//     brand: { id: 5, name: "FreshMeat" },
+//     selling_price: "$6.75",
+//     quantity: 8,
+//     in_stock: true,
+//   },
+//   {
+//     id: 6,
+//     name: "Apple (1kg)",
+//     upc: "100000000006",
+//     plu: "PLU006",
+//     category: { id: 6, name: "Fruits" },
+//     brand: { id: 6, name: "GreenFarm" },
+//     selling_price: "$3.20",
+//     quantity: 3,
+//     in_stock: true,
+//   },
+//   {
+//     id: 7,
+//     name: "Orange Juice",
+//     upc: "100000000007",
+//     plu: "PLU007",
+//     category: { id: 7, name: "Beverages" },
+//     brand: { id: 7, name: "Juicy" },
+//     selling_price: "$4.10",
+//     quantity: 0,
+//     in_stock: false,
+//   },
+//   {
+//     id: 8,
+//     name: "Shampoo 250ml",
+//     upc: "100000000008",
+//     plu: "PLU008",
+//     category: { id: 8, name: "Personal Care" },
+//     brand: { id: 8, name: "CleanPlus" },
+//     selling_price: "$5.60",
+//     quantity: 15,
+//     in_stock: true,
+//   },
+//   {
+//     id: 9,
+//     name: "Rice 5kg",
+//     upc: "100000000009",
+//     plu: "PLU009",
+//     category: { id: 2, name: "Groceries" },
+//     brand: { id: 9, name: "GoldenGrain" },
+//     selling_price: "$18.00",
+//     quantity: 20,
+//     in_stock: true,
+//   },
+//   {
+//     id: 10,
+//     name: "Eggs (12 pcs)",
+//     upc: "100000000010",
+//     plu: null,
+//     category: { id: 4, name: "Dairy" },
+//     brand: { id: 4, name: "FarmHouse" },
+//     selling_price: "$2.90",
+//     quantity: 5,
+//     in_stock: true,
+//   },
+// ];
+
 
 export default function App() {
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -95,27 +239,31 @@ export default function App() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isProductOverviewOpen, setIsProductOverviewOpen] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const [visibleColumns, setVisibleColumns] = useState<TableViewColumns>({
     checkbox: true,
     name: true,
     upc: true,
+    plu: true,
     category: true,
     brand: true,
-    price: true,
-    pricing: true,
-    unit: true,
-    qty: true,
-    status: true,
+    selling_price: true,
+    quantity: true,
+    in_stock: true,
   });
 
   // Pagination & Sorting State
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
-  
+
   const [tempColumns, setTempColumns] = useState<TableViewColumns>(visibleColumns);
   const [tempItemsPerPage, setTempItemsPerPage] = useState(itemsPerPage);
-  
+
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -128,28 +276,42 @@ export default function App() {
     title: "",
     message: "",
     product: undefined,
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
   const [sortConfig, setSortConfig] = useState<{ key: keyof Product | 'none', direction: 'asc' | 'desc' }>({ key: 'none', direction: 'asc' });
 
   // Form state
-  const [formData, setFormData] = useState<Partial<Product>>({
+  const [formData, setFormData] = useState<Partial<ProductFormData>>({
     name: "",
-    upc: "",
-    category: "",
-    brand: "",
-    price: "",
-    pricing: "Fixed",
-    unit: "",
-    qty: 0,
-    status: "Active"
+    category_id: 0,
+    brand_id: 0,
+    unit_id: 0,
+    upc_code: "",
+    plu_code: "",
+    description: "",
+    buying_price: 0,
+    selling_price: 0,
+    custom_price: 0,
+    quantity: 0,
+    quantity_alert: 0,
+    discount: 0,
+    age_verification: false,
+    ebt_eligible: false,
+    sold_by_weight: false,
+    is_refundable: false,
+    warranty_period: "",
+    warranty_description: "",
+    manufacturer_date: "",
+    expiration_date: "",
+    image_url: undefined,
+    is_available: true,
   });
 
   const addHistory = (action: string, details: string) => {
     const mapAction = (act: string): "Add" | "Edit" | "Delete" => {
       if (act === "Add") return "Add";
       if (act === "Delete" || act === "Bulk Delete") return "Delete";
-      return "Edit"; // Default for Edit, Download, and other actions
+      return "Edit";
     };
 
     const newItem: HistoryItem = {
@@ -167,39 +329,52 @@ export default function App() {
     setIsEditModalOpen(true);
   };
 
+  // Apply changes and persist to localStorage
   const handleApplyTableChanges = () => {
     setVisibleColumns(tempColumns);
     setItemsPerPage(tempItemsPerPage);
+    localStorage.setItem(
+      "tableSettingsProductsView",
+      JSON.stringify({
+        columns: tempColumns,
+        itemsPerPage: tempItemsPerPage,
+      })
+    );
     setIsEditModalOpen(false);
   };
 
+
+
+  // Reset to defaults and clear localStorage
   const handleResetTableDefaults = () => {
     const defaults: TableViewColumns = {
       checkbox: true,
       name: true,
       upc: true,
+      plu: true,
       category: true,
       brand: true,
-      price: true,
-      pricing: true,
-      unit: true,
-      qty: true,
-      status: true,
+      selling_price: true,
+      quantity: true,
+      in_stock: true,
     };
+
     setTempColumns(defaults);
     setTempItemsPerPage(5);
+    localStorage.removeItem("tableSettingsProductsView");
   };
 
+  // Memoized sorted and filtered products
   const sortedAndFilteredProducts = useMemo(() => {
     let result = products.filter(p => {
-      const matchesSearch = 
+      const matchesSearch =
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.upc.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.brand.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesFilter = filterStatus === "All" || p.status === filterStatus;
-      
+        p.category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.brand.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesFilter = filterStatus === "All" || p.in_stock === (filterStatus === "In Stock");
+
       return matchesSearch && matchesFilter;
     });
 
@@ -208,9 +383,9 @@ export default function App() {
         let aValue: any = a[sortConfig.key as keyof Product];
         let bValue: any = b[sortConfig.key as keyof Product];
 
-        if (sortConfig.key === 'price') {
-          aValue = parseFloat(a.price.replace('$', '').replace(',', ''));
-          bValue = parseFloat(b.price.replace('$', '').replace(',', ''));
+        if (sortConfig.key === 'selling_price') {
+          aValue = parseFloat(a.selling_price.replace('$', '').replace(',', ''));
+          bValue = parseFloat(b.selling_price.replace('$', '').replace(',', ''));
         }
 
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -228,10 +403,108 @@ export default function App() {
     return sortedAndFilteredProducts.slice(start, start + itemsPerPage);
   }, [sortedAndFilteredProducts, currentPage, itemsPerPage]);
 
+
+  /**
+   * Fetch products from API - Replace mock data with real API call
+   */
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await getProducts({ branchId: 1234567890, token: "your_token_here", page: 1, per_page: 100 });
+      const productsData = response.data.items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        upc: item.upc,
+        category: { id: item.category.id, name: item.category.name },
+        brand: { id: item.brand.id, name: item.brand.name },
+        selling_price: item.selling_price,
+        quantity: item.quantity,
+        in_stock: item.in_stock,
+        plu: item.plu,
+      }));
+      setProducts(productsData);
+      setLoading(false);
+      console.log("Fetched products:", productsData);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      setLoading(false);
+    }
+  };
+
+  const fetchData = async () => {
+    const catRes = await getCategories({ branchId: 1234567890, token: 'your_token_here' });
+    const brandRes = await getBrands({ branchId: 1234567890, token: 'your_token_here' });
+
+    setCategories(catRes.data.items);
+    setBrands(brandRes.data.items);
+  };
+
+
   // Reset page when filters change
   useEffect(() => {
+    fetchData();
+    loadProducts();
     setCurrentPage(1);
   }, [searchQuery, filterStatus, sortConfig]);
+
+
+  /**
+   * Handle window resize events to adjust visible columns
+   */
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 1280) {
+        setVisibleColumns(prev => ({
+          ...prev,
+          plu: false,
+          brand: false,
+          category: true,
+          upc: false,
+        }));
+      } else {
+        setVisibleColumns({
+          checkbox: true,
+          name: true,
+          upc: true,
+          plu: true,
+          category: true,
+          brand: true,
+          selling_price: true,
+          quantity: true,
+          in_stock: true,
+        });
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  /**
+   * Load table settings from localStorage on mount
+   */
+  useEffect(() => {
+    const savedSettings = localStorage.getItem("tableSettingsProductsView");
+
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+
+        if (parsed.columns) {
+          setVisibleColumns(parsed.columns);
+          setTempColumns(parsed.columns);
+        }
+
+        if (parsed.itemsPerPage) {
+          setItemsPerPage(parsed.itemsPerPage);
+          setTempItemsPerPage(parsed.itemsPerPage);
+        }
+      } catch (error) {
+        console.error("Failed to parse table settings:", error);
+      }
+    }
+  }, []);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -289,24 +562,108 @@ export default function App() {
     });
   };
 
-  const handleOpenModal = (product?: Product) => {
+  const handleOpenModal = async (product?: Product) => {
     if (product) {
       setEditingProduct(product);
-      setFormData(product);
+      try {
+        setLoading(true);
+        const branchId = "1234567890";
+        const token = "your_token_here";
+
+        // Fetch full product details by ID
+        const response = await getProductById({ branchId, token, productId: product.id });
+        const fullProduct = response.data;
+
+        // Format the fetched product data into form structure
+        const formattedData: ProductFormData = {
+          id: fullProduct.id,
+          name: fullProduct.name || '',
+          category_id: fullProduct.category?.id || 0,
+          brand_id: fullProduct.brand?.id || 0,
+          unit_id: fullProduct.unit?.id || 0,
+          upc_code: fullProduct.upc || '',
+          plu_code: fullProduct.plu || '',
+          description: fullProduct.description || '',
+          buying_price: Number(fullProduct.buying_price) || 0,
+          selling_price: Number(fullProduct.selling_price) || 0,
+          custom_price: Number(fullProduct.custom_price) || 0,
+          quantity: Number(fullProduct.quantity) || 0,
+          quantity_alert: Number(fullProduct.quantity_alert) || 0,
+          discount: Number(fullProduct.discount) || 0,
+          age_verification: fullProduct.age_verification || false,
+          ebt_eligible: fullProduct.ebt_eligible || false,
+          sold_by_weight: fullProduct.sold_by_weight || false,
+          is_refundable: fullProduct.is_refundable || false,
+          warranty_period: fullProduct.warranty_period || '',
+          warranty_description: fullProduct.warranty_description || '',
+          manufacturer_date: fullProduct.manufacturer_date || '',
+          expiration_date: fullProduct.expiration_date || '',
+          image_url: fullProduct.image_url || undefined,
+          is_available: fullProduct.is_available || true,
+        };
+
+        setFormData(formattedData);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching product details:", error);
+        setLoading(false);
+        // Fall back to using the basic product data
+        setFormData({
+          id: product.id,
+          name: product.name,
+          category_id: product.category.id,
+          brand_id: product.brand.id,
+          unit_id: 0,
+          upc_code: product.upc,
+          plu_code: product.plu || '',
+          description: '',
+          buying_price: 0,
+          selling_price: Number(product.selling_price.replace('$', '').replace(',', '')),
+          custom_price: 0,
+          quantity: product.quantity,
+          quantity_alert: 0,
+          discount: 0,
+          age_verification: false,
+          ebt_eligible: false,
+          sold_by_weight: false,
+          is_refundable: false,
+          warranty_period: '',
+          warranty_description: '',
+          manufacturer_date: '',
+          expiration_date: '',
+          image_url: undefined,
+          is_available: product.in_stock,
+        });
+      }
     } else {
       setEditingProduct(null);
       setFormData({
         name: "",
-        upc: "",
-        category: "",
-        brand: "",
-        price: "",
-        pricing: "Fixed",
-        unit: "",
-        qty: 0,
-        status: "Active"
+        category_id: 0,
+        brand_id: 0,
+        unit_id: 0,
+        upc_code: "",
+        plu_code: "",
+        description: "",
+        buying_price: 0,
+        selling_price: 0,
+        custom_price: 0,
+        quantity: 0,
+        quantity_alert: 0,
+        discount: 0,
+        age_verification: false,
+        ebt_eligible: false,
+        sold_by_weight: false,
+        is_refundable: false,
+        warranty_period: "",
+        warranty_description: "",
+        manufacturer_date: "",
+        expiration_date: "",
+        image_url: undefined,
+        is_available: true,
       });
     }
+    setValidationErrors({});
     setIsModalOpen(true);
   };
 
@@ -318,7 +675,7 @@ export default function App() {
     } else {
       const newProduct: Product = {
         id: Math.max(0, ...products.map(p => p.id)) + 1,
-        ...(formData as Omit<Product, "id">)
+        ...(formData as unknown as Omit<Product, "id">)
       };
       setProducts([...products, newProduct]);
       addHistory("Add", `Created new product: ${formData.name}`);
@@ -328,11 +685,11 @@ export default function App() {
 
   const downloadCSV = (scope: 'current' | 'all') => {
     const dataToExport = scope === 'current' ? paginatedProducts : sortedAndFilteredProducts;
-    const headers = ["Name", "UPC", "Category", "Brand", "Price", "Pricing", "Unit", "QTY", "Status"];
+    const headers = ["Name", "UPC", "Category", "Brand", "Selling Price", "Pricing", "Unit", "QTY", "Status"];
     const rows = dataToExport.map(p => [
-      p.name, p.upc, p.category, p.brand, p.price, p.pricing, p.unit, p.qty, p.status
+      p.name, p.upc, p.category.name, p.brand.name, p.selling_price, p.quantity, p.in_stock ? "In Stock" : "Out of Stock"
     ]);
-    
+
     generateCSV(headers, rows, `products_${scope}_${new Date().getTime()}.csv`);
     addHistory("Download", `Exported ${scope === 'current' ? 'current page' : 'all'} products as CSV`);
     setIsDownloadModalOpen(false);
@@ -340,9 +697,9 @@ export default function App() {
 
   const downloadPDF = (scope: 'current' | 'all') => {
     const dataToExport = scope === 'current' ? paginatedProducts : sortedAndFilteredProducts;
-    const columns = ["Name", "UPC", "Category", "Brand", "Price", "QTY", "Status"];
+    const columns = ["Name", "UPC", "Category", "Brand", "Selling Price", "QTY", "Status"];
     const rows = dataToExport.map(p => [
-      p.name, p.upc, p.category, p.brand, p.price, p.qty, p.status
+      p.name, p.upc, p.category.name, p.brand.name, p.selling_price, p.quantity, p.in_stock ? "In Stock" : "Out of Stock"
     ]);
 
     generatePDFWithLogo({
@@ -352,7 +709,7 @@ export default function App() {
       fileName: `products_${scope}_${new Date().getTime()}.pdf`,
       scope
     });
-    
+
     addHistory("Download", `Exported ${scope === 'current' ? 'current page' : 'all'} products as PDF`);
     setIsDownloadModalOpen(false);
   };
@@ -360,36 +717,35 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
       {/* Header Section */}
-    <section className=" rounded-2xl border-b border-slate-200 bg-white  mt-0"> 
-       <header className="bg-blue-600 rounded-2xl px-6 py-8 flex justify-between items-center shadow-lg relative overflow-hidden ">
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-          <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[120%] bg-white rotate-12 blur-3xl rounded-full" />
-        </div>
-        
-        <motion.div 
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          className="relative z-10"
-        >
-          <h1 className="text-5xl font-black text-white tracking-tighter uppercase italic">
-      products
-          </h1>
-          
-        </motion.div>
-
-        <motion.div 
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="text-white relative z-10"
-        >
-          <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md border  border-white/30 shadow-xl">
-            <Package size={40} strokeWidth={2} />
+      <section className=" rounded-2xl border-b border-slate-200 bg-white  mt-0">
+        <header className="bg-blue-600 rounded-2xl px-6 py-8 flex justify-between items-center shadow-lg relative overflow-hidden ">
+          <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+            <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[120%] bg-white rotate-12 blur-3xl rounded-full" />
           </div>
-        </motion.div>
-      </header>
- <div className="bg-white p-4 shadow-xl  rounded-2xl mt-4 border border-slate-200 flex flex-wrap items-center gap-3 ">
-          <AddButton onClick={() => handleOpenModal()} label="Add Product" />
-          
+
+          <motion.div
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            className="relative z-10"
+          >
+            <h1 className="text-5xl font-black text-white tracking-tighter uppercase italic">
+              products
+            </h1>
+
+          </motion.div>
+
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="text-white relative z-10"
+          >
+            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md border  border-white/30 shadow-xl">
+              <Package size={40} strokeWidth={2} />
+            </div>
+          </motion.div>
+        </header>
+        <div className="bg-white p-4 shadow-xl  rounded-2xl mt-4 border border-slate-200 flex flex-row items-center gap-2 ">
+          <AddButton onClick={() => handleOpenModal()} label="Add" />
           {/* Download Dropdown */}
           <div className="relative">
             <DownloadButton onClick={() => setIsDownloadModalOpen(true)} />
@@ -414,23 +770,22 @@ export default function App() {
               {isFilterMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setIsFilterMenuOpen(false)} />
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-100 z-20 overflow-hidden max-h-[80vh] overflow-y-auto"
-                  >                  
-                        <div className="p-3 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Status</div>
-                    {["All", "Active", "Inactive"].map((status) => (
-                      <button 
+                  >
+                    <div className="p-3 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">Status</div>
+                    {["All", "In Stock", "Out of Stock"].map((status) => (
+                      <button
                         key={status}
                         onClick={() => {
                           setFilterStatus(status);
                           setIsFilterMenuOpen(false);
                         }}
-                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm font-semibold transition-colors ${
-                          filterStatus === status ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'
-                        }`}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-xl font-semibold transition-colors ${filterStatus === status ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'
+                          }`}
                       >
                         {status} {filterStatus === status && <Check size={16} />}
                       </button>
@@ -447,21 +802,20 @@ export default function App() {
                       { label: "UPC (Ascending)", key: "upc", dir: "asc" },
                       { label: "UPC (Descending)", key: "upc", dir: "desc" },
                     ].map((sort) => (
-                      <button 
+                      <button
                         key={sort.label}
                         onClick={() => {
                           setSortConfig({ key: sort.key as any, direction: sort.dir as any });
                           setIsFilterMenuOpen(false);
                         }}
-                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm font-semibold transition-colors ${
-                          sortConfig.key === sort.key && sortConfig.direction === sort.dir ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'
-                        }`}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-xl font-semibold transition-colors ${sortConfig.key === sort.key && sortConfig.direction === sort.dir ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'
+                          }`}
                       >
                         {sort.label} {sortConfig.key === sort.key && sortConfig.direction === sort.dir && <Check size={16} />}
                       </button>
                     ))}
 
-                    <button 
+                    <button
                       onClick={() => {
                         setFilterStatus("All");
                         setSortConfig({ key: 'none', direction: 'asc' });
@@ -478,13 +832,13 @@ export default function App() {
             </AnimatePresence>
           </div>
 
-          <EditButton 
+          <EditButton
             onClick={handleEditModalOpen}
             variant="text"
             size="md"
           />
 
-          <DeleteButton 
+          <DeleteButton
             onClick={handleBulkDelete}
             disabled={selectedIds.size === 0}
             count={selectedIds.size}
@@ -494,9 +848,9 @@ export default function App() {
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
               <Search size={20} />
             </div>
-            <input 
-              type="text" 
-              placeholder="Search by name, UPC, brand..." 
+            <input
+              type="text"
+              placeholder="Search by name, UPC, brand..."
               className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -504,14 +858,14 @@ export default function App() {
           </div>
 
           <HistoryButton onClick={() => setIsHistoryOpen(true)} />
-        </div> 
-        </section>
+        </div>
+      </section>
       {/* Toolbar Section */}
       <div className="p-4 space-y-8">
-       
+
 
         {/* Table Section */}
-        <motion.div 
+        <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 "
@@ -523,8 +877,8 @@ export default function App() {
                   {visibleColumns.checkbox && (
                     <th className="p-6 w-12">
                       <div className="flex items-center justify-center">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           className="w-5 h-5 rounded-lg bg-blue-600 border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                           checked={paginatedProducts.length > 0 && selectedIds.size === paginatedProducts.length}
                           onChange={handleSelectAll}
@@ -538,156 +892,170 @@ export default function App() {
                   {visibleColumns.upc && (
                     <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">UPC</th>
                   )}
+                  {visibleColumns.plu && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">PLU</th>
+                  )}
                   {visibleColumns.category && (
                     <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Category</th>
                   )}
                   {visibleColumns.brand && (
                     <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Brand</th>
                   )}
-                  {visibleColumns.price && (
-                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Price</th>
+                  {visibleColumns.selling_price && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Selling Price</th>
                   )}
-                  {visibleColumns.pricing && (
-                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Pricing Type</th>
+                  {visibleColumns.quantity && (
+                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white text-center">Quantity</th>
                   )}
-                  {visibleColumns.unit && (
-                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Unit</th>
-                  )}
-                  {visibleColumns.qty && (
-                    <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white text-center">QTY</th>
-                  )}
-                  {visibleColumns.status && (
+                  {visibleColumns.in_stock && (
                     <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white">Status</th>
                   )}
                   <th className="p-6 font-bold text-xs uppercase tracking-widest  text-white text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
-                {paginatedProducts.length > 0 ? (
-                  paginatedProducts.map((product, index) => (
-                    <motion.tr 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      key={product.id} 
-                      className="hover:bg-blue-50/30 transition-colors group"
-                    >
-                      {visibleColumns.checkbox && (
+              {loading ? (
+                <tbody>
+                  <SkeletonTable
+                    rows={6}
+                    columns={
+                      Object.values(visibleColumns).filter(Boolean).length - 1
+                    }
+                    showCheckbox={visibleColumns.checkbox}
+                  />
+                </tbody>
+              ) : (
+                <tbody className="divide-y divide-slate-50">
+                  {paginatedProducts.length > 0 ? (
+                    paginatedProducts.map((product, index) => (
+                      <motion.tr
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        key={product.id}
+                        className="hover:bg-blue-50/30 transition-colors group"
+                      >
+                        {visibleColumns.checkbox && (
+                          <td className="p-6">
+                            <div className="flex items-center justify-center">
+                              <input
+                                type="checkbox"
+                                className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                checked={selectedIds.has(product.id)}
+                                onChange={() => handleSelectOne(product.id)}
+                              />
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.name && (
+                          <td className="p-6">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{product.name}</span>
+                              <span className="text-[10px] text-slate-400 font-mono mt-0.5">ID: #{product.id.toString().padStart(4, '0')}</span>
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.upc && (
+                          <td className="p-6 text-slate-600 font-mono text-md">{product.upc}</td>
+                        )}
+                        {visibleColumns.plu && (
+                          <td className="p-6 text-slate-600 font-mono text-md">{product.plu}</td>
+                        )}
+                        {visibleColumns.category && (
+                          <td className="p-6">
+                            <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider">
+                              {product.category.name}
+                            </span>
+                          </td>
+                        )}
+                        {visibleColumns.brand && (
+                          <td className="p-6 text-slate-600 font-medium">{product.brand.name}</td>
+                        )}
+                        {visibleColumns.selling_price && (
+                          <td className="p-6 font-black text-slate-900">{product.selling_price}</td>
+                        )}
+                        {visibleColumns.quantity && (
+                          <td className="p-6 text-center">
+                            <span className={`font-bold ${product.quantity < 5 ? 'text-red-500' : 'text-slate-700'}`}>
+                              {product.quantity.toFixed(2)}
+                            </span>
+                          </td>
+                        )}
+                        {visibleColumns.in_stock && (
+                          <td className="p-6">
+                            <div>
+                              <div className={`flex items-center justify-center  ${product.in_stock ? 'bg-green-100' : 'bg-red-100'
+                                } rounded-full px-1 py-1 border ${product.in_stock ? 'border-green-200' : 'border-red-200'
+                                } gap-2 text-xs  ${product.in_stock ? 'text-green-900' : 'text-red-900'
+                                }`}>
+                                <p className="text-wrap text-center">{product.in_stock ? 'In Stock' : 'Out of Stock'}</p>
+                              </div>
+                            </div>
+                          </td>
+                        )}
                         <td className="p-6">
-                          <div className="flex items-center justify-center">
-                            <input 
-                              type="checkbox" 
-                              className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                              checked={selectedIds.has(product.id)}
-                              onChange={() => handleSelectOne(product.id)}
-                            />
+                          <div className="flex justify-center items-center gap-3">
+                            <div className="bg-slate-200 rounded-full px-2 py-2 w-10 h-10 flex items-center justify-center  group-hover:opacity-100 transition-opacity">
+                              <motion.button
+                                whileHover={{ scale: 1.2, rotate: 5 }}
+                                className="text-slate-400 hover:text-blue-500 transition-colors"
+                                onClick={() => {
+                                  setIsProductOverviewOpen(true); setEditingProduct(product);
+                                }}
+                              >
+                                <Eye size={25} />
+                              </motion.button>
+                            </div>
+                            <div className="bg-slate-200 rounded-full px-2 py-2 w-10 h-10 flex items-center justify-center  group-hover:opacity-100 transition-opacity">
+                              <EditButton
+                                onClick={() => handleOpenModal(product)}
+                                variant="icon"
+                                size="lg"
+                              />
+                            </div>
+                            <div className="bg-slate-200 rounded-full px-2 py-2 w-10 h-10 flex items-center justify-center disabled:not-first:not-even:  group-hover:opacity-100 transition-opacity">
+                              <DeleteButton
+                                disabled={true}
+                                onClick={() => handleDelete(product.id)}
+                                variant="icon"
+                                size="lg"
+                              />
+                            </div>
                           </div>
                         </td>
-                      )}
-                      {visibleColumns.name && (
-                        <td className="p-6">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{product.name}</span>
-                            <span className="text-[10px] text-slate-400 font-mono mt-0.5">ID: #{product.id.toString().padStart(4, '0')}</span>
-                          </div>
-                        </td>
-                      )}
-                      {visibleColumns.upc && (
-                        <td className="p-6 text-slate-600 font-mono text-sm">{product.upc}</td>
-                      )}
-                      {visibleColumns.category && (
-                        <td className="p-6">
-                          <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider">
-                            {product.category}
-                          </span>
-                        </td>
-                      )}
-                      {visibleColumns.brand && (
-                        <td className="p-6 text-slate-600 font-medium">{product.brand}</td>
-                      )}
-                      {visibleColumns.price && (
-                        <td className="p-6 font-black text-slate-900">{product.price}</td>
-                      )}
-                      {visibleColumns.pricing && (
-                        <td className="p-6">
-                          <span className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl border border-emerald-100 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 w-fit">
-                            <Lock size={12} strokeWidth={3} /> {product.pricing}
-                          </span>
-                        </td>
-                      )}
-                      {visibleColumns.unit && (
-                        <td className="p-6 text-slate-500 font-medium italic">{product.unit}</td>
-                      )}
-                      {visibleColumns.qty && (
-                        <td className="p-6 text-center">
-                          <span className={`font-bold ${product.qty < 5 ? 'text-red-500' : 'text-slate-700'}`}>
-                            {product.qty.toFixed(2)}
-                          </span>
-                        </td>
-                      )}
-                      {visibleColumns.status && (
-                        <td className="p-6">
-                          <span className={`flex items-center gap-2 text-xs font-bold ${
-                            product.status === 'Active' ? 'text-emerald-500' : 'text-slate-300'
-                          }`}>
-                            <div className={`w-2 h-2 rounded-full ${
-                              product.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'
-                            }`} />
-                            {product.status}
-                          </span>
-                        </td>
-                      )}
-                      <td className="p-6">
-                        <div className="flex justify-center items-center gap-4">
-                          <motion.button 
-                            whileHover={{ scale: 1.2, rotate: 5 }}
-                            className="text-slate-400 hover:text-blue-500 transition-colors"
+                      </motion.tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={11} className="p-20 text-center">
+                        <div className="flex flex-col items-center gap-4 text-slate-400">
+                          <AlertCircle size={48} strokeWidth={1} />
+                          <p className="text-lg font-medium italic">No products found matching your search.</p>
+                          <button
+                            onClick={() => { setSearchQuery(""); setFilterStatus("All"); }}
+                            className="text-blue-600 font-bold hover:underline"
                           >
-                            <Eye size={20} />
-                          </motion.button>
-                          <EditButton 
-                            onClick={() => handleOpenModal(product)}
-                            variant="icon"
-                          />
-                          <DeleteButton 
-                            onClick={() => handleDelete(product.id)}
-                            variant="icon"
-                          />
+                            Clear all filters
+                          </button>
                         </div>
                       </td>
-                    </motion.tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={11} className="p-20 text-center">
-                      <div className="flex flex-col items-center gap-4 text-slate-400">
-                        <AlertCircle size={48} strokeWidth={1} />
-                        <p className="text-lg font-medium italic">No products found matching your search.</p>
-                        <button 
-                          onClick={() => {setSearchQuery(""); setFilterStatus("All");}}
-                          className="text-blue-600 font-bold hover:underline"
-                        >
-                          Clear all filters
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
+                    </tr>
+                  )}
+                </tbody>
+              )}
             </table>
           </div>
         </motion.div>
 
         {/* Pagination Section */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-lg shadow-slate-200/50">
-          <div className="text-sm font-bold text-slate-500 uppercase tracking-widest">
+          <div className="text-xl font-bold text-slate-500 uppercase tracking-widest">
             Showing <span className="text-blue-600">{paginatedProducts.length}</span> of <span className="text-slate-800">{sortedAndFilteredProducts.length}</span> products
           </div>
-          
+
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 mr-4">
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Show</span>
-              <select 
+              <select
                 value={itemsPerPage}
                 onChange={(e) => {
                   setItemsPerPage(Number(e.target.value));
@@ -702,20 +1070,19 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-1">
-              <motion.button 
+              <motion.button
                 whileHover={currentPage > 1 ? { scale: 1.1 } : {}}
                 whileTap={currentPage > 1 ? { scale: 0.9 } : {}}
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className={`p-2 rounded-xl border transition-all ${
-                  currentPage === 1 
-                    ? "border-slate-100 text-slate-300 cursor-not-allowed" 
-                    : "border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600"
-                }`}
+                className={`p-2 rounded-xl border transition-all ${currentPage === 1
+                  ? "border-slate-100 text-slate-300 cursor-not-allowed"
+                  : "border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                  }`}
               >
                 <ChevronDown size={20} className="rotate-90" />
               </motion.button>
-              
+
               <div className="flex items-center gap-1">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                   <motion.button
@@ -723,27 +1090,25 @@ export default function App() {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setCurrentPage(page)}
-                    className={`w-10 h-10 rounded-xl font-black text-xs transition-all ${
-                      currentPage === page 
-                        ? "bg-blue-600 text-white shadow-lg shadow-blue-100" 
-                        : "text-slate-500 hover:bg-slate-50"
-                    }`}
+                    className={`w-10 h-10 rounded-xl font-black text-xs transition-all ${currentPage === page
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                      : "text-slate-500 hover:bg-slate-50"
+                      }`}
                   >
                     {page}
                   </motion.button>
                 ))}
               </div>
 
-              <motion.button 
+              <motion.button
                 whileHover={currentPage < totalPages ? { scale: 1.1 } : {}}
                 whileTap={currentPage < totalPages ? { scale: 0.9 } : {}}
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages || totalPages === 0}
-                className={`p-2 rounded-xl border transition-all ${
-                  currentPage === totalPages || totalPages === 0
-                    ? "border-slate-100 text-slate-300 cursor-not-allowed" 
-                    : "border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600"
-                }`}
+                className={`p-2 rounded-xl border transition-all ${currentPage === totalPages || totalPages === 0
+                  ? "border-slate-100 text-slate-300 cursor-not-allowed"
+                  : "border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                  }`}
               >
                 <ChevronDown size={20} className="-rotate-90" />
               </motion.button>
@@ -754,33 +1119,146 @@ export default function App() {
 
       {/* Modal Section */}
       <ProductModal
+        title={editingProduct ? "Edit Product" : "Add Product"}
+        subtitle={editingProduct ? "Update product information" : "Add new product to inventory"}
         isOpen={isModalOpen}
         isEditing={editingProduct !== null}
-        onClose={() => setIsModalOpen(false)}
-        onSave={(data) => {
-          if (editingProduct) {
-            setProducts(products.map(p => p.id === editingProduct.id ? { ...p, name: data.name, upc: data.upc, category: data.category, brand: data.brand, price: `$${data.price}`, unit: data.unit, qty: data.quantity, status: "Active" } as Product : p));
-            addHistory("Edit", `Updated product: ${data.name}`);
-          } else {
-            const newProduct: Product = {
-              id: Math.max(0, ...products.map(p => p.id)) + 1,
-              name: data.name,
-              upc: data.upc,
-              category: data.category,
-              brand: data.brand,
-              price: `$${data.price}`,
-              pricing: "Fixed",
-              unit: data.unit,
-              qty: data.quantity,
-              status: "Active"
-            };
-            setProducts([...products, newProduct]);
-            addHistory("Add", `Created new product: ${data.name}`);
-          }
+        product={editingProduct ? (formData as unknown as ProductFormData) : undefined}
+        onClose={() => {
           setIsModalOpen(false);
           setEditingProduct(null);
+          setValidationErrors({});
+        }}
+        onSave={async (data) => {
+          try {
+            const branchId = "1234567890";
+            const token = "your_token_here";
+
+            // Helper to format dates
+            const formatDateToISO = (dateStr: string | Date): string => {
+              if (!dateStr) return new Date().toISOString().split('T')[0];
+              const dateObj = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+              return dateObj.toISOString().split('T')[0];
+            };
+
+            // Construct payload (validation already done by ProductModal)
+            const payload = {
+              name: data.name?.trim() || '',
+              category_id: Number(data.category_id) || 0,
+              brand_id: Number(data.brand_id) || 0,
+              unit_id: Number(data.unit_id) || 0,
+              upc_code: data.upc_code?.trim() || '',
+              plu_code: data.plu_code?.trim() || '',
+              description: data.description?.trim() || '',
+              buying_price: Number(data.buying_price) || 0,
+              selling_price: Number(data.selling_price) || 0,
+              custom_price: Number(data.custom_price) || 0,
+              quantity: Number(data.quantity) || 0,
+              quantity_alert: Number(data.quantity_alert) || 0,
+              discount: Number(data.discount) || 0,
+              age_verification: Boolean(data.age_verification),
+              ebt_eligible: Boolean(data.ebt_eligible),
+              sold_by_weight: Boolean(data.sold_by_weight),
+              is_refundable: Boolean(data.is_refundable),
+              warranty_period: data.warranty_period?.trim() || '',
+              warranty_description: data.warranty_description?.trim() || '',
+              manufacturer_date: formatDateToISO(data.manufacturer_date),
+              expiration_date: formatDateToISO(data.expiration_date),
+              image_url: data.image_url || undefined,
+              is_available: Boolean(data.is_available),
+            };
+
+            console.log("Payload being sent:", JSON.stringify(payload, null, 2));
+
+            if (editingProduct && data.id) {
+              // Update existing product (PATCH)
+              const response = await updateProduct({
+                branchId,
+                token,
+                productId: data.id,
+                data: payload,
+              });
+
+              console.log("Product updated:", response);
+
+              // Update local state
+              setProducts((prev) =>
+                prev.map((p) =>
+                  p.id === data.id
+                    ? {
+                      ...p,
+                      name: data.name,
+                      upc: data.upc_code,
+                      plu: data.plu_code || null,
+                      category: {
+                        id: data.category_id,
+                        name:
+                          categories.find(c => c.id === data.category_id)?.name || '',
+                      },
+                      brand: {
+                        id: data.brand_id,
+                        name:
+                          brands.find(b => b.id === data.brand_id)?.name || '',
+                      },
+                      selling_price: String(data.selling_price),
+                      quantity: data.quantity,
+                      in_stock: data.is_available,
+                    }
+                    : p
+                )
+              );
+
+              addHistory("Edit", `Updated product: ${data.name}`);
+            } else {
+              // Create new product (POST)
+              const response = await createProduct({
+                branchId,
+                token,
+                data: payload,
+              });
+
+              console.log("Product created:", response);
+
+              // Add to local state
+              const newProduct: Product = {
+                id: response.data.id || Math.max(0, ...products.map((p) => p.id)) + 1,
+                name: data.name,
+                upc: data.upc_code,
+                plu: data.plu_code || null,
+                category: {
+                  id: data.category_id,
+                  name:
+                    categories.find(c => c.id === data.category_id)?.name || '',
+                },
+                brand: {
+                  id: data.brand_id,
+                  name:
+                    brands.find(b => b.id === data.brand_id)?.name || '',
+                },
+                selling_price: String(data.selling_price),
+                quantity: data.quantity,
+                in_stock: data.is_available,
+              };
+
+              setProducts((prev) => [...prev, newProduct]);
+              addHistory("Add", `Created new product: ${data.name}`);
+            }
+
+            // Close modal on success
+            setIsModalOpen(false);
+            setEditingProduct(null);
+            setValidationErrors({});
+          } catch (error: any) {
+            console.error("Product save error:", error.message);
+            console.error("Full error:", error);
+
+            // Re-throw error so ProductModal can catch and display it
+            throw error;
+          }
         }}
       />
+
+
 
       {/* Edit Table View Modal */}
       <AnimatePresence>
@@ -789,7 +1267,7 @@ export default function App() {
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border">
               <div className="p-6 border-b flex justify-between items-center bg-zinc-50">
                 <h2 className="font-bold text-lg">Edit Table View</h2>
-                <button onClick={() => setIsEditModalOpen(false)}><X size={20}/></button>
+                <button onClick={() => setIsEditModalOpen(false)}><X size={20} /></button>
               </div>
               <div className="p-6 space-y-6 max-h-96 overflow-y-auto">
                 {/* Table View Columns */}
@@ -800,11 +1278,11 @@ export default function App() {
                       <input
                         type="checkbox"
                         checked={tempColumns[col]}
-                        onChange={() => setTempColumns({...tempColumns, [col]: !tempColumns[col]})}
+                        onChange={() => setTempColumns({ ...tempColumns, [col]: !tempColumns[col] })}
                         className="w-5 h-5 rounded cursor-pointer accent-blue-600"
                       />
-                      <span className="text-sm capitalize">
-                        {col === 'checkbox' ? 'Checkbox' : col === 'name' ? 'Product Name' : col === 'upc' ? 'UPC' : col === 'category' ? 'Category' : col === 'brand' ? 'Brand' : col === 'price' ? 'Price' : col === 'pricing' ? 'Pricing' : col === 'unit' ? 'Unit' : col === 'qty' ? 'QTY' : 'Status'}
+                      <span className="text-xl capitalize">
+                        {col === 'checkbox' ? 'Checkbox' : col === 'name' ? 'Product Name' : col === 'upc' ? 'UPC' : col === 'category' ? 'Category' : col === 'brand' ? 'Brand' : col === 'selling_price' ? 'Pricing' : col === 'in_stock' ? 'Unit' : col === 'quantity' ? 'QTY' : 'Status'}
                       </span>
                     </label>
                   ))}
@@ -824,7 +1302,7 @@ export default function App() {
                           onChange={() => setTempItemsPerPage(num)}
                           className="w-5 h-5 cursor-pointer accent-blue-600"
                         />
-                        <span className="text-sm">{num}</span>
+                        <span className="text-xl">{num}</span>
                       </label>
                     ))}
                   </div>
@@ -855,14 +1333,14 @@ export default function App() {
       <AnimatePresence>
         {confirmModal.isOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
             />
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -876,7 +1354,7 @@ export default function App() {
                   </div>
                   <h2 className="text-2xl font-black tracking-tight">{confirmModal.title}</h2>
                 </div>
-                <p className="text-slate-600 text-sm ml-16">{confirmModal.message}</p>
+                <p className="text-slate-600 text-xl ml-16">{confirmModal.message}</p>
               </div>
 
               {/* Product Details */}
@@ -889,35 +1367,35 @@ export default function App() {
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Category</p>
-                      <p className="text-base font-bold text-slate-900">{confirmModal.product.category}</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.category.name}</p>
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Price</p>
-                      <p className="text-base font-bold text-slate-900">{confirmModal.product.price}</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.selling_price}</p>
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Quantity</p>
-                      <p className="text-base font-bold text-slate-900">{confirmModal.product.qty}</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.quantity}</p>
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Brand</p>
-                      <p className="text-base font-bold text-slate-900">{confirmModal.product.brand}</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.brand.name}</p>
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Unit</p>
-                      <p className="text-base font-bold text-slate-900">{confirmModal.product.unit}</p>
+                      <p className="text-base font-bold text-slate-900">{confirmModal.product.plu}</p>
                     </div>
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">UPC/PLU Code</p>
-                    <p className="text-sm font-mono text-slate-700">{confirmModal.product.upc}</p>
+                    <p className="text-base font-mono text-slate-700">{confirmModal.product.upc}</p>
                   </div>
                 </div>
               )}
 
               {/* Buttons */}
               <div className="p-6 bg-slate-50 flex gap-4">
-                <motion.button 
+                <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
@@ -925,7 +1403,7 @@ export default function App() {
                 >
                   Cancel
                 </motion.button>
-                <motion.button 
+                <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={confirmModal.onConfirm}
@@ -947,6 +1425,16 @@ export default function App() {
         title="Activity Log"
         subtitle="Recent inventory actions"
       />
+
+      <ProductModalOverView
+        isOpen={isProductOverviewOpen}
+        onClose={() => setIsProductOverviewOpen(false)}
+        product={products.find(p => p.id === editingProduct?.id) || null}
+        title="Product Overview"
+        subtitle="Full details of the selected product"
+      />
     </div>
   );
 }
+
+

@@ -7,36 +7,29 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-
     "docker:build:dev": "docker build -f docker/Dockerfile.dev -t grocery-frontend-dev .",
     "docker:build:test": "docker build -f docker/Dockerfile.test -t grocery-frontend-test .",
     "docker:build:prod": "docker build -f docker/Dockerfile.prod -t grocery-frontend-prod .",
-
     "docker:dev": "docker-compose -f docker/docker-compose-dev.yml up",
     "docker:dev:d": "docker-compose -f docker/docker-compose-dev.yml up -d",
     "docker:dev:build": "docker-compose -f docker/docker-compose-dev.yml up -d --build",
     "docker:dev:down": "docker-compose -f docker/docker-compose-dev.yml down",
     "docker:dev:logs": "docker-compose -f docker/docker-compose-dev.yml logs -f",
-
     "docker:test": "docker-compose -f docker/docker-compose-test.yml up",
     "docker:test:d": "docker-compose -f docker/docker-compose-test.yml up -d",
     "docker:test:build": "docker-compose -f docker/docker-compose-test.yml up -d --build",
     "docker:test:down": "docker-compose -f docker/docker-compose-test.yml down",
-
     "docker:prod": "docker-compose -f docker/docker-compose-prod.yml up",
     "docker:prod:d": "docker-compose -f docker/docker-compose-prod.yml up -d",
     "docker:prod:build": "docker-compose -f docker/docker-compose-prod.yml up -d --build",
     "docker:prod:down": "docker-compose -f docker/docker-compose-prod.yml down",
-
     "docker:clean": "docker system prune -f",
     "docker:clean:all": "docker system prune -a -f --volumes",
     "docker:ps": "docker ps",
     "docker:logs": "docker-compose -f docker/docker-compose-dev.yml logs -f",
-
     "workflow:dev": "npm run docker:dev:build && npm run docker:dev:logs",
     "workflow:test": "npm run docker:test:build && npm run test:e2e",
     "workflow:deploy": "npm run docker:prod:build",
-    
     "test": "jest",
     "test:unit": "jest tests/unit",
     "test:integration": "jest tests/integration",
@@ -62,7 +55,9 @@
     "react-barcode": "^1.6.1",
     "react-day-picker": "^9.14.0",
     "react-dom": "19.2.3",
+    "react-icons": "^5.6.0",
     "react-redux": "^9.2.0",
+    "react-toastify": "^11.0.5",
     "recharts": "^3.7.0",
     "tailwind-merge": "^3.5.0",
     "uuid": "^13.0.0"

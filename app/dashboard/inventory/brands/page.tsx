@@ -35,6 +35,7 @@ import {
 } from "@/components/toolbar-buttons";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 import { createBrands, getBrands, updateBrands } from "@/app/services/brand/brand.service";
+import { fetchInventory } from "@/app/services/comon/fetchInventory";
 
 // Extend jsPDF with autotable types
 declare module "jspdf" {
@@ -204,10 +205,17 @@ export default function App() {
   useEffect(() => {
     async function fetchBrands() {
       try {
-        const data = await getBrands({
-          branchId: 1234567890,
+        // const data = await getBrands({
+        //   branchId: 1234567890,
+        //   token: "1234",
+        // });
+        const data = await fetchInventory("brands", {
+          branchId: "1234567890",
           token: "1234",
+          page: 1,
+          limit: 100,
         });
+
         console.log("Fetched brands data:", data.data.items); // Log the fetched data
 
         setBrands(data.data.items);
@@ -278,10 +286,11 @@ export default function App() {
       product_count: 0
     };
     // TODO: Call API to save new brand to backend
-    const createBrand = async (p0: { branchId: number; token: string; name: string; image: string; }) =>  {
-      try {        
-        const data = await createBrands({  
-          branchId: 1234567890, token: "1234", name: newBrand.name, image:"" });
+    const createBrand = async (p0: { branchId: number; token: string; name: string; image: string; }) => {
+      try {
+        const data = await createBrands({
+          branchId: 1234567890, token: "1234", name: newBrand.name, image: ""
+        });
         console.log("Created brand response:", data);
       } catch (error) {
         console.error("Error creating brand:", error);
@@ -297,73 +306,73 @@ export default function App() {
 
   };
 
-    const updateBrand = async ({
-      brandId,
-      branchId,
-      token,
-      name,
-      brand_image,
-    }: {
-      brandId: number;
-      branchId: number;
-      token: string;
-      name: string;
-      brand_image: string;
-    }) => {
-      try {
-        const data = await updateBrands({
-          brandId,
-          branchId,
-          token,
-          name,
-          brand_image,
-        });
+  const updateBrand = async ({
+    brandId,
+    branchId,
+    token,
+    name,
+    brand_image,
+  }: {
+    brandId: number;
+    branchId: number;
+    token: string;
+    name: string;
+    brand_image: string;
+  }) => {
+    try {
+      const data = await updateBrands({
+        brandId,
+        branchId,
+        token,
+        name,
+        brand_image,
+      });
 
-        console.log("Updated brand response:", data);
-        return data;
-      } catch (error) {
-        console.error("Error updating brand:", error);
-        throw error;
-      }
-    };
+      console.log("Updated brand response:", data);
+      return data;
+    } catch (error) {
+      console.error("Error updating brand:", error);
+      throw error;
+    }
+  };
 
-const handleEditBrand = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!editingBrand) return;
+  const handleEditBrand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBrand) return;
 
-  try {
-    await updateBrand({
-      brandId: editingBrand.id,
-      branchId: 1234567890,
-      token: "1234",
-      name: formData.name,
-      brand_image: "images/apple.jpg", // Replace with actual image handling
-    });
+    try {
+      await updateBrand({
+        brandId: editingBrand.id,
+        branchId: 1234567890,
+        token: "1234",
+        name: formData.name,
+        brand_image: "images/apple.jpg", // Replace with actual image handling
+      });
 
-    // ✅ Update UI AFTER success
-    const updatedBrands = brands.map((b) =>
-      b.id === editingBrand.id
-        ? {
+      // ✅ Update UI AFTER success
+      const updatedBrands = brands.map((b) =>
+        b.id === editingBrand.id
+          ? {
             ...b,
             ...formData,
             slug: formData.name.toLowerCase().replace(/\s+/g, "-"),
           }
-        : b
-    );
+          : b
+      );
 
-    setBrands(updatedBrands);
-    addHistory(`Updated brand: ${formData.name}`);
+      setBrands(updatedBrands);
+      addHistory(`Updated brand: ${formData.name}`);
 
-    // ✅ Cleanup
-    setIsEditModalOpen(false);
-    setEditingBrand(null);
-    setFormData({ name: "", brand_image: "" });
+      // ✅ Cleanup
+      setIsEditModalOpen(false);
+      setEditingBrand(null);
+      setFormData({ name: "", brand_image: "" });
 
-  } catch (error) {
-    console.error("Update failed:", error);
-    // Optional: show toast/snackbar here
-  }
-};
+    } catch (error) {
+      console.error("Update failed:", error);
+      // Optional: show toast/snackbar here
+    }
+  };
 
 
 
@@ -425,17 +434,10 @@ const handleEditBrand = async (e: React.FormEvent) => {
 
         {/* Toolbar Section */}
         <div className="flex flex-wrap gap-3 items-center bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => {
-              setFormData({ name: "", brand_image: "", });
-              setIsAddModalOpen(true);
-            }}
-            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200"
-          >
-            <Plus size={18} /> Add Brand
-          </motion.button>
+          <AddButton onClick={() => {
+            setFormData({ name: "", brand_image: "", });
+            setIsAddModalOpen(true);
+          }} label="Create Brand"></AddButton>
 
           <div className="flex items-center gap-2">
             <DownloadButton onClick={() => setIsDownloadModalOpen(true)} />
@@ -540,7 +542,7 @@ const handleEditBrand = async (e: React.FormEvent) => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      key={brand.id+(Math.random()*1000).toString()} // Use a more stable key in production
+                      key={brand.id + (Math.random() * 1000).toString()} // Use a more stable key in production
                       className={`hover:bg-indigo-50/30 transition-colors ${selectedBrands.includes(brand.id) ? 'bg-indigo-50/50' : ''}`}
                     >
                       <td className="p-4">
@@ -556,7 +558,7 @@ const handleEditBrand = async (e: React.FormEvent) => {
                           {/* <span className="text-xs text-gray-500">Slug: {brand.brand_image}</span> */}
                           <span className="rounded-full">
                             <img
-                            className="rounded-full border-2 border-slate-200"
+                              className="rounded-full border-2 border-slate-200"
                               src="/desipayments_logo.png"
                               width={50}
                               height={50}
@@ -663,8 +665,8 @@ const handleEditBrand = async (e: React.FormEvent) => {
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setCurrentPage(page)}
                     className={`w-9 h-9 rounded-lg text-xs font-bold transition-all ${currentPage === page
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                        : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                       }`}
                   >
                     {page}
@@ -750,7 +752,7 @@ const handleEditBrand = async (e: React.FormEvent) => {
                     accept="image/*"
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
                     onChange={e => {
-                      const file = e.target.files?.[0]; 
+                      const file = e.target.files?.[0];
                       if (file) {
                         const reader = new FileReader();
                         reader.onloadend = () => {
@@ -759,7 +761,7 @@ const handleEditBrand = async (e: React.FormEvent) => {
                         reader.readAsDataURL(file);
                       }
                     }}
-                    
+
                   />
                 </div>
                 <div className="flex gap-3 pt-4">
@@ -784,7 +786,7 @@ const handleEditBrand = async (e: React.FormEvent) => {
 
         {/* History Modal */}
         <HistoryModal
-        key={"history-modal"}
+          key={"history-modal"}
           isOpen={isHistoryModalOpen}
           onClose={() => setIsHistoryModalOpen(false)}
           history={history}

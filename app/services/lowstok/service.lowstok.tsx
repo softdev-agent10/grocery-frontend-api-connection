@@ -1,8 +1,8 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
 
-export const getBrands = async ({ branchId, token }: any) => {
+export const getLowStock = async ({ branchId, token }: any) => {
   const res = await fetch(
-    `${BASE_URL}/inventory/brands?branch_id=${branchId}`,
+    `${BASE_URL}/inventory/low-stock?branch_id=${branchId}`,
     {
       method: "GET",
       headers: {
@@ -14,7 +14,7 @@ export const getBrands = async ({ branchId, token }: any) => {
   );
 
   if (!res.ok) {
-    throw new Error("Failed to fetch brands");
+    throw new Error("Failed to fetch low stock items");
   }
 
   return res.json();
@@ -22,9 +22,9 @@ export const getBrands = async ({ branchId, token }: any) => {
 
 
 
-export const createBrands = async ({ branchId, token, name, image }: any) => {
+export const createLowStock = async ({ branchId, token, name, short_name }: any) => {
   const res = await fetch(
-    `${BASE_URL}/inventory/brands?branch_id=${branchId}`,
+    `${BASE_URL}/inventory/low-stock?branch_id=${branchId}`,
     {
       method: "POST",
       headers: {
@@ -33,34 +33,34 @@ export const createBrands = async ({ branchId, token, name, image }: any) => {
       },
       cache: "no-store",
       body: JSON.stringify({
-        name: name,
-        brand_image: image || "https://example.com/default-brand-image.png",
+        name,
+        short_name, // ✅ FIXED
       }),
     }
   );
 
   if (!res.ok) {
-    throw new Error("Failed to create brands");
+    throw new Error("Failed to create low stock items");
   }
 
   return res.json();
 };
 
-export const updateBrands = async ({
+export const updateLowStock = async ({
   brandId,
   branchId,
   token,
   name,
-  brand_image,
+  short_name,
 }: {
-  brandId: number;
+  brandId: string;
   branchId: number;
   token: string;
   name: string;
-  brand_image: string;
+  short_name: string;
 }) => {
   const res = await fetch(
-    `${BASE_URL}/inventory/brands/${brandId}?branch_id=${branchId}`,
+    `${BASE_URL}/inventory/low-stock/${brandId}?branch_id=${branchId}`,
     {
       method: "PATCH",
       headers: {
@@ -70,17 +70,17 @@ export const updateBrands = async ({
       },
       body: JSON.stringify({
         name,
-        brand_image, // ✅ correct key
+        short_name, // ✅ correct key
       }),
     }
   );
 
   if (!res.ok) {
-    throw new Error("Failed to update brand");
+    throw new Error("Failed to update low stock item");
   }
 
   return res.json();
 };
 
 
-// http://192.168.0.109:8000/api/v1/inventory/brands?branch_id=1234567890 net::ERR_CONNECTION_TIMED_OUT
+// http://192.168.0.109:8000/api/v1/inventory/low-stock

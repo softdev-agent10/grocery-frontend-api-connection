@@ -61,9 +61,9 @@ export const INVENTORY_ITEMS: NavItem[] = [
     matcher: "prefix",
   },
   {
-    label: "Categories",
+    label: "Departments",
     icon: Layers,
-    href: "/dashboard/inventory/categories",
+    href: "/dashboard/inventory/departments",
     matcher: "prefix",
   },
   {

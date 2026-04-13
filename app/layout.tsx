@@ -2,8 +2,10 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import 'react-toastify/dist/ReactToastify.css';
 
 import ReduxProvider from "@/components/providers/ReduxProvider";
+import { ToastContainer } from "react-toastify/unstyled";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,6 +25,16 @@ export default function RootLayout({
         <ReduxProvider>
           {children}
         </ReduxProvider>
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          pauseOnHover
+          draggable
+          theme="light"
+        />
       </body>
     </html>
   );

@@ -6,15 +6,15 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  Search, 
-  Download, 
-  Filter, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  Plus,
+  Edit3,
+  Trash2,
+  Search,
+  Download,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
   X,
   FileText,
   Table as TableIcon,
@@ -24,18 +24,20 @@ import {
 } from "lucide-react";
 import DownloadModal from "@/components/download-modal";
 import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
-import { 
-  AddButton, 
-  EditButton, 
-  DeleteButton, 
-  DownloadButton, 
-  FilterButton, 
-  HistoryButton 
+import {
+  AddButton,
+  EditButton,
+  DeleteButton,
+  DownloadButton,
+  FilterButton,
+  HistoryButton
 } from "@/components/toolbar-buttons";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { createUnits, getUnits, updateUnits } from "@/app/services/units/units.service";
+import { fetchInventory } from "@/app/services/comon/fetchInventory";
 
 // --- Types ---
 
@@ -43,17 +45,13 @@ interface Unit {
   id: string;
   name: string;
   shortName: string;
-  price: number;
-  quantity: number;
-  upc: string;
+  productCount: number;
   createdAt: string;
 }
 
-type SortOption = 
-  | "name-asc" | "name-desc" 
-  | "price-low" | "price-high" 
-  | "qty-low" | "qty-high" 
-  | "upc-asc" | "upc-desc";
+type SortOption =
+  | "name-asc" | "name-desc"
+  | "productCount-low" | "productCount-high";
 
 interface HistoryItem {
   id: string;
@@ -64,25 +62,25 @@ interface HistoryItem {
 
 // --- Mock Data ---
 
-const INITIAL_UNITS: Unit[] = [
-  { id: "1", name: "Kilogram", shortName: "kg", price: 12.5, quantity: 150, upc: "UPC001", createdAt: "2024-01-01" },
-  { id: "2", name: "Gram", shortName: "g", price: 0.05, quantity: 5000, upc: "UPC002", createdAt: "2024-01-02" },
-  { id: "3", name: "Liter", shortName: "L", price: 8.0, quantity: 80, upc: "UPC003", createdAt: "2024-01-03" },
-  { id: "4", name: "Piece", shortName: "pcs", price: 1.0, quantity: 1200, upc: "UPC004", createdAt: "2024-01-04" },
-  { id: "5", name: "Box", shortName: "box", price: 45.0, quantity: 25, upc: "UPC005", createdAt: "2024-01-05" },
-  { id: "6", name: "Dozen", shortName: "dz", price: 15.0, quantity: 60, upc: "UPC006", createdAt: "2024-01-06" },
-  { id: "7", name: "Meter", shortName: "m", price: 5.5, quantity: 300, upc: "UPC007", createdAt: "2024-01-07" },
-  { id: "8", name: "Pack", shortName: "pk", price: 22.0, quantity: 45, upc: "UPC008", createdAt: "2024-01-08" },
-  { id: "9", name: "Roll", shortName: "roll", price: 3.2, quantity: 110, upc: "UPC009", createdAt: "2024-01-09" },
-  { id: "10", name: "Set", shortName: "set", price: 120.0, quantity: 15, upc: "UPC010", createdAt: "2024-01-10" },
-  { id: "11", name: "Case", shortName: "case", price: 85.0, quantity: 10, upc: "UPC011", createdAt: "2024-01-11" },
-  { id: "12", name: "Bag", shortName: "bag", price: 18.5, quantity: 200, upc: "UPC012", createdAt: "2024-01-12" },
-];
+// const INITIAL_UNITS: Unit[] = [
+//   { id: "1", name: "Kilogram", shortName: "kg", productCount: 150, createdAt: "2024-01-01" },
+//   { id: "2", name: "Gram", shortName: "g", productCount: 5000, createdAt: "2024-01-02" },
+//   { id: "3", name: "Liter", shortName: "L", productCount: 80, createdAt: "2024-01-03" },
+//   { id: "4", name: "Piece", shortName: "pcs", productCount: 1200, createdAt: "2024-01-04" },
+//   { id: "5", name: "Box", shortName: "box", productCount: 25, createdAt: "2024-01-05" },
+//   { id: "6", name: "Dozen", shortName: "dz", productCount: 60, createdAt: "2024-01-06" },
+//   { id: "7", name: "Meter", shortName: "m", productCount: 300, createdAt: "2024-01-07" },
+//   { id: "8", name: "Pack", shortName: "pk", productCount: 45, createdAt: "2024-01-08" },
+//   { id: "9", name: "Roll", shortName: "roll", productCount: 110, createdAt: "2024-01-09" },
+//   { id: "10", name: "Set", shortName: "set", productCount: 15, createdAt: "2024-01-10" },
+//   { id: "11", name: "Case", shortName: "case", productCount: 10, createdAt: "2024-01-11" },
+//   { id: "12", name: "Bag", shortName: "bag", productCount: 200, createdAt: "2024-01-12" },
+// ];
 
 // --- Components ---
 
 export default function App() {
-  const [units, setUnits] = useState<Unit[]>(INITIAL_UNITS);
+  const [units, setUnits] = useState<Unit[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
@@ -100,10 +98,9 @@ export default function App() {
   // --- Logic ---
 
   const filteredAndSortedUnits = useMemo(() => {
-    let result = units.filter(u => 
+    let result = units.filter(u =>
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.shortName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.upc.toLowerCase().includes(searchTerm.toLowerCase())
+      u.shortName.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     if (sortBy) {
@@ -111,12 +108,8 @@ export default function App() {
         switch (sortBy) {
           case "name-asc": return a.name.localeCompare(b.name);
           case "name-desc": return b.name.localeCompare(a.name);
-          case "price-low": return a.price - b.price;
-          case "price-high": return b.price - a.price;
-          case "qty-low": return a.quantity - b.quantity;
-          case "qty-high": return b.quantity - a.quantity;
-          case "upc-asc": return a.upc.localeCompare(b.upc);
-          case "upc-desc": return b.upc.localeCompare(a.upc);
+          case "productCount-low": return a.productCount - b.productCount;
+          case "productCount-high": return b.productCount - a.productCount;
           default: return 0;
         }
       });
@@ -131,9 +124,40 @@ export default function App() {
     currentPage * itemsPerPage
   );
 
+
+
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, itemsPerPage, sortBy]);
+    async function fetchUnits() {
+      try {
+        // const data = await getUnits({
+        //   branchId: 1234567890,
+        //   token: "1234",
+        // });
+        const data = await fetchInventory("units", {
+          branchId: "1234567890",
+          token: "1234",
+          page: 1,
+          limit: 100,
+          sortBy: "name",
+          sortOrder: "asc",
+        });
+
+        const mappedUnits: Unit[] = data.data.items.map((item: any) => ({
+          id: item.id.toString(),
+          name: item.name,
+          shortName: item.short_name,
+          productCount: item.product_count ?? 0,
+          createdAt: item.created_at,
+        }));
+
+        setUnits(mappedUnits);
+      } catch (error) {
+        console.error("Error fetching units:", error);
+      }
+    }
+
+    fetchUnits();
+  }, []);
 
   const addHistory = (action: string, details: string) => {
     const mapAction = (act: string): "Add" | "Edit" | "Delete" => {
@@ -151,26 +175,63 @@ export default function App() {
     setHistory(prev => [newItem, ...prev].slice(0, 50));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.shortName) return;
 
-    if (editingUnit) {
-      setUnits(prev => prev.map(u => u.id === editingUnit.id ? { ...u, ...formData } : u));
-      addHistory("Edit", `Updated unit: ${formData.name}`);
-    } else {
-      const newUnit: Unit = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: formData.name,
-        shortName: formData.shortName,
-        price: 0,
-        quantity: 0,
-        upc: `UPC${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      setUnits(prev => [newUnit, ...prev]);
-      addHistory("Add", `Created new unit: ${formData.name}`);
+    try {
+      if (editingUnit) {
+        console.log(editingUnit)
+        // ✅ CALL UPDATE API
+        const res = await updateUnits({
+          brandId: editingUnit.id, // ⚠️ API expects string
+          branchId: 1234567890,
+          token: "1234",
+          name: formData.name,
+          short_name: formData.shortName,
+        });
+
+        console.log("Update response:", res);
+
+        // ✅ Update UI AFTER success
+        setUnits(prev =>
+          prev.map(u =>
+            u.id === editingUnit.id
+              ? {
+                ...u,
+                name: formData.name,
+                shortName: formData.shortName,
+              }
+              : u
+          )
+        );
+
+        addHistory("Edit", `Updated unit: ${formData.name}`);
+      } else {
+        // ✅ CREATE (already done earlier)
+        const res = await createUnits({
+          branchId: 1234567890,
+          token: "1234",
+          name: formData.name,
+          short_name: formData.shortName,
+        });
+
+        const newUnit: Unit = {
+          id: res.data?.id?.toString() || Math.random().toString(),
+          name: res.data?.name || formData.name,
+          shortName: res.data?.short_name || formData.shortName,
+          productCount: res.data?.product_count ?? 0,
+          createdAt: res.data?.created_at || new Date().toISOString(),
+        };
+
+        setUnits(prev => [newUnit, ...prev]);
+
+        addHistory("Add", `Created new unit: ${formData.name}`);
+      }
+
+      closeModal();
+    } catch (error) {
+      console.error("Save failed:", error);
     }
-    closeModal();
   };
 
   const handleDelete = (id: string) => {
@@ -200,8 +261,13 @@ export default function App() {
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
     const data = scope === 'current' ? paginatedUnits : filteredAndSortedUnits;
-    const columns = ['Name', 'Short Name', 'Price', 'Quantity', 'UPC', 'Created At'];
-    const rows = data.map(u => [u.name, u.shortName, `$${u.price.toFixed(2)}`, u.quantity, u.upc, u.createdAt]);
+    const columns = ['Name', 'Short Name', 'Product Count', 'Created At'];
+    const rows = data.map(u => [
+      u.name,
+      u.shortName,
+      u.productCount,
+      u.createdAt
+    ]);
 
     if (format === 'csv') {
       generateCSV(columns, rows, `units_${scope}_${new Date().getTime()}.csv`);
@@ -214,15 +280,15 @@ export default function App() {
         scope
       });
     }
-    
+
     setIsDownloadModalOpen(false);
   };
 
   // --- Export Functions ---
 
   const exportCSV = (data: Unit[], filename: string) => {
-    const headers = ["Name", "Short Name", "Price", "Quantity", "UPC", "Created At"];
-    const rows = data.map(u => [u.name, u.shortName, u.price, u.quantity, u.upc, u.createdAt]);
+    const headers = ["Name", "Short Name", "Product Count", "Created At"];
+    const rows = data.map(u => [u.name, u.shortName, u.productCount, u.createdAt]);
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
@@ -240,8 +306,8 @@ export default function App() {
     doc.text("Inventory Units Report", 14, 15);
     autoTable(doc, {
       startY: 20,
-      head: [["Name", "Short Name", "Price", "Quantity", "UPC", "Created At"]],
-      body: data.map(u => [u.name, u.shortName, `$${u.price.toFixed(2)}`, u.quantity, u.upc, u.createdAt]),
+      head: [["Name", "Short Name", "Products", "Created At"]],
+      body: data.map(u => [u.name, u.shortName, u.productCount, u.createdAt]),
     });
     doc.save(`${filename}.pdf`);
   };
@@ -250,10 +316,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50  font-sans text-gray-900">
-      <div className="  p-6  space-y-6">
-        
+      <div className="space-y-6">
+
         {/* Header Section */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl bg-linear-to-br from-blue-700 via-blue-600 to-indigo-700 p-8 text-white shadow-xl shadow-blue-200/50"
@@ -263,7 +329,6 @@ export default function App() {
               <h1 className="text-4xl font-bold tracking-tight">Units Management</h1>
               <p className="text-blue-100 mt-2 font-medium opacity-90">Create and manage measurement units for your inventory system.</p>
             </div>
-            <AddButton onClick={() => openModal()} label="Create Unit" />
           </div>
         </motion.div>
 
@@ -272,9 +337,10 @@ export default function App() {
 
 
           <div className="flex items-center gap-2">
+            <AddButton onClick={() => openModal()} label="Create Unit" />
             {/* Download Modal */}
             <DownloadButton onClick={() => setIsDownloadModalOpen(true)} />
-            
+
             <DownloadModal
               isOpen={isDownloadModalOpen}
               onClose={() => setIsDownloadModalOpen(false)}
@@ -283,7 +349,7 @@ export default function App() {
               subtitle="Choose your preferred format"
             />
 
-          
+
 
             {/* Filter Dropdown */}
             <div className="relative">
@@ -293,7 +359,7 @@ export default function App() {
                 {showFilterMenu && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowFilterMenu(false)} />
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -311,7 +377,7 @@ export default function App() {
                           { id: "upc-asc", label: "UPC (Ascending)" },
                           { id: "upc-desc", label: "UPC (Descending)" },
                         ].map((opt) => (
-                          <button 
+                          <button
                             key={opt.id}
                             onClick={() => { setSortBy(opt.id as SortOption); setShowFilterMenu(false); }}
                             className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${sortBy === opt.id ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-blue-300'}`}
@@ -320,10 +386,10 @@ export default function App() {
                             {sortBy === opt.id && <Check size={14} />}
                           </button>
                         ))}
-                        
+
                         <div className="h-px bg-gray-100 my-1" />
-                        
-                        <button 
+
+                        <button
                           onClick={() => { setSortBy(""); setShowFilterMenu(false); }}
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-semibold"
                         >
@@ -335,19 +401,19 @@ export default function App() {
                 )}
               </AnimatePresence>
             </div>
-            
+
           </div>
-                    <div className="relative flex-1 min-w-70">
+          <div className="relative flex-1 min-w-70">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search units, short names or UPC..." 
+            <input
+              type="text"
+              placeholder="Search units, short names or UPC..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-11 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" 
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-11 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
             />
           </div>
-            <HistoryButton onClick={() => setIsHistoryOpen(true)} />
+          <HistoryButton onClick={() => setIsHistoryOpen(true)} />
         </div>
 
         {/* Table Section */}
@@ -358,9 +424,7 @@ export default function App() {
                 <tr>
                   <th className="p-5">Unit Name</th>
                   <th className="p-5">Short Name</th>
-                  <th className="p-5">Price</th>
-                  <th className="p-5">Quantity</th>
-                  <th className="p-5">UPC</th>
+                  <th className="p-5">Products</th>
                   <th className="p-5">Created At</th>
                   <th className="p-5 text-right">Actions</th>
                 </tr>
@@ -369,12 +433,12 @@ export default function App() {
                 <AnimatePresence mode="popLayout">
                   {paginatedUnits.length > 0 ? (
                     paginatedUnits.map((unit) => (
-                      <motion.tr 
+                      <motion.tr
                         layout
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        key={unit.id} 
+                        key={unit.id}
                         className="hover:bg-blue-50/30 transition-colors group"
                       >
                         <td className="p-5 font-semibold text-gray-900">{unit.name}</td>
@@ -383,24 +447,32 @@ export default function App() {
                             {unit.shortName}
                           </span>
                         </td>
-                        <td className="p-5 text-gray-600 font-medium">${unit.price.toFixed(2)}</td>
                         <td className="p-5">
-                          <span className={`font-bold ${unit.quantity < 50 ? 'text-orange-600' : 'text-emerald-600'}`}>
-                            {unit.quantity}
+                          <span className={`font-bold ${unit.productCount < 50 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                            {unit.productCount}
                           </span>
                         </td>
-                        <td className="p-5 text-gray-500 font-mono text-xs">{unit.upc}</td>
                         <td className="p-5 text-gray-400">{unit.createdAt}</td>
                         <td className="p-5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <EditButton 
+                          <div className="flex justify-end gap-4  transition-opacity mr-4">
+                            {/* <EditButton
                               onClick={() => openModal(unit)}
                               variant="icon"
-                            />
-                            <DeleteButton 
-                              onClick={() => handleDelete(unit.id)}
-                              variant="icon"
-                            />
+                            /> */}
+                            <div className="bg-slate-200 rounded-full px-2 py-2 w-10 h-10 flex items-center justify-center  group-hover:opacity-100 transition-opacity">
+                              <EditButton
+                                onClick={() => openModal(unit)}
+                                variant="icon"
+                                size="lg"
+                              />
+                            </div>
+                            <div className="bg-slate-200 rounded-full px-2 py-2 w-10 h-10 flex items-center justify-center  group-hover:opacity-100 transition-opacity">
+                              <DeleteButton
+                                onClick={() => handleDelete(unit.id)}
+                                variant="icon"
+                              />
+                            </div>
+
                           </div>
                         </td>
                       </motion.tr>
@@ -426,7 +498,7 @@ export default function App() {
             <div className="flex items-center gap-4 text-sm text-gray-500 font-medium">
               <div className="flex items-center gap-2">
                 <span>Show</span>
-                <select 
+                <select
                   value={itemsPerPage}
                   onChange={(e) => setItemsPerPage(Number(e.target.value))}
                   className="bg-white border border-gray-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500"
@@ -445,14 +517,14 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => prev - 1)}
                 className="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft size={20} />
               </button>
-              
+
               <div className="flex items-center gap-1">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                   <button
@@ -465,7 +537,7 @@ export default function App() {
                 ))}
               </div>
 
-              <button 
+              <button
                 disabled={currentPage === totalPages || totalPages === 0}
                 onClick={() => setCurrentPage(prev => prev + 1)}
                 className="p-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
@@ -481,14 +553,14 @@ export default function App() {
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={closeModal}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -500,24 +572,24 @@ export default function App() {
                   <X size={24} />
                 </button>
               </div>
-              
+
               <div className="p-8 space-y-6">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Unit Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Kilogram" 
+                  <input
+                    type="text"
+                    placeholder="e.g. Kilogram"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Unit Short Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. kg" 
+                  <input
+                    type="text"
+                    placeholder="e.g. kg"
                     value={formData.shortName}
                     onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
@@ -525,13 +597,13 @@ export default function App() {
                 </div>
 
                 <div className="pt-4 flex gap-3">
-                  <button 
+                  <button
                     onClick={closeModal}
                     className="flex-1 px-6 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
-                  <motion.button 
+                  <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleSave}
@@ -546,7 +618,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <HistoryModal 
+      <HistoryModal
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         history={history}

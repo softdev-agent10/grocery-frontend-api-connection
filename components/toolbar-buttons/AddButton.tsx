@@ -19,7 +19,7 @@ export const AddButton: React.FC<AddButtonProps> = ({
 }) => {
   const sizeClasses = {
     sm: "px-3 py-1.5 text-sm",
-    md: "px-5 py-3 text-base",
+    md: "px-6 py-3 text-base",
     lg: "px-7 py-4 text-lg"
   };
 

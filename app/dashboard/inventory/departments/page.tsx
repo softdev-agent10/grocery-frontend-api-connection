@@ -9,16 +9,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import HistoryModal, { HistoryItem as HistoryItemType } from "@/components/history-modal";
 import DownloadModal from "@/components/download-modal";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
-import { 
-  AddButton, 
-  EditButton, 
-  DeleteButton, 
-  DownloadButton, 
-  FilterButton, 
-  HistoryButton 
+import {
+  AddButton,
+  EditButton,
+  DeleteButton,
+  DownloadButton,
+  FilterButton,
+  HistoryButton
 } from "@/components/toolbar-buttons";
-import { 
-  Search, 
+import {
+  Search,
   X,
   Boxes,
   ChevronDown,
@@ -32,17 +32,24 @@ import {
   Image as ImageIcon,
   Filter
 } from "lucide-react";
+import { createCategories, getCategories, updateCategory } from "@/app/services/categories/service.categories";
+import { fr, is } from "date-fns/locale";
+import { EmailButton } from "@/components/toolbar-buttons/EmailButton";
+import { Bounce, toast, ToastContainer } from "react-toastify/unstyled";
 
 
 // --- Types ---
 
 interface Category {
-  id: number;
-  name: string;
-  description: string;
-  taxes: string;
-  productCount: number;
-  createdOn: string;
+  id: number,
+  name: string,
+  description: string,
+  taxes: number,
+  fees: number,
+  is_active: boolean,
+  created_at: string,
+  updated_at: string,
+  product_count: number
 }
 
 interface HistoryItem {
@@ -55,30 +62,21 @@ interface HistoryItem {
 interface TableViewColumns {
   checkbox: boolean;
   categoryName: boolean;
+  product_count: boolean;
   description: boolean;
   taxes: boolean;
-  productCount: boolean;
-  createdOn: boolean;
+  fees: boolean;
   action: boolean;
+  is_active: boolean;
+  created_on: boolean;
 }
 
 type ModalType = "add" | "edit" | "download" | "filter" | "history" | "success" | null;
 
-// --- Mock Data ---
-
-const INITIAL_CATEGORIES: Category[] = Array.from({ length: 25 }).map((_, i) => ({
-  id: i + 1,
-  name: ["Drinks", "Electronics", "Furniture", "Clothing", "Groceries", "Toys", "Books", "Beauty"][i % 8] + (i > 7 ? ` ${Math.floor(i/8)}` : ""),
-  description: i % 3 === 0 ? "Premium quality items" : "Standard category description",
-  taxes: i % 4 === 0 ? "Standard Tax (15%)" : "No taxes",
-  productCount: Math.floor(Math.random() * 150) + 10,
-  createdOn: new Date(2024, 0, 1 + i).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}));
-
 // --- Main Component ---
 
 export default function App() {
-  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -90,15 +88,30 @@ export default function App() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isEditTableViewOpen, setIsEditTableViewOpen] = useState(false);
 
+  const columnLabels: Record<keyof TableViewColumns, string> = {
+    checkbox: "Checkbox",
+    categoryName: "Department Name",
+    description: "Description",
+    taxes: "Taxes",
+    fees: "Fees",
+    product_count: "Product Count",
+    is_active: "Status",
+    created_on: "Created On",
+    action: "Action",
+  };
+
+
   // Table view columns state
   const [visibleColumns, setVisibleColumns] = useState<TableViewColumns>({
     checkbox: true,
     categoryName: true,
     description: true,
     taxes: true,
-    productCount: true,
-    createdOn: true,
-    action: true
+    fees: true,
+    is_active: true,
+    created_on: true,
+    action: true,
+    product_count: true
   });
 
   const [tempColumns, setTempColumns] = useState<TableViewColumns>(visibleColumns);
@@ -108,8 +121,9 @@ export default function App() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    taxes: "No taxes",
-    productCount: 0
+    taxes: 0,
+    fees: 0,
+    is_active: true,
   });
 
   // Filter state
@@ -118,7 +132,7 @@ export default function App() {
   // --- Logic ---
 
   const filteredCategories = useMemo(() => {
-    let result = categories.filter(c => 
+    let result = categories.filter(c =>
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -128,9 +142,17 @@ export default function App() {
     } else if (sortBy === "Name (Z-A)") {
       result.sort((a, b) => b.name.localeCompare(a.name));
     } else if (sortBy === "Date (Oldest First)") {
-      result.sort((a, b) => new Date(a.createdOn).getTime() - new Date(b.createdOn).getTime());
+      result.sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime()
+      );
     } else if (sortBy === "Date (Newest First)") {
-      result.sort((a, b) => new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime());
+      result.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
     }
 
     return result;
@@ -142,7 +164,21 @@ export default function App() {
   const paginatedCategories = filteredCategories.slice(startIndex, startIndex + itemsPerPage);
 
   // Stats for current page
-  const currentPageProductCount = paginatedCategories.reduce((sum, c) => sum + c.productCount, 0);
+  const currentPageProductCount = paginatedCategories.reduce((sum, c) => sum + c.product_count, 0);
+
+  const getCategorie = async () => {
+    try {
+      const res = await getCategories({ branchId: 1234567890, token: "your_token_here" });
+      setCategories(res.data.items);
+      console.log("Fetched categories:", res.data.items);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  };
+
+  useEffect(() => {
+    getCategorie();
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -193,35 +229,108 @@ export default function App() {
         name: category.name,
         description: category.description,
         taxes: category.taxes,
-        productCount: category.productCount
+        fees: category.fees,
+        is_active: category.is_active,
       });
     } else if (type === "add") {
       setEditingCategory(null);
-      setFormData({ name: "", description: "", taxes: "No taxes", productCount: 0 });
+      setFormData({ name: "", description: "", taxes: 0, fees: 0, is_active: true });
     }
     setActiveModal(type);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingCategory) {
-      setCategories(categories.map(c => c.id === editingCategory.id ? { 
-        ...c, 
-        ...formData
-      } : c));
-      addHistory("Edit", `Updated category: ${formData.name}`);
-      showSuccess("Category updated successfully!");
-    } else {
-      const newCategory: Category = {
-        id: Math.max(0, ...categories.map(c => c.id)) + 1,
-        ...formData,
-        createdOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-      };
-      setCategories([newCategory, ...categories]);
-      addHistory("Add", `Created new category: ${formData.name}`);
-      showSuccess("New category created successfully!");
+  const createCategory = async (
+    data: Omit<Category, "id" | "created_at" | "updated_at" | "product_count">
+  ): Promise<Category | null> => {
+    try {
+      const res = await createCategories({
+        branchId: 1234567890,
+        token: "your_token_here",
+        data
+      });
+
+      console.log("API FULL RESPONSE:", res);
+
+      // adjust this based on actual response
+      const item = res?.data?.item || res?.data?.items?.[0];
+
+      return item || null;
+    } catch (error) {
+      console.error("Error creating category:", error);
+      return null;
     }
-    setActiveModal(null);
+  };
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      if (editingCategory) {
+        const updatedCategory = {
+          ...editingCategory,
+          ...formData,
+        };
+
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === editingCategory.id ? updatedCategory : c
+          )
+        );
+
+        addHistory("Edit", `Updated category: ${formData.name}`);
+
+        const updated = await updateCategory({
+          branchId: 1234567890,
+          token: "your_token_here",
+          data: {
+            id: editingCategory.id,
+            name: formData.name,
+            description: formData.description,
+            taxes: formData.taxes,
+            fees: formData.fees,
+            is_active: formData.is_active
+          }
+        });
+
+        console.log("Updated category from API:", updated);
+
+
+        toast.success("Saved!", {
+          style: {
+            background: "#2563eb",
+            color: "#fff",
+            borderRadius: "10px",
+          },
+        });
+      } else {
+        const payload = {
+          name: formData.name,
+          description: formData.description,
+          taxes: formData.taxes,
+          fees: formData.fees,
+          is_active: formData.is_active
+        };
+
+        const created = await createCategory(payload);
+
+        console.log("Created category from API:", created);
+
+        addHistory("Add", `Created new department: ${formData.name}`);
+
+        toast.success("Saved!", {
+          style: {
+            background: "#2563eb",
+            color: "#fff",
+            borderRadius: "10px",
+          },
+        });
+      }
+
+      setActiveModal(null);
+    } catch (error) {
+      console.error(error);
+
+      toast.error("Something went wrong!");
+    }
   };
 
   const showSuccess = (msg: string) => {
@@ -239,8 +348,41 @@ export default function App() {
   const handleApplyTableChanges = () => {
     setVisibleColumns(tempColumns);
     setItemsPerPage(tempItemsPerPage);
+
+    localStorage.setItem("categoriesTableView", JSON.stringify({
+      columns: tempColumns,
+      itemsPerPage: tempItemsPerPage
+    }));
+
     setIsEditTableViewOpen(false);
   };
+
+
+  /**
+   * Load table settings from localStorage on mount
+   */
+  useEffect(() => {
+    const savedSettings = localStorage.getItem("categoriesTableView");
+
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+
+        if (parsed.columns) {
+          setVisibleColumns(parsed.columns);
+          setTempColumns(parsed.columns);
+        }
+
+        if (parsed.itemsPerPage) {
+          setItemsPerPage(parsed.itemsPerPage);
+          setTempItemsPerPage(parsed.itemsPerPage);
+        }
+      } catch (error) {
+        console.error("Failed to parse table settings:", error);
+      }
+    }
+  }, []);
+
 
   const handleResetTableDefaults = () => {
     const defaults: TableViewColumns = {
@@ -248,12 +390,15 @@ export default function App() {
       categoryName: true,
       description: true,
       taxes: true,
-      productCount: true,
-      createdOn: true,
-      action: true
+      fees: true,
+      created_on: true,
+      action: true,
+      is_active: true,
+      product_count: true
     };
     setTempColumns(defaults);
     setTempItemsPerPage(5);
+    localStorage.removeItem("categoriesTableView");
   };
 
   const addHistory = (action: string, details: string) => {
@@ -274,27 +419,27 @@ export default function App() {
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
     const dataToExport = scope === 'current' ? paginatedCategories : filteredCategories;
-    
+
     if (format === 'csv') {
-      const headers = ["Category Name", "Description", "Product Count", "Status", "Created Date"];
+      const headers = ["Department Name", "Description", "Product Count", "Status", "Created Date"];
       const rows = dataToExport.map((cat: any) => [
         cat.name,
         cat.description || '',
-        cat.productCount || 0,
+        cat.product_count || 0,
         cat.status || 'Active',
-        cat.createdDate || new Date().toLocaleDateString()
+        cat.created_at || new Date().toLocaleDateString()
       ]);
       generateCSV(headers, rows, `categories_${scope}_${new Date().getTime()}.csv`);
     } else {
-      const columns = ["Category Name", "Description", "Product Count", "Status"];
+      const columns = ["Department Name", "Description", "Product Count", "Status"];
       const rows = dataToExport.map((cat: any) => [
         cat.name,
         cat.description || '',
-        cat.productCount || 0,
+        cat.product_count || 0,
         cat.status || 'Active'
       ]);
       generatePDFWithLogo({
-        title: `Categories Report (${scope === 'current' ? 'Current Page' : 'All'})`,
+        title: `Department Report (${scope === 'current' ? 'Current Page' : 'All'})`,
         columns,
         rows,
         fileName: `categories_${scope}_${new Date().getTime()}.pdf`,
@@ -314,14 +459,14 @@ export default function App() {
           <div className="absolute -top-24 -left-24 w-96 h-96 bg-white rounded-full blur-3xl" />
           <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-indigo-400 rounded-full blur-3xl" />
         </div>
-        
+
         <div className="relative z-10">
           <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">
-            Categories
+            Departments
           </h1>
           <p className="text-indigo-100 mt-2 font-medium tracking-wide">Manage your product hierarchy with precision</p>
         </div>
-        
+
         <div className="relative z-10 bg-white/20 p-4 rounded-2xl backdrop-blur-md border border-white/30 shadow-2xl">
           <Boxes size={48} className="text-white" strokeWidth={2} />
         </div>
@@ -329,35 +474,37 @@ export default function App() {
 
       {/* Toolbar Section */}
       <div className="  mx-auto px-6 mt-6 relative z-20">
-        <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-200 flex flex-wrap items-center gap-3">
-          <AddButton onClick={() => openModal("add")} label="Add Category" />
-          
+        <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-200 flex flex-row items-center gap-2">
+          <AddButton onClick={() => openModal("add")} label="Add" />
+
           <DownloadButton onClick={() => openModal("download")} />
 
           <FilterButton onClick={() => openModal("filter")} />
 
-          <EditButton 
-            onClick={handleEditModalOpen} 
+          <EditButton
+            onClick={handleEditModalOpen}
             variant="text"
             size="md"
           />
 
-          <DeleteButton 
+          <DeleteButton
             onClick={handleBulkDelete}
             disabled={selectedIds.size === 0}
             count={selectedIds.size}
           />
 
           <div className="flex-grow max-w-md ml-auto relative">
-            <input 
-              type="text" 
-              placeholder="Search by name or description..." 
+            <input
+              type="text"
+              placeholder="Search by name or description..."
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-12 shadow-inner transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             <Search size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" />
           </div>
+
+          {/* <EmailButton onClick={() => {}} /> */}
 
           <HistoryButton onClick={() => openModal("history")} />
         </div>
@@ -369,7 +516,7 @@ export default function App() {
               <Boxes size={24} />
             </div>
             <div className=" hover:border-blue-300 ">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Categories on Page</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Departments on Page</p>
               <p className="text-2xl font-black text-slate-800">{paginatedCategories.length}</p>
             </div>
           </div>
@@ -387,7 +534,7 @@ export default function App() {
               <Filter size={24} />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Categories</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Departments</p>
               <p className="text-2xl font-black text-slate-800">{filteredCategories.length}</p>
             </div>
           </div>
@@ -399,38 +546,55 @@ export default function App() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-blue-600 border-b border-slate-200">
+
                   <th className="p-5 w-16">
                     <div className="flex items-center justify-center">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         className="w-5 h-5  rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                         checked={paginatedCategories.length > 0 && selectedIds.size === paginatedCategories.length}
                         onChange={handleSelectAll}
                       />
                     </div>
                   </th>
-                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Category Name</th>
-                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Description</th>
+
+                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Department Name</th>
+
+
                   <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Taxes</th>
+
+
+                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Fees</th>
+
+
                   <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Products</th>
+
+
+                  <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Is Active</th>
+
+
                   <th className="p-5 font-bold text-xs text-white uppercase tracking-widest">Created On</th>
+
+
                   <th className="p-5 font-bold text-xs text-white uppercase tracking-widest text-center">Action</th>
+
+
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedCategories.length > 0 ? (
                   paginatedCategories.map((category) => (
-                    <motion.tr 
+                    <motion.tr
                       layout
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      key={category.id} 
+                      key={category.id}
                       className="group hover:bg-indigo-50/30 transition-colors"
                     >
                       <td className="p-5">
                         <div className="flex items-center justify-center">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                             checked={selectedIds.has(category.id)}
                             onChange={() => handleSelectOne(category.id)}
@@ -445,29 +609,58 @@ export default function App() {
                           <span className="font-bold text-slate-800">{category.name}</span>
                         </div>
                       </td>
-                      <td className="p-5 text-slate-600 text-sm max-w-xs truncate">{category.description}</td>
+                      {/* <td className="p-5 text-slate-600 text-sm max-w-xs truncate">{category.description}</td> */}
                       <td className="p-5">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${category.taxes === 'No taxes' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>
-                          {category.taxes}
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${category.taxes === 0 ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>
+                          {category.taxes === 0 ? 'No taxes' : `${category.taxes}%`}
+                        </span>
+                      </td>
+                      <td className="p-5">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${category.fees === 0 ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>
+                          {category.fees === 0 ? 'No fees' : `${category.fees}%`}
                         </span>
                       </td>
                       <td className="p-5">
                         <div className="flex items-center gap-2">
                           <Package size={14} className="text-slate-400" />
-                          <span className="font-mono font-bold text-slate-700">{category.productCount}</span>
+                          <span className="font-mono font-bold text-slate-700">{category.product_count}</span>
                         </div>
                       </td>
-                      <td className="p-5 text-slate-500 text-sm font-medium">{category.createdOn}</td>
+
+                      <td>
+                        {category.is_active ? (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                            <span className="text-emerald-700 font-bold text-sm">Active</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <X size={14} className="text-red-500" />
+                            <span className="text-red-700 font-bold text-sm">Inactive</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-5 text-slate-500 text-sm font-medium">
+                        {new Date(category.created_at).toLocaleDateString()}
+                      </td>
+
                       <td className="p-5">
                         <div className="flex justify-center items-center gap-3">
-                          <EditButton 
-                            onClick={() => openModal("edit", category)} 
-                            variant="icon"
-                          />
-                          <DeleteButton 
-                            onClick={() => handleDelete(category.id)} 
-                            variant="icon"
-                          />
+                          <div className="bg-slate-200 rounded-full px-2 py-2 w-10 h-10 flex items-center justify-center  group-hover:opacity-100 transition-opacity">
+                            <EditButton
+                              onClick={() => openModal("edit", category)}
+                              variant="icon"
+                              size="lg"
+                            />
+                          </div>
+                          <div className="bg-slate-200 rounded-full px-2 py-2 w-10 h-10 flex items-center justify-center disabled:not-first:not-even:  group-hover:opacity-100 transition-opacity">
+                            <DeleteButton
+                              disabled={true}
+                              onClick={() => handleDelete(category.id)}
+                              variant="icon"
+                              size="lg"
+                            />
+                          </div>
                         </div>
                       </td>
                     </motion.tr>
@@ -479,7 +672,7 @@ export default function App() {
                         <div className="bg-slate-100 p-6 rounded-full">
                           <Search size={48} className="text-slate-300" />
                         </div>
-                        <p className="text-slate-400 font-medium italic">No categories found matching your search.</p>
+                        <p className="text-slate-400 font-medium italic">No departments found matching your search.</p>
                       </div>
                     </td>
                   </tr>
@@ -492,7 +685,7 @@ export default function App() {
           <div className="bg-slate-50 p-6 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
               <span className="text-sm font-bold text-slate-500">Items per page:</span>
-              <select 
+              <select
                 className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 value={itemsPerPage}
                 onChange={(e) => setItemsPerPage(Number(e.target.value))}
@@ -505,14 +698,14 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
               >
                 <ChevronLeft size={20} />
               </button>
-              
+
               <div className="flex items-center gap-1">
                 {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
                   let pageNum = i + 1;
@@ -520,16 +713,15 @@ export default function App() {
                     pageNum = currentPage - 2 + i;
                     if (pageNum > totalPages) pageNum = totalPages - (4 - i);
                   }
-                  
+
                   return (
-                    <button 
+                    <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${
-                        currentPage === pageNum 
-                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200" 
-                          : "bg-white text-slate-600 border border-slate-200 hover:border-indigo-300"
-                      }`}
+                      className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${currentPage === pageNum
+                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+                        : "bg-white text-slate-600 border border-slate-200 hover:border-indigo-300"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -537,7 +729,7 @@ export default function App() {
                 })}
               </div>
 
-              <button 
+              <button
                 disabled={currentPage === totalPages || totalPages === 0}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
@@ -553,17 +745,22 @@ export default function App() {
       <AnimatePresence>
         {activeModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setActiveModal(null)}
+              onClick={() => {
+                setActiveModal(null)
+                console.log(successMessage)
+                showSuccess("Action completed successfully!")
+              }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
             />
-            
+
+
             {/* Add/Edit Modal */}
             {(activeModal === "add" || activeModal === "edit") && (
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -572,7 +769,7 @@ export default function App() {
                 <div className="bg-indigo-600 p-6 flex justify-between items-center text-white">
                   <div>
                     <h2 className="text-2xl font-black tracking-tight">
-                      {activeModal === "edit" ? "Edit Category" : "New Category"}
+                      {activeModal === "edit" ? "Edit Department" : "New Department"}
                     </h2>
                     <p className="text-indigo-100 text-sm font-medium">Fill in the details below</p>
                   </div>
@@ -580,7 +777,7 @@ export default function App() {
                     <X size={24} />
                   </button>
                 </div>
-                
+                <p>{successMessage}</p>
                 <form onSubmit={handleFormSubmit} className="p-8 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* <div className="col-span-full">
@@ -596,10 +793,10 @@ export default function App() {
                     </div> */}
 
                     <div className="col-span-full">
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Category Name*</label>
-                      <input 
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Department Name*</label>
+                      <input
                         required
-                        type="text" 
+                        type="text"
                         placeholder="e.g. Electronics"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
                         value={formData.name}
@@ -609,8 +806,8 @@ export default function App() {
 
                     <div className="col-span-full">
                       <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Description</label>
-                      <textarea 
-                        placeholder="What's this category about?"
+                      <textarea
+                        placeholder="What's this department about?"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none h-28 resize-none font-medium text-slate-600"
                         value={formData.description}
                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -619,41 +816,42 @@ export default function App() {
 
                     <div>
                       <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Applicable Taxes</label>
-                      <select 
+                      <select
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700 appearance-none"
                         value={formData.taxes}
-                        onChange={(e) => setFormData({...formData, taxes: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, taxes: Number(e.target.value) })}
                       >
-                        <option value="No taxes">No taxes</option>
-                        <option value="Standard Tax (15%)">Standard Tax (15%)</option>
-                        <option value="Reduced Tax (5%)">Reduced Tax (5%)</option>
+                        <option value={0}>No taxes</option>
+                        <option value={10}>Standard Tax (15%)</option>
+                        <option value={15}>Reduced Tax (5%)</option>
+                        <option value={20}>No taxes</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Initial Product Count</label>
-                      <input 
-                        type="number" 
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Fees</label>
+                      <input
+                        type="number"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
-                        value={formData.productCount}
-                        onChange={(e) => setFormData({ ...formData, productCount: Number(e.target.value) })}
+                        value={formData.fees}
+                        onChange={(e) => setFormData({ ...formData, fees: Number(e.target.value) })}
                       />
                     </div>
                   </div>
 
                   <div className="pt-4 flex gap-4">
-                    <button 
+                    <button
                       type="button"
-                      onClick={() => setFormData({ name: "", description: "", taxes: "No taxes", productCount: 0 })}
+                      onClick={() => setFormData({ name: "", description: "", taxes: 0, fees: 0, is_active: true })}
                       className="flex-1 px-6 py-4 border border-slate-200 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 flex items-center justify-center gap-2 transition-all"
                     >
                       <RotateCcw size={20} /> Reset
                     </button>
-                    <button 
+                    <button
                       type="submit"
                       className="flex-[2] px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-95"
                     >
-                      {activeModal === "edit" ? "Update Category" : "Create Category"}
+                      {activeModal === "edit" ? "Update Department" : "Create Department"}
                     </button>
                   </div>
                 </form>
@@ -671,7 +869,7 @@ export default function App() {
 
             {/* Success Modal */}
             {activeModal === "success" && (
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
@@ -689,7 +887,7 @@ export default function App() {
 
             {/* Filter Modal */}
             {activeModal === "filter" && (
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
@@ -708,14 +906,13 @@ export default function App() {
                     <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Order By</h3>
                     <div className="grid grid-cols-1 gap-2">
                       {["Name (A-Z)", "Name (Z-A)", "Date (Oldest First)", "Date (Newest First)"].map(opt => (
-                        <button 
+                        <button
                           key={opt}
                           onClick={() => setSortBy(opt)}
-                          className={`px-4 py-3 rounded-xl text-sm font-bold border transition-all text-left flex justify-between items-center ${
-                            sortBy === opt 
-                              ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100" 
-                              : "bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300"
-                          }`}
+                          className={`px-4 py-3 rounded-xl text-sm font-bold border transition-all text-left flex justify-between items-center ${sortBy === opt
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300"
+                            }`}
                         >
                           {opt}
                           {sortBy === opt && <CheckCircle2 size={16} />}
@@ -723,7 +920,7 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setActiveModal(null)}
                     className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all mt-4 active:scale-95"
                   >
@@ -739,7 +936,7 @@ export default function App() {
               onClose={() => setActiveModal(null)}
               history={history}
               title="Activity Log"
-              subtitle="Recent category actions"
+              subtitle="Recent department actions"
             />
           </div>
         )}
@@ -749,15 +946,15 @@ export default function App() {
       <AnimatePresence>
         {isEditTableViewOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsEditTableViewOpen(false)}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
             />
-            
-            <motion.div 
+
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -780,11 +977,11 @@ export default function App() {
                       <input
                         type="checkbox"
                         checked={tempColumns[col]}
-                        onChange={() => setTempColumns({...tempColumns, [col]: !tempColumns[col]})}
+                        onChange={() => setTempColumns({ ...tempColumns, [col]: !tempColumns[col] })}
                         className="w-5 h-5 rounded cursor-pointer accent-indigo-600"
                       />
                       <span className="text-sm capitalize">
-                        {col === 'checkbox' ? 'Checkbox' : col === 'categoryName' ? 'Category Name' : col === 'description' ? 'Description' : col === 'taxes' ? 'Taxes' : col === 'productCount' ? 'Product Count' : col === 'createdOn' ? 'Created On' : 'Action'}
+                        {columnLabels[col]}
                       </span>
                     </label>
                   ))}
@@ -830,6 +1027,25 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick={false}
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="dark"
+        transition={Bounce}
+      />
+
     </div>
   );
 }
+function showError(arg0: string) {
+  throw new Error("Function not implemented.");
+}
+

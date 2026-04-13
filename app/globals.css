@@ -200,3 +200,18 @@
   background-color: var(--primary-color);
   opacity: 0.8;
 }
+
+/* Change the color of the 'x' for all themes */
+.Toastify__close-button > svg {
+  fill: #ffffff; /* Changes the 'x' to red */
+  opacity: 1;    /* Ensures it's fully visible */
+}
+
+/* Optional: Change the color when hovering */
+.Toastify__close-button:hover > svg {
+  fill: #fff6f6;
+}
+
+.Toastify__close-button ,Toastify__close-button--light > svg {
+  fill: #ffffff; /* Changes the 'x' to black for light theme */
+}

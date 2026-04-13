@@ -1,50 +1,94 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   AlertTriangle,
   Search,
   X,
   ArrowUpDown,
   Calendar,
+  MailIcon as MdEmail
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { DownloadButton, FilterButton, EditButton } from "@/components/toolbar-buttons";
 import DownloadModal from "@/components/download-modal";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
+import { fetchInventory } from "@/app/services/comon/fetchInventory";
+
+// interface OutOfStock {
+//   id: number;
+//   name: string;
+//   category: string;
+//   lastRestocked: string;
+//   supplier: string;
+// }
 
 interface OutOfStock {
-  id: number;
-  name: string;
-  category: string;
-  lastRestocked: string;
-  supplier: string;
+  id: number,
+  name: string,
+  upc_code: string,
+  plu_code: string,
+  category: {
+    id: number,
+    name: string
+  },
+  brand: {
+    id: 3,
+    name: string
+  },
+  unit: {
+    id: 5,
+    name: string
+  },
+  selling_price: number,
+  buying_price: number,
+  quantity: number,
+  quantity_alert: number,
+  stock_status: string,
+  percentage_of_alert: number,
+  image_url: string,
+  last_updated: string
 }
 
-const mockOutOfStock: OutOfStock[] = [
-  { id: 1, name: "Product A", category: "test 01", lastRestocked: "2026-02-15", supplier: "Supplier 1" },
-  { id: 2, name: "Product B", category: "test 01", lastRestocked: "2026-02-20", supplier: "Supplier 2" },
-  { id: 3, name: "Product C", category: "test 01", lastRestocked: "2026-01-10", supplier: "Supplier 1" },
-];
+// const mockOutOfStock: OutOfStock[] = [
+//   { id: 1, name: "Product A", category: "test 01", lastRestocked: "2026-02-15", supplier: "Supplier 1" },
+//   { id: 2, name: "Product B", category: "test 01", lastRestocked: "2026-02-20", supplier: "Supplier 2" },
+//   { id: 3, name: "Product C", category: "test 01", lastRestocked: "2026-01-10", supplier: "Supplier 1" },
+// ];
 
 type ModalType = "download" | "filter" | "edit" | null;
 
 interface TableViewColumns {
-  productName: boolean;
+  name: boolean;
   category: boolean;
-  lastRestocked: boolean;
-  supplier: boolean;
+  upc_code: boolean;
+  plu_code: boolean;
+  brand: boolean;
+  unit: boolean;
+  selling_price: boolean;
+  buying_price: boolean;
+  quantity: boolean;
+  stock_status: boolean;
+  last_updated: boolean;
 }
 
 const defaultColumns: TableViewColumns = {
-  productName: true,
+  name: true,
   category: true,
-  lastRestocked: true,
-  supplier: true,
+  upc_code: true,
+  plu_code: true,
+  brand: true,
+  unit: true,
+  selling_price: true,
+  buying_price: true,
+  quantity: true,
+  stock_status: true,
+  last_updated: true,
+
 };
 
 export default function OutOfStocks() {
-  const [products, setProducts] = useState<OutOfStock[]>(mockOutOfStock);
+  const [products, setProducts] = useState<OutOfStock[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("Recently Restocked");
   const [dateFilter, setDateFilter] = useState("All Time");
@@ -59,15 +103,15 @@ export default function OutOfStocks() {
   const filteredProducts = useMemo(() => {
     let result = products.filter(p =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.supplier.toLowerCase().includes(searchQuery.toLowerCase())
+      p.category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.brand.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     // Apply sorting
     if (sortBy === "Recently Restocked") {
-      result.sort((a, b) => new Date(b.lastRestocked).getTime() - new Date(a.lastRestocked).getTime());
+      result.sort((a, b) => new Date(b.last_updated).getTime() - new Date(a.last_updated).getTime());
     } else if (sortBy === "Oldest Restocked") {
-      result.sort((a, b) => new Date(a.lastRestocked).getTime() - new Date(b.lastRestocked).getTime());
+      result.sort((a, b) => new Date(a.last_updated).getTime() - new Date(b.last_updated).getTime());
     } else if (sortBy === "Name (A-Z)") {
       result.sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -90,18 +134,66 @@ export default function OutOfStocks() {
   const handleApplyTableChanges = () => {
     setVisibleColumns({ ...tempColumns });
     setItemsPerPage(tempItemsPerPage);
+    localStorage.setItem(
+      "outOfStocksTableSettings",
+      JSON.stringify({
+        columns: tempColumns,
+        itemsPerPage: tempItemsPerPage,
+      })
+    );
     setIsEditModalOpen(false);
   };
 
   const handleResetTableDefaults = () => {
     setTempColumns({ ...defaultColumns });
     setTempItemsPerPage(15);
+    localStorage.removeItem("outOfStocksTableSettings");
   };
+
+  useEffect(() => {
+    const savedSettings = localStorage.getItem("outOfStocksTableSettings");
+
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+
+        if (parsed.columns) {
+          setVisibleColumns(parsed.columns);
+          setTempColumns(parsed.columns);
+        }
+
+        if (parsed.itemsPerPage) {
+          setItemsPerPage(parsed.itemsPerPage);
+          setTempItemsPerPage(parsed.itemsPerPage);
+        }
+      } catch (error) {
+        console.error("Failed to parse table settings:", error);
+      }
+    }
+
+    // Simulate fetching data from an API
+    const fetchData = async () => {
+      const data = await fetchInventory("out-of-stock", {
+        branchId: "1234567890",
+        token: "your-auth-token",
+        page: 1,
+        limit: 100,
+        sortBy: "name",
+        sortOrder: "asc",
+      });
+      console.log("Fetched data:", data.data.items);
+      setProducts(data.data.items);
+    };
+
+    fetchData();
+
+
+  }, []);
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
     const dataToExport = scope === 'current' ? filteredProducts.slice(0, 15) : filteredProducts;
-    const columns = ['Product Name', 'Category', 'Last Restocked', 'Supplier'];
-    const rows = dataToExport.map(p => [p.name, p.category, p.lastRestocked, p.supplier]);
+    const columns = ['Product Name', 'Category', 'Last Updated', 'Brand'];
+    const rows = dataToExport.map(p => [p.name, p.category, p.last_updated, p.brand]);
 
     if (format === 'csv') {
       generateCSV(columns, rows, `out-of-stocks_${scope}_${new Date().getTime()}.csv`);
@@ -134,12 +226,12 @@ export default function OutOfStocks() {
 
       {/* Toolbar Section */}
       <div className="p-6 space-y-6">
-        <div className="flex flex-wrap items-center gap-3 border border-gray-200 rounded-lg bg-white p-4 shadow-sm">
+        <div className="flex flex-row items-center gap-3 border border-gray-200 rounded-lg bg-white p-4 shadow-sm">
           <DownloadButton onClick={() => setIsDownloadModalOpen(true)} />
           <FilterButton onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)} />
           <EditButton onClick={() => setIsEditModalOpen(true)} />
 
-          <div className="flex-grow max-w-md ml-auto  relative">
+          <div className="grow max-w-md ml-auto  relative">
             <input
               type="text"
               placeholder="Search products..."
@@ -149,10 +241,10 @@ export default function OutOfStocks() {
             />
             <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500" />
           </div>
-          
-        <button className="flex items-center gap-2 bg-gray-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-700 transition-all shadow-sm">
-          <span>📧</span> Send Email
-        </button>
+
+          <button className="flex items-center gap-2 bg-gray-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-700 transition-all shadow-sm">
+            <MdEmail className="w-5 h-5" /> Email
+          </button>
 
         </div>
 
@@ -170,10 +262,12 @@ export default function OutOfStocks() {
                 <th className="p-4 font-bold text-sm tracking-wider">
                   <input type="checkbox" className="w-4 h-4 cursor-pointer" />
                 </th>
-                {visibleColumns.productName && <th className="p-4 font-bold text-sm tracking-wider">Product Name</th>}
+                {visibleColumns.name && <th className="p-4 font-bold text-sm tracking-wider">Product Name</th>}
                 {visibleColumns.category && <th className="p-4 font-bold text-sm tracking-wider">Category</th>}
-                {visibleColumns.lastRestocked && <th className="p-4 font-bold text-sm tracking-wider">Last Restocked</th>}
-                {visibleColumns.supplier && <th className="p-4 font-bold text-sm tracking-wider">Supplier</th>}
+                {visibleColumns.upc_code && <th className="p-4 font-bold text-sm tracking-wider">UPC Code</th>}
+                {visibleColumns.plu_code && <th className="p-4 font-bold text-sm tracking-wider">PLU Code</th>}
+                {visibleColumns.last_updated && <th className="p-4 font-bold text-sm tracking-wider">Last Updated</th>}
+                {visibleColumns.brand && <th className="p-4 font-bold text-sm tracking-wider">Brand</th>}
               </tr>
             </thead>
             <tbody>
@@ -183,10 +277,12 @@ export default function OutOfStocks() {
                     <td className="p-4">
                       <input type="checkbox" className="w-4 h-4 cursor-pointer" />
                     </td>
-                    {visibleColumns.productName && <td className="p-4 font-medium text-gray-800">{item.name}</td>}
-                    {visibleColumns.category && <td className="p-4 text-gray-600">{item.category}</td>}
-                    {visibleColumns.lastRestocked && <td className="p-4 text-gray-600">{item.lastRestocked}</td>}
-                    {visibleColumns.supplier && <td className="p-4 text-gray-600">{item.supplier}</td>}
+                    {visibleColumns.name && <td className="p-4 font-medium text-gray-800">{item.name}</td>}
+                    {visibleColumns.category && <td className="p-4 text-gray-600">{item.category.name}</td>}
+                    {visibleColumns.upc_code && <td className="p-4 text-gray-600">{item.upc_code}</td>}
+                    {visibleColumns.plu_code && <td className="p-4 text-gray-600">{item.plu_code}</td>}
+                    {visibleColumns.last_updated && <td className="p-4 text-gray-600">{item.last_updated}</td>}
+                    {visibleColumns.brand && <td className="p-4 text-gray-600">{item.brand.name}</td>}
                   </tr>
                 ))
               ) : (
@@ -252,15 +348,14 @@ export default function OutOfStocks() {
                     <ArrowUpDown size={16} /> SORT BY
                   </h3>
                   <div className="grid grid-cols-1 gap-2">
-                    {["Recently Restocked", "Oldest Restocked", "Name (A-Z)"].map(opt => (
+                    {["Recently Updated", "Oldest Updated", "Name (A-Z)"].map(opt => (
                       <button
                         key={opt}
                         onClick={() => setSortBy(opt)}
-                        className={`px-4 py-2.5 rounded text-sm font-medium border text-left transition-all ${
-                          sortBy === opt
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300"
-                        }`}
+                        className={`px-4 py-2.5 rounded text-sm font-medium border text-left transition-all ${sortBy === opt
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300"
+                          }`}
                       >
                         {opt}
                       </button>
@@ -276,11 +371,10 @@ export default function OutOfStocks() {
                       <button
                         key={opt}
                         onClick={() => setDateFilter(opt)}
-                        className={`w-full px-4 py-2.5 rounded text-sm font-medium border text-left transition-all ${
-                          dateFilter === opt
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300"
-                        }`}
+                        className={`w-full px-4 py-2.5 rounded text-sm font-medium border text-left transition-all ${dateFilter === opt
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300"
+                          }`}
                       >
                         {opt}
                       </button>
@@ -328,10 +422,15 @@ export default function OutOfStocks() {
                   <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700">Table View</h3>
                   <div className="space-y-2">
                     {[
-                      { key: 'productName' as const, label: 'Product Name', icon: '📦' },
+                      { key: 'name' as const, label: 'Product Name', icon: '📦' },
                       { key: 'category' as const, label: 'Category', icon: '📂' },
-                      { key: 'lastRestocked' as const, label: 'Last Restocked', icon: '📅' },
-                      { key: 'supplier' as const, label: 'Supplier', icon: '🏢' },
+                      { key: 'last_updated' as const, label: 'Last Updated', icon: '📅' },
+                      { key: 'upc_code' as const, label: 'UPC Code', icon: '🏷️' },
+                      { key: 'plu_code' as const, label: 'PLU Code', icon: '🏷️' },
+                      { key: 'brand' as const, label: 'Brand', icon: '🏷️' },
+                      { key: 'unit' as const, label: 'Unit', icon: '📏' },
+                      { key: 'quantity' as const, label: 'Quantity', icon: '📊' },
+                      { key: 'stock_status' as const, label: 'Status', icon: '📊' }
                     ].map(column => (
                       <label key={column.key} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded transition-colors">
                         <input
