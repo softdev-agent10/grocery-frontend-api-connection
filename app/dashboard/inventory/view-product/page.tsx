@@ -58,31 +58,7 @@ type Product = {
   plu: string | null;
 };
 
-// type productFormData = {
-//   name: string,
-//   category_id: number,
-//   brand_id: number,
-//   unit_id: number,
-//   upc_code: string,
-//   plu_code: string,
-//   description: string,
-//   buying_price: number,
-//   selling_price: number,
-//   custom_price: number,
-//   quantity: number,
-//   quantity_alert: number,
-//   discount: number,
-//   age_verification: boolean,
-//   ebt_eligible: boolean,
-//   sold_by_weight: boolean,
-//   is_refundable: boolean,
-//   warranty_period: string,
-//   warranty_description: string,
-//   manufacturer_date: Date,
-//   expiration_date: Date,
-//   image_url: string,
-//   is_available: boolean
-// };
+
 
 type Category = {
   id: number;
@@ -112,119 +88,6 @@ interface TableViewColumns {
   quantity: boolean;
   in_stock: boolean;
 }
-
-// const mockProducts: Product[] = [
-//   {
-//     id: 1,
-//     name: "Aloe Vera Gel",
-//     upc: "100000000001",
-//     plu: "PLU001",
-//     category: { id: 1, name: "Skincare" },
-//     brand: { id: 1, name: "NatureCare" },
-//     selling_price: "$12.50",
-//     quantity: 25,
-//     in_stock: true,
-//   },
-//   {
-//     id: 2,
-//     name: "Organic Honey 500g",
-//     upc: "100000000002",
-//     plu: "PLU002",
-//     category: { id: 2, name: "Groceries" },
-//     brand: { id: 2, name: "SweetFarm" },
-//     selling_price: "$8.99",
-//     quantity: 10,
-//     in_stock: true,
-//   },
-//   {
-//     id: 3,
-//     name: "Brown Bread",
-//     upc: "100000000003",
-//     plu: null,
-//     category: { id: 3, name: "Bakery" },
-//     brand: { id: 3, name: "DailyFresh" },
-//     selling_price: "$2.50",
-//     quantity: 0,
-//     in_stock: false,
-//   },
-//   {
-//     id: 4,
-//     name: "Milk 1 Liter",
-//     upc: "100000000004",
-//     plu: "PLU004",
-//     category: { id: 4, name: "Dairy" },
-//     brand: { id: 4, name: "FarmHouse" },
-//     selling_price: "$1.80",
-//     quantity: 50,
-//     in_stock: true,
-//   },
-//   {
-//     id: 5,
-//     name: "Chicken Breast",
-//     upc: "100000000005",
-//     plu: null,
-//     category: { id: 5, name: "Meat" },
-//     brand: { id: 5, name: "FreshMeat" },
-//     selling_price: "$6.75",
-//     quantity: 8,
-//     in_stock: true,
-//   },
-//   {
-//     id: 6,
-//     name: "Apple (1kg)",
-//     upc: "100000000006",
-//     plu: "PLU006",
-//     category: { id: 6, name: "Fruits" },
-//     brand: { id: 6, name: "GreenFarm" },
-//     selling_price: "$3.20",
-//     quantity: 3,
-//     in_stock: true,
-//   },
-//   {
-//     id: 7,
-//     name: "Orange Juice",
-//     upc: "100000000007",
-//     plu: "PLU007",
-//     category: { id: 7, name: "Beverages" },
-//     brand: { id: 7, name: "Juicy" },
-//     selling_price: "$4.10",
-//     quantity: 0,
-//     in_stock: false,
-//   },
-//   {
-//     id: 8,
-//     name: "Shampoo 250ml",
-//     upc: "100000000008",
-//     plu: "PLU008",
-//     category: { id: 8, name: "Personal Care" },
-//     brand: { id: 8, name: "CleanPlus" },
-//     selling_price: "$5.60",
-//     quantity: 15,
-//     in_stock: true,
-//   },
-//   {
-//     id: 9,
-//     name: "Rice 5kg",
-//     upc: "100000000009",
-//     plu: "PLU009",
-//     category: { id: 2, name: "Groceries" },
-//     brand: { id: 9, name: "GoldenGrain" },
-//     selling_price: "$18.00",
-//     quantity: 20,
-//     in_stock: true,
-//   },
-//   {
-//     id: 10,
-//     name: "Eggs (12 pcs)",
-//     upc: "100000000010",
-//     plu: null,
-//     category: { id: 4, name: "Dairy" },
-//     brand: { id: 4, name: "FarmHouse" },
-//     selling_price: "$2.90",
-//     quantity: 5,
-//     in_stock: true,
-//   },
-// ];
 
 
 export default function App() {
@@ -685,9 +548,18 @@ export default function App() {
 
   const downloadCSV = (scope: 'current' | 'all') => {
     const dataToExport = scope === 'current' ? paginatedProducts : sortedAndFilteredProducts;
-    const headers = ["Name", "UPC", "Category", "Brand", "Selling Price", "Pricing", "Unit", "QTY", "Status"];
+    const headers = ["ID", "Name", "UPC", "PLU", "Category", "Brand", "Buying Price", "Selling Price", "Quantity", "Status"];
     const rows = dataToExport.map(p => [
-      p.name, p.upc, p.category.name, p.brand.name, p.selling_price, p.quantity, p.in_stock ? "In Stock" : "Out of Stock"
+      p.id,
+      p.name,
+      p.upc as string,
+      p.plu as string || 'N/A',
+      p.category.name,
+      p.brand.name,
+      'N/A', // Buying price not available in list view
+      p.selling_price,
+      p.quantity,
+      p.in_stock ? "In Stock" : "Out of Stock"
     ]);
 
     generateCSV(headers, rows, `products_${scope}_${new Date().getTime()}.csv`);
@@ -697,9 +569,17 @@ export default function App() {
 
   const downloadPDF = (scope: 'current' | 'all') => {
     const dataToExport = scope === 'current' ? paginatedProducts : sortedAndFilteredProducts;
-    const columns = ["Name", "UPC", "Category", "Brand", "Selling Price", "QTY", "Status"];
+    const columns = ["ID", "Name", "UPC", "PLU", "Category", "Brand", "Selling Price", "Quantity", "Status"];
     const rows = dataToExport.map(p => [
-      p.name, p.upc, p.category.name, p.brand.name, p.selling_price, p.quantity, p.in_stock ? "In Stock" : "Out of Stock"
+      p.id,
+      p.name,
+      p.upc as string,
+      p.plu || 'N/A',
+      p.category.name,
+      p.brand.name,
+      p.selling_price,
+      p.quantity,
+      p.in_stock ? "In Stock" : "Out of Stock"
     ]);
 
     generatePDFWithLogo({
@@ -916,9 +796,9 @@ export default function App() {
               {loading ? (
                 <tbody>
                   <SkeletonTable
-                    rows={6}
+                    rows={paginatedProducts.length || itemsPerPage}
                     columns={
-                      Object.values(visibleColumns).filter(Boolean).length - 1
+                      Object.values(visibleColumns).filter(Boolean).length
                     }
                     showCheckbox={visibleColumns.checkbox}
                   />

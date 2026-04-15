@@ -35,7 +35,7 @@ import {
 } from "@/components/toolbar-buttons";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 import { createBrands, getBrands, updateBrands } from "@/app/services/brand/brand.service";
-import { fetchInventory } from "@/app/services/comon/fetchInventory";
+import { fetchInventory } from "@/app/services/comon/service.fetchInventory";
 
 // Extend jsPDF with autotable types
 declare module "jspdf" {

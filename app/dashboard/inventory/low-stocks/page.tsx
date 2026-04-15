@@ -23,7 +23,7 @@ import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { getLowStock } from "@/app/services/lowstok/service.lowstok";
-import { fetchInventory } from "@/app/services/comon/fetchInventory";
+import { fetchInventory } from "@/app/services/comon/service.fetchInventory";
 import { se } from "date-fns/locale";
 
 // interface LowStockProduct {

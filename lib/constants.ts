@@ -61,6 +61,12 @@ export const INVENTORY_ITEMS: NavItem[] = [
     matcher: "prefix",
   },
   {
+    label: "Bulk Product",
+    icon: Package,
+    href: "/dashboard/inventory/bulk-product",
+    matcher: "prefix",
+  },
+  {
     label: "Departments",
     icon: Layers,
     href: "/dashboard/inventory/departments",

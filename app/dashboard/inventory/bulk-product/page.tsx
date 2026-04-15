@@ -1,0 +1,761 @@
+'use client'
+import React, { useRef, useState } from 'react'
+import { motion, AnimatePresence } from "framer-motion";
+import { Download, Package, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AddButton } from '@/components/toolbar-buttons/AddButton';
+import DownloadModal from '@/components/download-modal';
+import { DownloadTemplateButton } from '@/components/toolbar-buttons/DownloadTemplateButton';
+import { downloadBulkProductTemplate, uploadBulkProducts } from '@/app/services/bulkproducts/service.bulkproducts';
+import { toast, ToastContainer, Bounce } from "react-toastify/unstyled";
+import Papa from "papaparse";
+
+
+import { useAuth } from '@/hooks/useAuth';
+
+function Page() {
+    const { user, token, isAuthenticated } = useAuth();
+
+    const [isDownloadModalOpen, setIsDownloadModalOpen] = React.useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = React.useState(false);
+    const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+    const [isUploading, setIsUploading] = React.useState(false);
+    const [uploadMode, setUploadMode] = React.useState<"insert" | "skip" | "update">("insert");
+    const [isDragOver, setIsDragOver] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const [csvData, setCsvData] = useState<any[]>([]);
+    const [failedRows, setFailedRows] = useState<Map<number, { error_code: string; error_message: string; failed_fields: string[] }>>(new Map());
+    const [uploadCompleted, setUploadCompleted] = useState(false);
+    const [uploadSummary, setUploadSummary] = useState<any>(null);
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [originalCsvData, setOriginalCsvData] = useState<any[]>([]);
+
+    function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>): void {
+        const file = event.target.files?.[0];
+
+        if (file && validateFile(file)) {
+            setSelectedFile(file);
+            setFailedRows(new Map());
+            setUploadCompleted(false);
+            setShowSummaryModal(false);
+            setUploadSummary(null);
+
+            Papa.parse(file, {
+                header: true, // converts to objects using headers
+                skipEmptyLines: true,
+                complete: (results) => {
+                    const data = results.data as any[];
+                    setCsvData(data);
+                    setOriginalCsvData(JSON.parse(JSON.stringify(data)));
+                },
+            });
+        }
+    }
+
+    function handleOpenModal(): void {
+        setIsImportModalOpen(true);
+    }
+
+    function validateFile(file: File): boolean {
+        if (!file.name.endsWith('.csv')) {
+            toast.error("Please select a CSV file", {
+                autoClose: 3000,
+                transition: Bounce,
+            });
+            return false;
+        }
+
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+            toast.error("File size must be less than 10MB", {
+                autoClose: 3000,
+                transition: Bounce,
+            });
+            return false;
+        }
+
+        return true;
+    }
+
+    function handleDragOver(event: React.DragEvent<HTMLDivElement>): void {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragOver(true);
+    }
+
+    function handleDragLeave(event: React.DragEvent<HTMLDivElement>): void {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragOver(false);
+    }
+
+    function handleDrop(event: React.DragEvent<HTMLDivElement>): void {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragOver(false);
+
+        const file = event.dataTransfer.files?.[0];
+        if (file && validateFile(file)) {
+            setSelectedFile(file);
+            setFailedRows(new Map());
+            setUploadCompleted(false);
+            setShowSummaryModal(false);
+            setUploadSummary(null);
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    const data = results.data as any[];
+                    setCsvData(data);
+                    setOriginalCsvData(JSON.parse(JSON.stringify(data)));
+                },
+            });
+        }
+    }
+
+    async function handleUploadFile(): Promise<void> {
+        if (!selectedFile) {
+            toast.error("Please select a file first", {
+                autoClose: 3000,
+                transition: Bounce,
+            });
+            return;
+        }
+
+        setIsUploading(true);
+        setFailedRows(new Map());
+        setUploadCompleted(false);
+        try {
+            const result = await uploadBulkProducts({
+                file: selectedFile,
+                branchId: '1234567890',
+                token: "your_token_here",
+                mode: uploadMode,
+            });
+
+            // Extract the actual data from response wrapper
+            const responseData = result.data || result;
+            const summary = responseData.summary || {};
+            const { successful = 0, failed = 0, skipped = 0, total_rows = 0 } = summary;
+
+            // Extract failed rows from response
+            const failedRowsMap = new Map<number, { error_code: string; error_message: string; failed_fields: string[] }>();
+            if (responseData.failed_rows && Array.isArray(responseData.failed_rows)) {
+                responseData.failed_rows.forEach((failedRow: any) => {
+                    // row_number is 1-based, convert to 0-based index
+                    const rowIndex = failedRow.row_number - 1;
+                    const errorMessage = failedRow.error_message?.split('\n')[0] || "Unknown error";
+                    const error_code = failedRow.error_code || "ERROR";
+                    const failed_fields = failedRow.failed_fields || [];
+                    failedRowsMap.set(rowIndex, {
+                        error_code,
+                        error_message: errorMessage,
+                        failed_fields
+                    });
+                });
+            }
+
+            // Filter to show only failed rows in the table
+            const failedRowIndices = Array.from(failedRowsMap.keys());
+            const filteredCsvData = originalCsvData.filter((_, index) => failedRowIndices.includes(index));
+
+            // Create a new map with sequential indices for the filtered data
+            const filteredFailedRowsMap = new Map<number, { error_code: string; error_message: string; failed_fields: string[] }>();
+            failedRowIndices.forEach((origIndex, displayIndex) => {
+                const failedRowDetail = failedRowsMap.get(origIndex);
+                if (failedRowDetail) {
+                    filteredFailedRowsMap.set(displayIndex, failedRowDetail);
+                }
+            });
+
+            setCsvData(filteredCsvData);
+            setFailedRows(filteredFailedRowsMap);
+            setUploadSummary(responseData);
+            setShowSummaryModal(true);
+            setUploadCompleted(true);
+
+            if (successful > 0) {
+                // Partial or full success
+                if (failed === 0 && skipped === 0) {
+                    // All products imported successfully
+                    toast.success(`✓ All ${successful} products imported successfully!`, {
+                        autoClose: 3000,
+                        transition: Bounce,
+                    });
+                    setSelectedFile(null);
+                    setIsImportModalOpen(false);
+                    setShowSummaryModal(false);
+                }
+            } else if (failed > 0) {
+                // All failed
+                toast.error(` All ${failed} products failed to import. Check validation errors.`, {
+                    autoClose: 3000,
+                    transition: Bounce,
+                });
+            }
+            console.log("Upload result:", result);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to upload bulk products";
+            toast.error(errorMessage, {
+                autoClose: 3000,
+                transition: Bounce,
+            });
+            console.error("Upload error:", error);
+        } finally {
+            setIsUploading(false);
+        }
+    }
+
+    function downloadPDF(scope: string) {
+        // TODO: Implement PDF export
+        toast.info("PDF export coming soon", {
+            autoClose: 3000,
+            transition: Bounce,
+        });
+    }
+
+    function downloadCSV(scope: string) {
+        // TODO: Implement CSV export
+        toast.info("CSV export coming soon", {
+            autoClose: 3000,
+            transition: Bounce,
+        });
+    }
+
+    function saveFailedRowsAsCSV() {
+        if (csvData.length === 0) {
+            toast.error("No data to save", {
+                autoClose: 3000,
+                transition: Bounce,
+            });
+            return;
+        }
+
+        const csv = Papa.unparse(csvData);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `failed-products-${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success("Failed rows saved as CSV", {
+            autoClose: 3000,
+            transition: Bounce,
+        });
+    }
+
+    function handleRetryUpload() {
+        setShowSummaryModal(false);
+        setUploadCompleted(false);
+        setFailedRows(new Map());
+    }
+
+    async function handleRetryUploadFromTable(): Promise<void> {
+        if (csvData.length === 0) {
+            toast.error("No data to upload", {
+                autoClose: 3000,
+                transition: Bounce,
+            });
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            // Convert current csvData to CSV format and create a blob
+            const csv = Papa.unparse(csvData);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const file = new File([blob], `retry-products-${new Date().toISOString().split('T')[0]}.csv`, { type: 'text/csv' });
+
+            const result = await uploadBulkProducts({
+                file: file,
+                branchId: '1234567890',
+                token: "your_token_here",
+                mode: uploadMode,
+            });
+
+            // Extract the actual data from response wrapper
+            const responseData = result.data || result;
+            const summary = responseData.summary || {};
+            const { successful = 0, failed = 0 } = summary;
+
+            // Extract failed rows from response
+            const failedRowsMap = new Map<number, { error_code: string; error_message: string; failed_fields: string[] }>();
+            if (responseData.failed_rows && Array.isArray(responseData.failed_rows)) {
+                responseData.failed_rows.forEach((failedRow: any) => {
+                    // row_number is 1-based, convert to 0-based index
+                    const rowIndex = failedRow.row_number - 1;
+                    const errorMessage = failedRow.error_message?.split('\n')[0] || "Unknown error";
+                    const error_code = failedRow.error_code || "ERROR";
+                    const failed_fields = failedRow.failed_fields || [];
+                    failedRowsMap.set(rowIndex, {
+                        error_code,
+                        error_message: errorMessage,
+                        failed_fields
+                    });
+                });
+            }
+
+            // Filter to show only failed rows in the table
+            const failedRowIndices = Array.from(failedRowsMap.keys());
+            const filteredCsvData = csvData.filter((_, index) => failedRowIndices.includes(index));
+
+            // Create a new map with sequential indices for the filtered data
+            const filteredFailedRowsMap = new Map<number, { error_code: string; error_message: string; failed_fields: string[] }>();
+            failedRowIndices.forEach((origIndex, displayIndex) => {
+                const failedRowDetail = failedRowsMap.get(origIndex);
+                if (failedRowDetail) {
+                    filteredFailedRowsMap.set(displayIndex, failedRowDetail);
+                }
+            });
+
+            setCsvData(filteredCsvData);
+            setFailedRows(filteredFailedRowsMap);
+            setUploadSummary(responseData);
+            setShowSummaryModal(true);
+
+            if (successful > 0) {
+                // Partial or full success
+                if (failed === 0) {
+                    // All products imported successfully
+                    toast.success(`✓ All ${successful} products imported successfully!`, {
+                        autoClose: 3000,
+                        transition: Bounce,
+                    });
+                    setCsvData([]);
+                    setFailedRows(new Map());
+                    setShowSummaryModal(false);
+                } else {
+                    // Partial success
+                    toast.warn(`⚠ Partial success: ${successful} imported, ${failed} still failed`, {
+                        autoClose: 4000,
+                        transition: Bounce,
+                    });
+                }
+            } else if (failed > 0) {
+                // All failed
+                toast.error(`All ${failed} products failed. Check the errors below.`, {
+                    autoClose: 3000,
+                    transition: Bounce,
+                });
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to upload bulk products";
+            toast.error(errorMessage, {
+                autoClose: 3000,
+                transition: Bounce,
+            });
+            console.error("Upload error:", error);
+        } finally {
+            setIsUploading(false);
+        }
+    }
+
+
+    return (
+        <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
+            <section className=" rounded-2xl border-b border-slate-200 bg-white  mt-0">
+                <header className="bg-blue-600 rounded-2xl px-6 py-8 flex justify-between items-center shadow-lg relative overflow-hidden ">
+                    <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                        <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[120%] bg-white rotate-12 blur-3xl rounded-full" />
+                    </div>
+
+                    <motion.div
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        className="relative z-10"
+                    >
+                        <h1 className="text-5xl font-black text-white tracking-tighter uppercase italic">
+                            Bulk products
+                        </h1>
+
+                    </motion.div>
+
+                    <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="text-white relative z-10"
+                    >
+                        <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md border  border-white/30 shadow-xl">
+                            <Package size={40} strokeWidth={2} />
+                        </div>
+                    </motion.div>
+                </header>
+                <div className='bg-white p-4 shadow-xl  rounded-2xl mt-4 border border-slate-200 flex flex-row items-center gap-2' >
+                    <AddButton onClick={() => handleOpenModal()} label="Import" />
+
+
+                    <div className="relative">
+                        <DownloadTemplateButton
+                            onClick={() => setIsDownloadModalOpen(true)}
+                            label="Export"
+                            icon={<Download size={20} />}
+                        />
+
+                        <DownloadModal
+                            isOpen={isDownloadModalOpen}
+                            onClose={() => setIsDownloadModalOpen(false)}
+                            onDownload={(scope, format) => {
+                                if (format === 'pdf') downloadPDF(scope);
+                                else downloadCSV(scope);
+                            }}
+                            title="Export Products"
+                            subtitle="Choose your preferred format"
+                        />
+                    </div>
+                    <div className="relative">
+                        <DownloadTemplateButton
+                            onClick={() => downloadBulkProductTemplate({ branchId: '1234567890', token: "your_token_here" })}
+                            label="Export Template"
+                            icon={<Download size={20} />}
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    {/* Load CSV Section */}
+                    <section className="p-4">
+                        {csvData.length > 0 && (
+                            <div className="overflow-auto border rounded-xl">
+                                <table className="min-w-full text-sm text-left">
+                                    <thead className="bg-slate-100">
+                                        <tr>
+                                            <th className="p-2 border w-12 text-center">Status</th>
+                                            {Object.keys(csvData[0]).map((header) => (
+                                                <th key={header} className="p-2 border">
+                                                    {header}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        {csvData.map((row, rowIndex) => {
+                                            const isRowFailed = failedRows.has(rowIndex);
+                                            const errorDetail = failedRows.get(rowIndex);
+                                            const failedFieldsSet = new Set(errorDetail?.failed_fields || []);
+
+                                            return (
+                                                <tr key={rowIndex} className={isRowFailed ? 'hover:bg-red-50' : 'hover:bg-slate-50'}>
+                                                    <td className="p-2 border text-center">
+                                                        {uploadCompleted ? (
+                                                            isRowFailed ? (
+                                                                <div className="flex justify-center group relative">
+                                                                    <AlertCircle size={18} className="text-red-600" />
+                                                                    {errorDetail && (
+                                                                        <div className="hidden group-hover:block absolute bottom-full mb-2 bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10 shadow-lg">
+                                                                            <div className="font-semibold">[{errorDetail.error_code}]</div>
+                                                                            <div>{errorDetail.error_message}</div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex justify-center">
+                                                                    <CheckCircle2 size={18} className="text-green-600" />
+                                                                </div>
+                                                            )
+                                                        ) : (
+                                                            <div className="flex justify-center">
+                                                                <div className="w-4 h-4 rounded-full bg-slate-300"></div>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    {Object.keys(row).map((key) => {
+                                                        const isFailedField = failedFieldsSet.has(key);
+                                                        return (
+                                                            <td
+                                                                key={key}
+                                                                className={`p-2 border relative group ${isFailedField ? 'bg-red-100' : ''}`}
+                                                            >
+                                                                <input
+                                                                    type="text"
+                                                                    value={row[key]}
+                                                                    onChange={(e) => {
+                                                                        const updated = [...csvData];
+                                                                        updated[rowIndex][key] = e.target.value;
+                                                                        setCsvData(updated);
+                                                                    }}
+                                                                    className={`w-full bg-transparent outline-none ${isFailedField ? 'text-red-900 font-semibold' : ''
+                                                                        }`}
+                                                                />
+                                                                {isFailedField && errorDetail && (
+                                                                    <div className="absolute -top-1 -right-1 flex items-center">
+                                                                        <AlertCircle size={16} className="text-red-600" />
+                                                                    </div>
+                                                                )}
+                                                                {isFailedField && errorDetail && (
+                                                                    <div className="hidden group-hover:block absolute bottom-full left-0 mb-2 bg-gray-800 text-white text-xs rounded px-2 py-1 z-10 shadow-lg max-w-xs break-words">
+                                                                        <div className="font-semibold mb-1">[{errorDetail.error_code}]</div>
+                                                                        <div>{errorDetail.error_message}</div>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* Action Buttons for CSV Data */}
+                        {uploadCompleted && csvData.length > 0 && (
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={() => {
+                                        saveFailedRowsAsCSV();
+                                    }}
+                                    className="flex items-center justify-center gap-2 px-6 py-2 rounded-lg bg-slate-600 text-white font-medium hover:bg-slate-700 transition-all"
+                                >
+                                    <Download size={18} />
+                                    Save as CSV
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handleRetryUploadFromTable();
+                                    }}
+                                    disabled={isUploading}
+                                    className="flex items-center justify-center gap-2 px-6 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isUploading ? (
+                                        <>
+                                            <motion.div
+                                                animate={{ rotate: 360 }}
+                                                transition={{ duration: 1, repeat: Infinity }}
+                                            >
+                                                <Upload size={18} />
+                                            </motion.div>
+                                            Uploading...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload size={18} />
+                                            Retry Upload
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+                    </section>
+                </div>
+
+                {/* Import Modal */}
+                <AnimatePresence>
+                    {isImportModalOpen && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                            onClick={() => !isUploading && setIsImportModalOpen(false)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.95, opacity: 0 }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8"
+                            >
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="bg-blue-100 p-3 rounded-lg">
+                                        <Upload size={24} className="text-blue-600" />
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-slate-900">Import Products</h2>
+                                </div>
+
+                                <p className="text-slate-600 mb-6">
+                                    Upload a CSV file to import multiple products at once. Download the template for the correct format.
+                                </p>
+
+                                {/* File Input Section */}
+                                <div
+                                    onClick={() => fileInputRef.current?.click()}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
+                                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all mb-6 ${isDragOver
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-slate-300 hover:border-blue-500 hover:bg-blue-50'
+                                        }`}
+                                >
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept=".csv"
+                                        onChange={handleFileSelect}
+                                        className="hidden"
+                                        disabled={isUploading}
+                                    />
+                                    <div className="flex flex-col items-center gap-2">
+                                        <motion.div
+                                            animate={isDragOver ? { scale: 1.1, color: '#2563eb' } : { scale: 1 }}
+                                            transition={{ duration: 0.2 }}
+                                        >
+                                            <Upload size={32} className={isDragOver ? "text-blue-600" : "text-slate-400"} />
+                                        </motion.div>
+                                        <p className="text-sm font-medium text-slate-900">
+                                            {selectedFile ? selectedFile.name : "Click to select CSV file"}
+                                        </p>
+                                        <p className="text-xs text-slate-500">{isDragOver ? "Drop file here" : "or drag and drop here"}</p>
+                                    </div>
+                                </div>
+
+                                {/* Mode Selection */}
+                                <div className="mb-6">
+                                    <label className="text-sm font-semibold text-slate-700 mb-3 block">
+                                        Import Mode
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {(["insert", "skip", "update"] as const).map((mode) => (
+                                            <button
+                                                key={mode}
+                                                onClick={() => setUploadMode(mode)}
+                                                disabled={isUploading}
+                                                className={`py-2 px-3 rounded-lg font-medium text-sm transition-all ${uploadMode === mode
+                                                    ? "bg-blue-600 text-white"
+                                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                                    } ${isUploading ? "opacity-50 cursor-not-allowed" : ""}`}
+                                            >
+                                                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-slate-600 mt-2">
+                                        {uploadMode === "insert" && "Create new products (skip duplicates)"}
+                                        {uploadMode === "skip" && "Skip duplicate products"}
+                                        {uploadMode === "update" && "Update existing products"}
+                                    </p>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setIsImportModalOpen(false)}
+                                        disabled={isUploading}
+                                        className="flex-1 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Cancel
+                                    </button>
+                                    {selectedFile && csvData.length > 0 && (
+                                        <button
+                                            onClick={() => saveFailedRowsAsCSV()}
+                                            className="flex-1 px-4 py-2 rounded-lg bg-slate-600 text-white font-medium hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Download size={18} />
+                                            Save
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={handleUploadFile}
+                                        disabled={!selectedFile || isUploading}
+                                        className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {isUploading ? (
+                                            <>
+                                                <motion.div
+                                                    animate={{ rotate: 360 }}
+                                                    transition={{ duration: 1, repeat: Infinity }}
+                                                >
+                                                    <Upload size={18} />
+                                                </motion.div>
+                                                Uploading...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload size={18} />
+                                                Upload
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Upload Summary Modal */}
+                <AnimatePresence>
+                    {showSummaryModal && uploadSummary && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.95, opacity: 0 }}
+                                className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto"
+                            >
+                                <h2 className="text-2xl font-bold text-slate-900 mb-6">Upload Summary</h2>
+
+                                {/* Summary Stats */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                        <div className="text-2xl font-bold text-blue-600">{uploadSummary.summary?.total_rows || 0}</div>
+                                        <div className="text-xs text-slate-600">Total Rows</div>
+                                    </div>
+                                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                        <div className="text-2xl font-bold text-green-600">{uploadSummary.summary?.successful || 0}</div>
+                                        <div className="text-xs text-slate-600">Successful</div>
+                                    </div>
+                                    <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                                        <div className="text-2xl font-bold text-red-600">{uploadSummary.summary?.failed || 0}</div>
+                                        <div className="text-xs text-slate-600">Failed</div>
+                                    </div>
+                                    <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                        <div className="text-2xl font-bold text-yellow-600">{uploadSummary.summary?.skipped || 0}</div>
+                                        <div className="text-xs text-slate-600">Skipped</div>
+                                    </div>
+                                </div>
+
+                                {/* Created Products */}
+                                {uploadSummary.created_product_ids && uploadSummary.created_product_ids.length > 0 && (
+                                    <div className="mb-6">
+                                        <h3 className="text-lg font-semibold text-green-700 mb-3 flex items-center gap-2">
+                                            <CheckCircle2 size={20} />
+                                            Successfully Created ({uploadSummary.created_product_ids.length})
+                                        </h3>
+                                        <div className="bg-green-50 rounded-lg p-4 max-h-48 overflow-y-auto">
+                                            <div className="space-y-2">
+                                                {uploadSummary.created_product_ids.map((product: any, idx: number) => (
+                                                    <div key={idx} className="text-sm text-slate-700 pb-2 border-b border-green-200 last:border-b-0">
+                                                        <div className="font-medium">ID: {product.id}</div>
+                                                        <div className="text-xs text-slate-500">
+                                                            {product.upc_code ? `UPC: ${product.upc_code}` : `PLU: ${product.plu_code}`}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-3 pt-4 border-t border-slate-200">
+                                    <button
+                                        onClick={() => setShowSummaryModal(false)}
+                                        className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </section>
+
+            {/* Toast Container */}
+            <ToastContainer position="top-right" limit={3} />
+        </div>
+    )
+}
+
+export default Page

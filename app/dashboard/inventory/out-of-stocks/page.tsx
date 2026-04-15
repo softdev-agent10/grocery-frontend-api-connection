@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { DownloadButton, FilterButton, EditButton } from "@/components/toolbar-buttons";
 import DownloadModal from "@/components/download-modal";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
-import { fetchInventory } from "@/app/services/comon/fetchInventory";
+import { fetchInventory } from "@/app/services/comon/service.fetchInventory";
 
 // interface OutOfStock {
 //   id: number;

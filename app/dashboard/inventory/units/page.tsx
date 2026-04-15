@@ -37,7 +37,7 @@ import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { createUnits, getUnits, updateUnits } from "@/app/services/units/units.service";
-import { fetchInventory } from "@/app/services/comon/fetchInventory";
+import { fetchInventory } from "@/app/services/comon/service.fetchInventory";
 
 // --- Types ---
 
