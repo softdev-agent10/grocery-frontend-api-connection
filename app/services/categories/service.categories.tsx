@@ -13,6 +13,15 @@ export const getCategories = async ({ branchId, token }: any) => {
     }
   );
 
+  // // Log the actual response
+  // console.log("Response status:", res.status);
+  // console.log("Response status text:", res.statusText);
+
+  // Get the actual error message from API
+  // const responseText = await res.text();
+  // console.log("Response body:", responseText);
+
+
   if (!res.ok) {
     throw new Error("Failed to fetch categories");
   }
@@ -20,6 +29,34 @@ export const getCategories = async ({ branchId, token }: any) => {
   return res.json();
 };
 
+//  GET PRODUCTS BY CATEGORY
+export const getProductsByCategory = async ({
+  branchId,
+  categoryId,
+  token,
+}: {
+  branchId: number;
+  categoryId: number;
+  token: string;
+}) => {
+  const res = await fetch(
+    `${BASE_URL}/inventory/products?branch_id=${branchId}&category_id=${categoryId}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch products");
+  }
+
+  return res.json();
+};
 export const createCategories = async ({
   branchId,
   token,

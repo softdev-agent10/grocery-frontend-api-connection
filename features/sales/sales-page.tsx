@@ -55,6 +55,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useRouter } from "next/navigation";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { cn } from "@/lib/utils";
+import { getCategories, getProductsByCategory } from "@/app/services/categories/service.categories";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 interface Product {
     id: string;
@@ -103,12 +105,13 @@ export default function SalesPage() {
     const router = useRouter();
     const cartItemsEndRef = useRef<HTMLDivElement>(null);
 
-    const { 
-        items, 
-        customer, 
-        taxPercent, 
-        discountValue, 
-        discountType, 
+
+    const {
+        items,
+        customer,
+        taxPercent,
+        discountValue,
+        discountType,
         isTaxFree,
         history,
         heldSales,
@@ -117,6 +120,8 @@ export default function SalesPage() {
         keyInput,
     } = useAppSelector((state) => state.sales);
 
+
+
     // Auto-scroll to bottom when items are added
     useEffect(() => {
         if (cartItemsEndRef.current) {
@@ -124,6 +129,9 @@ export default function SalesPage() {
         }
     }, [items.length]);
 
+
+    const [categories, setCategories] = useState([]);        // Store categories from API
+    const [isLoadingCategories, setIsLoadingCategories] = useState(false);  // Loading state
     const [modalOpen, setModalOpen] = useState(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [cashPaymentOpen, setCashPaymentOpen] = useState(false);
@@ -193,6 +201,103 @@ export default function SalesPage() {
         setModalOpen(false);
     };
 
+    // API connection fetch
+    const fetchCategories = async () => {
+        setIsLoadingCategories(true);
+
+        try {
+
+            const response = await getCategories({
+                branchId: "1234567890",
+                token: "123456"
+            });
+
+            // console.log("API Response:", response);
+
+            //  Validate API structure
+            if (response?.status !== "success") {
+                throw new Error(response?.error?.message || "Invalid API response");
+            }
+
+            const items = response?.data?.items || [];
+
+            // Safe mapping
+            const formattedCategories = items.map((cat: any) => ({
+                id: cat.id,
+                name: cat.name,
+                description: cat.description || "",
+                count: `${cat.product_count ?? 0} Products`,
+                product_count: cat.product_count ?? 0,
+                is_active: cat.is_active,
+                taxes: cat.taxes,
+                fees: cat.fees,
+                icon: getCategoryIcon(cat.name),
+            }));
+
+            setCategories(formattedCategories);
+
+        } catch (error: any) {
+            console.error("Fetch Categories Error:", error.message);
+
+            showNotification(error.message, "error");
+
+            setCategories([]); // fallback UI
+        } finally {
+            setIsLoadingCategories(false);
+        }
+    };
+    // Load categories when component mounts
+    useEffect(() => {
+        fetchCategories();
+    }, []); // Empty array means run once when component loads
+
+
+    const [products, setProducts] = useState<Product[]>([]);  // Store products from API
+    const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+    // Fetch products when category is selected
+    const fetchProductsByCategory = async (categoryId: number) => {
+        setIsLoadingProducts(true);
+        try {
+            const response = await getProductsByCategory({
+                branchId: 1234567890,
+                categoryId: categoryId,
+                token: "123456",
+            });
+
+            // console.log("Products API Response:", response);
+
+            if (response?.status !== "success") {
+                throw new Error(response?.error?.message || "Invalid API response");
+            }
+
+            const items = response?.data?.items || [];
+
+            // FIXED: Map the API response correctly
+            const formattedProducts = items.map((prod: any) => ({
+                id: prod.id.toString(),
+                name: prod.name,
+                price: parseFloat(prod.selling_price) || 0,  // ← CHANGE: use selling_price
+                category: prod.category?.name || prod.category_name || "Uncategorized", // ← CHANGE: get category name from object
+                stock: parseInt(prod.quantity) || 0,  // ← CHANGE: use quantity
+                barcode: prod.barcode || "",
+                icon: getProductIcon(prod.name),
+                image: prod.image,
+                promotion: prod.promotion
+            }));
+
+            console.log("Formatted products:", formattedProducts); // Debug: check if products are formatted correctly
+            setProducts(formattedProducts);
+
+        } catch (error: any) {
+            console.error("Fetch Products Error:", error.message);
+            showNotification(error.message, "error");
+            setProducts([]);
+        } finally {
+            setIsLoadingProducts(false);
+        }
+    };
+
+
     const handleDeleteHeldSale = (id: string) => {
         dispatch(deleteHeldSale(id));
     };
@@ -214,13 +319,24 @@ export default function SalesPage() {
         showNotification(`Refund processed successfully for Order ${order.id}`, "success");
     };
 
-    function handleAction(type: string, data?: any) {
+    async function handleAction(type: string, data?: any) {
+        // function handleAction(type: string, data?: any) {
         // Reset data for each action
         setModalData(null);
+        // Check if type matches a category from API (dynamic)
+        const apiCategory = categories.find(cat => cat.name === type);
+        if (apiCategory) {
+            dispatch(setSelectedCategory(type));
+            // Fetch products from API for this category
+            await fetchProductsByCategory(apiCategory.id);
+            return;
+        }
 
         // If it's a category, just set it
         if (CATEGORIES.find(c => c.name === type)) {
             dispatch(setSelectedCategory(type));
+            // For static categories, filter from static PRODUCTS array
+            setProducts(PRODUCTS.filter(p => p.category === type));
             return;
         }
 
@@ -304,7 +420,7 @@ export default function SalesPage() {
                 return <CustomerModal customer={customer} setCustomer={(c: { name: string; contact: string } | null) => dispatch(setCustomer(c))} />;
             case "Attendance":
                 return (
-                    <AttendanceModal 
+                    <AttendanceModal
                         onClose={() => setModalOpen(false)}
                         initialType={modalData || "in"}
                     />
@@ -347,7 +463,7 @@ export default function SalesPage() {
                 );
             case "Refund":
                 return (
-                    <RefundModal 
+                    <RefundModal
                         orders={history}
                         onRefund={handleHistoryRefund}
                         onClose={() => setModalOpen(false)}
@@ -355,9 +471,9 @@ export default function SalesPage() {
                 );
             case "History":
                 return (
-                    <OrderHistory 
+                    <OrderHistory
                         orders={history}
-                        onClose={() => setModalOpen(false)} 
+                        onClose={() => setModalOpen(false)}
                         onReprint={handleHistoryReprint}
                         onRefund={handleHistoryRefund}
                     />
@@ -398,16 +514,16 @@ export default function SalesPage() {
                                             <p className="font-bold">{sale.customer?.name || "Guest"}</p>
                                             <p className="text-sm text-gray-500">
                                                 {sale.items.length} Products
-                                                 • ${sale.items.reduce((sum, item) => sum + item.price * item.qty, 0).toFixed(2)}
+                                                • ${sale.items.reduce((sum, item) => sum + item.price * item.qty, 0).toFixed(2)}
                                             </p>
                                             <p className="text-xs text-gray-400">{new Date(sale.heldAt).toLocaleString()}</p>
                                         </div>
                                         <div className="flex gap-2">
-                                             <Button type="button" size="sm" onClick={() => handleResumeSale(sale)}>Resume</Button>
-                                             <Button type="button" size="sm" variant="destructive" onClick={() => handleDeleteHeldSale(sale.id)}>
-                                                 <Trash className="size-4" />
-                                             </Button>
-                                         </div>
+                                            <Button type="button" size="sm" onClick={() => handleResumeSale(sale)}>Resume</Button>
+                                            <Button type="button" size="sm" variant="destructive" onClick={() => handleDeleteHeldSale(sale.id)}>
+                                                <Trash className="size-4" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -446,7 +562,7 @@ export default function SalesPage() {
     const handleProcessAndPrint = () => {
         setIsBasketOnlyPrint(false);
         setReprintOrder(null); // Clear reprint order if processing new sale
-        
+
         // Add to history
         const newOrder: Order = {
             id: `ORD-${uuidv4()}`,
@@ -479,20 +595,20 @@ export default function SalesPage() {
             showNotification(`Product out of stock!`, 'error');
             return;
         }
-        
+
         const currentQty = items.find(i => i.id === product.id)?.qty || 0;
         if (currentQty >= product.stock) {
             showNotification(`Max stock reached! Available: ${product.stock}`, 'error');
             return;
         }
 
-        dispatch(addItem({ 
-            id: product.id, 
-            name: product.name, 
-            price: product.price, 
-            qty: 1, 
+        dispatch(addItem({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            qty: 1,
             stock: product.stock,
-            promotion: product.promotion 
+            promotion: product.promotion
         }));
 
         localStorage.setItem("cartProducts", JSON.stringify(items));
@@ -522,7 +638,10 @@ export default function SalesPage() {
         }
     };
 
-    const filteredProducts = PRODUCTS.filter((p) => {
+
+
+    // TO (using dynamic products state):
+    const filteredProducts = products.filter((p) => {
         const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             p.barcode?.includes(searchQuery);
 
@@ -531,18 +650,46 @@ export default function SalesPage() {
         return false;
     });
 
+
+    // Add this helper function inside your SalesPage component
+    const getCategoryIcon = (categoryName: string) => {
+        const iconMap: Record<string, ReactNode> = {
+            "Produce & Floral": <Apple className="size-8 text-green-600" />,
+            "Meat & Seafood": <Drumstick className="size-8 text-red-600" />,
+            "Dairy & Eggs": <Milk className="size-8 text-blue-600" />,
+            "Bakery & Bread": <Croissant className="size-8 text-amber-600" />,
+            "Beverages": <Wine className="size-8 text-purple-600" />,
+            "Frozen Foods": <IceCream className="size-8 text-cyan-500" />,
+            "Snacks & Candy": <Cookie className="size-8 text-yellow-700" />,
+            "Household": <Home className="size-8 text-gray-600" />,
+        };
+
+        return iconMap[categoryName] || <ShoppingCart className="size-8 text-gray-400" />;
+    };
+    const getProductIcon = (productName: string) => {
+        // Simple mapping based on product name
+        const lowerName = productName.toLowerCase();
+        if (lowerName.includes('apple')) return <Apple className="size-8 text-red-500" />;
+        if (lowerName.includes('banana')) return <Banana className="size-8 text-yellow-500" />;
+        if (lowerName.includes('chicken')) return <Beef className="size-8 text-red-400" />;
+        if (lowerName.includes('salmon') || lowerName.includes('fish')) return <Fish className="size-8 text-blue-400" />;
+        if (lowerName.includes('milk')) return <Milk className="size-8 text-blue-500" />;
+        // Add more mappings as needed
+        return <ShoppingCart className="size-8 text-gray-400" />;
+    };
+
+
     return (
         <>
             <BarcodeScanner onScan={handleBarcodeScan} />
-            
+
             {/* Global Notification Area */}
             {notification && (
                 <div className="fixed top-4 right-4 z-9999 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className={`px-6 py-3 rounded-xl shadow-2xl border-2 flex items-center gap-3 ${
-                        notification.type === 'success' 
-                            ? 'bg-green-500 border-green-400 text-white' 
-                            : 'bg-red-500 border-red-400 text-white'
-                    }`}>
+                    <div className={`px-6 py-3 rounded-xl shadow-2xl border-2 flex items-center gap-3 ${notification.type === 'success'
+                        ? 'bg-green-500 border-green-400 text-white'
+                        : 'bg-red-500 border-red-400 text-white'
+                        }`}>
                         <div className="bg-white/20 p-1 rounded-full">
                             {notification.type === 'success' ? <CirclePlus className="size-5" /> : <X className="size-5" />}
                         </div>
@@ -571,15 +718,15 @@ export default function SalesPage() {
                                 )}>
                                     {items.length > 0 ? (
                                         items.map((item) => (
-                                            <CartItem 
-                                                key={item.id} 
-                                                item={item} 
-                                                onDelete={handleDelete} 
-                                                onUpdate={handleUpdateQuantity} 
+                                            <CartItem
+                                                key={item.id}
+                                                item={item}
+                                                onDelete={handleDelete}
+                                                onUpdate={handleUpdateQuantity}
                                                 onEdit={(item) => {
                                                     setEditingItem(item);
                                                     handleAction("Item Pricing");
-                                                }} 
+                                                }}
                                             />
                                         ))
                                     ) : (
@@ -598,21 +745,21 @@ export default function SalesPage() {
                                 {
                                     customer && (<div className="bg-gray-600 shadow-md rounded-xl p-2 w-full mx-auto">
 
-                                    <h4 className="text-white text-lg sm:text-xl font-bold mb-1">
-                                        Membership Information
-                                    </h4>
+                                        <h4 className="text-white text-lg sm:text-xl font-bold mb-1">
+                                            Membership Information
+                                        </h4>
 
-                                    <div className="space-y-1 text-sm sm:text-base">
-                                        <p className="wrap-break-word text-white">
-                                            <span className="font-medium">Name:</span>{" "}
-                                            {customer?.name || "No Customer Selected"}
-                                        </p>
-                                        <p className="wrap-break-word text-white">
-                                            <span className="font-medium">Contact:</span>{" "}
-                                            {customer?.contact || "No Customer Selected"}
-                                        </p>
+                                        <div className="space-y-1 text-sm sm:text-base">
+                                            <p className="wrap-break-word text-white">
+                                                <span className="font-medium">Name:</span>{" "}
+                                                {customer?.name || "No Customer Selected"}
+                                            </p>
+                                            <p className="wrap-break-word text-white">
+                                                <span className="font-medium">Contact:</span>{" "}
+                                                {customer?.contact || "No Customer Selected"}
+                                            </p>
 
-                                        {/* <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                            {/* <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                                             <p>
                                                 <span className="font-medium text-white">Membership:</span>{" "}
                                                 <span className="px-2 py-1 text-xs sm:text-sm bg-yellow-100 text-yellow-700 rounded-md">
@@ -625,9 +772,9 @@ export default function SalesPage() {
                                                 <span className="font-semibold text-white">{customer?.points || 0}</span>
                                             </p>
                                         </div> */}
-                                    </div>
+                                        </div>
 
-                                </div>)
+                                    </div>)
                                 }
                                 <div className="bg-gray-600 shadow-md rounded-xl p-2 w-full mt-2 mx-auto">
                                     <div className="space-y-2 text-sm sm:text-base text-white">
@@ -725,25 +872,54 @@ export default function SalesPage() {
                                 <div className="flex-1 overflow-auto custom-scrollbar">
                                     {!(selectedCategory || searchQuery) ? (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 xl:mt-2 gap-4">
-                                            {CATEGORIES.map((cat) => (
-                                                <div
-                                                    key={cat.name}
-                                                    onClick={() => handleAction(cat.name)}
-                                                    className="flex items-center p-4 bg-black/80 rounded-2xl hover:bg-gray-900 transition-all cursor-pointer shadow-lg group border border-gray-800"
-                                                >
-                                                    <div className="bg-white rounded-xl p-4 flex items-center justify-center shrink-0 mr-4 transition-transform group-hover:scale-105">
-                                                        {cat.icon}
+                                            {isLoadingCategories ? (
+                                                // Loading skeletons
+                                                <>
+                                                    {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                                                        <div key={i} className="animate-pulse">
+                                                            <div className="flex items-center p-4 bg-gray-200 rounded-2xl h-32"></div>
+                                                        </div>
+                                                    ))}
+                                                </>
+                                            ) : categories.length > 0 ? (
+                                                // Display categories from API
+                                                categories.map((cat) => (
+                                                    <div
+                                                        key={cat.id}
+                                                        onClick={() => handleAction(cat.name)}
+                                                        className="flex items-center p-4 bg-black/80 rounded-2xl hover:bg-gray-900 transition-all cursor-pointer shadow-lg group border border-gray-800"
+                                                    >
+                                                        <div className="bg-white rounded-xl p-4 flex items-center justify-center shrink-0 mr-4 transition-transform group-hover:scale-105">
+                                                            {cat.icon ? (
+                                                                cat.icon
+                                                            ) : (
+                                                                <span className="text-black font-bold text-sm">
+                                                                    {cat.name?.slice(0, 2).toUpperCase()}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="text-lg xl:text-xl font-bold text-white leading-tight break-words">
+                                                                {cat.name}
+                                                            </span>
+                                                            <span className="text-[12px] xl:text-[13px] font-medium text-gray-400 mt-1 uppercase tracking-wide">
+                                                                {cat.count} In Stock
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="text-lg xl:text-xl font-bold text-white leading-tight break-words">
-                                                            {cat.name}
-                                                        </span>
-                                                        <span className="text-xs xl:text-sm font-medium text-gray-400 mt-1 uppercase tracking-wide">
-                                                            {cat.count} Products In Stock
-                                                        </span>
-                                                    </div>
+                                                ))
+                                            ) : (
+                                                // No categories found
+                                                <div className="col-span-full text-center py-10">
+                                                    <p className="text-gray-500">No categories available</p>
+                                                    <button
+                                                        onClick={fetchCategories}
+                                                        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
+                                                    >
+                                                        Retry
+                                                    </button>
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
                                     ) : (
                                         <div>
@@ -787,7 +963,7 @@ export default function SalesPage() {
                                                                     {product.icon || <ShoppingCart className="size-8 text-gray-300 group-hover:text-blue-500 transition-colors" />}
                                                                 </div>
                                                             </div>
-                                                            
+
                                                             <div className="flex flex-col flex-1 min-w-0 text-left">
                                                                 <span className="text-xs sm:text-sm font-bold text-gray-800 line-clamp-2 leading-tight mb-1">{product.name}</span>
                                                                 <span className="text-sm sm:text-base font-extrabold text-blue-600">${product.price.toFixed(2)}</span>
@@ -938,7 +1114,7 @@ export default function SalesPage() {
                                             onClick={() => handleAction('Buy N Get N')}
                                         >
                                             <div className="flex flex-col justify-center items-center">
-                                               <Box className="size-14 xl:size-20" />
+                                                <Box className="size-14 xl:size-20" />
                                                 <p className="text-md xl:text-xl">Buy N Get N</p>
                                             </div>
                                         </Button>
@@ -950,7 +1126,7 @@ export default function SalesPage() {
                                             onClick={() => handleAction('Promotions')}
                                         >
                                             <div className="flex flex-col justify-center items-center">
-                                               <Gift className="size-14 xl:size-20" />
+                                                <Gift className="size-14 xl:size-20" />
                                                 <p className="text-md xl:text-xl">Promotions</p>
                                             </div>
                                         </Button>
@@ -972,7 +1148,7 @@ export default function SalesPage() {
                                             </PopoverTrigger>
                                             <PopoverContent className="w-56 p-2 rounded-2xl shadow-2xl border-0 bg-white" align="start" side="top">
                                                 <div className="space-y-1">
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleAction("Working Hours")}
                                                         className="w-full flex items-center gap-3 px-3 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
                                                     >
@@ -980,7 +1156,7 @@ export default function SalesPage() {
                                                         Working History
                                                     </button>
                                                     <div className="h-px bg-gray-100 my-1" />
-                                                    <button 
+                                                    <button
                                                         onClick={() => setLogoutConfirmOpen(true)}
                                                         className="w-full flex items-center gap-3 px-3 py-3 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                                                     >
@@ -1047,10 +1223,11 @@ export default function SalesPage() {
                 open={cashPaymentOpen}
                 onOpenChange={setCashPaymentOpen}
                 items={items}
+                reprintOrder={reprintOrder?.discount || 0}
                 total={total}
                 cashGiven={cashGiven}
-                onProcess={handleProcessAndPrint}
-            />
+                discountAmount={reprintOrder?.discount || discountAmount}
+                onProcess={handleProcessAndPrint} />
 
             <SalesActionsDialog
                 open={modalOpen}

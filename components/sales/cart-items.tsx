@@ -117,6 +117,8 @@ export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
         }, 200);
     };
 
+
+
     return (
         <div className="w-full relative overflow-hidden">
             {/* Red Delete Background */}
@@ -170,7 +172,15 @@ export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
                             </button>
                             <Input
                                 value={inputValue}
-                                onChange={handleInputChange}
+                                // onChange={handleInputChange}
+                                onChange={(e) => {
+                                    let value = Number(e.target.value);
+                                    if (value > item.stock) value = item.stock;
+                                    if (value < 1) value = 1;
+                                    
+                                      e.target.value = String(value);
+                                      handleInputChange(e);
+                                }}
                                 onBlur={handleInputBlur}
                                 onKeyDown={handleKeyDown}
                                 onClick={(e) => e.stopPropagation()}
