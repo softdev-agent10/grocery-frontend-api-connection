@@ -1,19 +1,24 @@
 'use client'
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, Package, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AddButton } from '@/components/toolbar-buttons/AddButton';
 import DownloadModal from '@/components/download-modal';
 import { DownloadTemplateButton } from '@/components/toolbar-buttons/DownloadTemplateButton';
-import { downloadBulkProductTemplate, uploadBulkProducts } from '@/app/services/bulkproducts/service.bulkproducts';
+import { downloadBulkProductTemplate, uploadBulkProducts, uploadBulkProductsAsync } from '@/app/services/bulkproducts/service.bulkproducts';
 import { toast, ToastContainer, Bounce } from "react-toastify/unstyled";
 import Papa from "papaparse";
-
-
 import { useAuth } from '@/hooks/useAuth';
+import { useUploadDraft } from '@/hooks/useUploadDraft';
+import { ResumeDraftPrompt } from '@/components/ResumeDraftPrompt';
 
 function Page() {
     const { user, token, isAuthenticated } = useAuth();
+    const branchId = '1234567890'; // TODO: Get from actual user context
+
+    // Draft management
+    const { savedDraft, isLoading: isDraftLoading, save: saveDraft, remove: removeDraft } = useUploadDraft(branchId);
+    const [showResumeDraftPrompt, setShowResumeDraftPrompt] = useState(false);
 
     const [isDownloadModalOpen, setIsDownloadModalOpen] = React.useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = React.useState(false);
@@ -29,6 +34,13 @@ function Page() {
     const [uploadSummary, setUploadSummary] = useState<any>(null);
     const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [originalCsvData, setOriginalCsvData] = useState<any[]>([]);
+
+    // Auto-resume draft if there's a saved draft
+    useEffect(() => {
+        if (!isDraftLoading && savedDraft) {
+            handleResumeDraft();
+        }
+    }, [isDraftLoading, savedDraft]);
 
     function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>): void {
         const file = event.target.files?.[0];
@@ -76,6 +88,55 @@ function Page() {
         return true;
     }
 
+    // Handler to resume a saved draft
+    async function handleResumeDraft(): Promise<void> {
+        if (!savedDraft) return;
+
+        try {
+            setCsvData(savedDraft.csvData);
+            setFailedRows(new Map(Object.entries(savedDraft.failedRows).map(([k, v]) => [parseInt(k), v])));
+            setOriginalCsvData(savedDraft.originalCsvData);
+            // setUploadSummary(null);
+            setUploadCompleted(true);
+            setShowResumeDraftPrompt(false);
+            setIsImportModalOpen(false);
+
+            // toast.info("✓ Draft resumed! Review and retry the failed rows.", {
+            //     autoClose: 3000,
+            //     transition: Bounce,
+            // });
+        } catch (error) {
+            console.error('Error resuming draft:', error);
+            toast.error("Failed to resume draft", {
+                autoClose: 3000,
+                transition: Bounce,
+            });
+        }
+    }
+
+    // Handler to discard a saved draft
+    async function handleDiscardDraft(): Promise<void> {
+        try {
+            await removeDraft();
+            setShowResumeDraftPrompt(false);
+            setCsvData([]);
+            setFailedRows(new Map());
+            setUploadCompleted(false);
+            // setUploadSummary(null);
+
+            toast.info("Draft discarded", {
+                autoClose: 2000,
+                transition: Bounce,
+            });
+        } catch (error) {
+            console.error('Error discarding draft:', error);
+            toast.error("Failed to discard draft", {
+                autoClose: 3000,
+                transition: Bounce,
+            });
+        }
+    }
+
     function handleDragOver(event: React.DragEvent<HTMLDivElement>): void {
         event.preventDefault();
         event.stopPropagation();
@@ -115,10 +176,10 @@ function Page() {
 
     async function handleUploadFile(): Promise<void> {
         if (!selectedFile) {
-            toast.error("Please select a file first", {
-                autoClose: 3000,
-                transition: Bounce,
-            });
+            // toast.error("Please select a file first", {
+            //     autoClose: 3000,
+            //     transition: Bounce,
+            // });
             return;
         }
 
@@ -126,7 +187,10 @@ function Page() {
         setFailedRows(new Map());
         setUploadCompleted(false);
         try {
-            const result = await uploadBulkProducts({
+            // Use async endpoint for large files (> 2000 rows)
+            const uploadFunction = csvData.length > 2000 ? uploadBulkProductsAsync : uploadBulkProducts;
+
+            const result = await uploadFunction({
                 file: selectedFile,
                 branchId: '1234567890',
                 token: "your_token_here",
@@ -171,35 +235,62 @@ function Page() {
             setCsvData(filteredCsvData);
             setFailedRows(filteredFailedRowsMap);
             setUploadSummary(responseData);
-            setShowSummaryModal(true);
             setUploadCompleted(true);
+            setIsImportModalOpen(false);
+
+            // Save draft to IndexedDB if there are failed rows
+            if (failed > 0) {
+                try {
+                    await saveDraft({
+                        csvData: filteredCsvData,
+                        failedRows: Object.fromEntries(filteredFailedRowsMap),
+                        uploadSummary: responseData,
+                        originalCsvData: originalCsvData,
+                        uploadMode: uploadMode,
+                        branchId: branchId,
+                    });
+                } catch (error) {
+                    console.error('Error saving draft:', error);
+                }
+            }
 
             if (successful > 0) {
                 // Partial or full success
                 if (failed === 0 && skipped === 0) {
                     // All products imported successfully
-                    toast.success(`✓ All ${successful} products imported successfully!`, {
-                        autoClose: 3000,
-                        transition: Bounce,
-                    });
+                    // toast.success(`✓ All ${successful} products imported successfully!`, {
+                    //     autoClose: 3000,
+                    //     transition: Bounce,
+                    // });
+                    // Clear the draft from IndexedDB
+                    try {
+                        await removeDraft();
+                    } catch (error) {
+                        console.error('Error removing draft:', error);
+                    }
                     setSelectedFile(null);
-                    setIsImportModalOpen(false);
-                    setShowSummaryModal(false);
+                    setCsvData([]);
+                    setFailedRows(new Map());
+                    setUploadCompleted(false);
                 }
             } else if (failed > 0) {
                 // All failed
-                toast.error(` All ${failed} products failed to import. Check validation errors.`, {
-                    autoClose: 3000,
-                    transition: Bounce,
-                });
+                // toast.error(` All ${failed} products failed to import. Check validation errors.`, {
+                //     autoClose: 3000,
+                //     transition: Bounce,
+                // });
+                setSelectedFile(null);
+                setCsvData([]);
+                setFailedRows(new Map());
+                setUploadCompleted(false);
             }
             console.log("Upload result:", result);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to upload bulk products";
-            toast.error(errorMessage, {
-                autoClose: 3000,
-                transition: Bounce,
-            });
+            // toast.error(errorMessage, {
+            //     autoClose: 3000,
+            //     transition: Bounce,
+            // });
             console.error("Upload error:", error);
         } finally {
             setIsUploading(false);
@@ -224,10 +315,10 @@ function Page() {
 
     function saveFailedRowsAsCSV() {
         if (csvData.length === 0) {
-            toast.error("No data to save", {
-                autoClose: 3000,
-                transition: Bounce,
-            });
+            // toast.error("No data to save", {
+            //     autoClose: 3000,
+            //     transition: Bounce,
+            // });
             return;
         }
 
@@ -242,24 +333,23 @@ function Page() {
         link.click();
         document.body.removeChild(link);
 
-        toast.success("Failed rows saved as CSV", {
-            autoClose: 3000,
-            transition: Bounce,
-        });
+        // toast.success("Failed rows saved as CSV", {
+        //     autoClose: 3000,
+        //     transition: Bounce,
+        // });
     }
 
     function handleRetryUpload() {
-        setShowSummaryModal(false);
         setUploadCompleted(false);
         setFailedRows(new Map());
     }
 
     async function handleRetryUploadFromTable(): Promise<void> {
         if (csvData.length === 0) {
-            toast.error("No data to upload", {
-                autoClose: 3000,
-                transition: Bounce,
-            });
+            // toast.error("No data to upload", {
+            //     autoClose: 3000,
+            //     transition: Bounce,
+            // });
             return;
         }
 
@@ -270,7 +360,10 @@ function Page() {
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const file = new File([blob], `retry-products-${new Date().toISOString().split('T')[0]}.csv`, { type: 'text/csv' });
 
-            const result = await uploadBulkProducts({
+            // Use async endpoint for large files (> 2000 rows)
+            const uploadFunction = csvData.length > 2000 ? uploadBulkProductsAsync : uploadBulkProducts;
+
+            const result = await uploadFunction({
                 file: file,
                 branchId: '1234567890',
                 token: "your_token_here",
@@ -312,42 +405,72 @@ function Page() {
                 }
             });
 
+            setUploadSummary(responseData);
+
             setCsvData(filteredCsvData);
             setFailedRows(filteredFailedRowsMap);
-            setUploadSummary(responseData);
-            setShowSummaryModal(true);
+
+
+            // Save or update draft based on failed rows
+            if (failed > 0) {
+                try {
+                    await saveDraft({
+                        csvData: filteredCsvData,
+                        failedRows: Object.fromEntries(filteredFailedRowsMap),
+                        uploadSummary: responseData,
+                        originalCsvData: originalCsvData,
+                        uploadMode: uploadMode,
+                        branchId: branchId,
+                    });
+                } catch (error) {
+                    console.error('Error saving draft:', error);
+                }
+            } else {
+                // Clear draft if no failed rows
+                try {
+                    await removeDraft();
+                } catch (error) {
+                    console.error('Error removing draft:', error);
+                }
+            }
 
             if (successful > 0) {
                 // Partial or full success
                 if (failed === 0) {
                     // All products imported successfully
-                    toast.success(`✓ All ${successful} products imported successfully!`, {
-                        autoClose: 3000,
-                        transition: Bounce,
-                    });
+                    // toast.success(`All ${successful} products imported successfully!`, {
+                    //     autoClose: 3000,
+                    //     transition: Bounce,
+                    // });
                     setCsvData([]);
                     setFailedRows(new Map());
-                    setShowSummaryModal(false);
+
+                    // Clear draft on complete success
+                    try {
+                        await removeDraft();
+                    } catch (error) {
+                        console.error('Error removing draft:', error);
+                    }
                 } else {
-                    // Partial success
-                    toast.warn(`⚠ Partial success: ${successful} imported, ${failed} still failed`, {
-                        autoClose: 4000,
-                        transition: Bounce,
-                    });
+                    // Partial success - keep showing table for remaining failed rows
+                    // toast.warn(`Partial success: ${successful} imported, ${failed} still failed`, {
+                    //     autoClose: 4000,
+                    //     transition: Bounce,
+                    // });
                 }
             } else if (failed > 0) {
                 // All failed
-                toast.error(`All ${failed} products failed. Check the errors below.`, {
-                    autoClose: 3000,
-                    transition: Bounce,
-                });
+                // toast.error(`All ${failed} products failed. Check the errors below.`, {
+                //     autoClose: 3000,
+                //     transition: Bounce,
+                // });
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to upload bulk products";
-            toast.error(errorMessage, {
-                autoClose: 3000,
-                transition: Bounce,
-            });
+            // toast.error(errorMessage, {
+            //     autoClose: 3000,
+            //     transition: Bounce,
+            // });
             console.error("Upload error:", error);
         } finally {
             setIsUploading(false);
@@ -419,9 +542,9 @@ function Page() {
                     {/* Load CSV Section */}
                     <section className="p-4">
                         {csvData.length > 0 && (
-                            <div className="overflow-auto border rounded-xl">
-                                <table className="min-w-full text-sm text-left">
-                                    <thead className="bg-slate-100">
+                            <div className="border rounded-xl overflow-auto h-180">
+                                <table className="min-w-full  text-sm text-left">
+                                    <thead className="bg-slate-400 sticky top-0 z-50">
                                         <tr>
                                             <th className="p-2 border w-12 text-center">Status</th>
                                             {Object.keys(csvData[0]).map((header) => (
@@ -641,7 +764,7 @@ function Page() {
                                     >
                                         Cancel
                                     </button>
-                                    {selectedFile && csvData.length > 0 && (
+                                    {/* {selectedFile && csvData.length > 0 && (
                                         <button
                                             onClick={() => saveFailedRowsAsCSV()}
                                             className="flex-1 px-4 py-2 rounded-lg bg-slate-600 text-white font-medium hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
@@ -649,7 +772,7 @@ function Page() {
                                             <Download size={18} />
                                             Save
                                         </button>
-                                    )}
+                                    )} */}
                                     <button
                                         onClick={handleUploadFile}
                                         disabled={!selectedFile || isUploading}
@@ -678,82 +801,141 @@ function Page() {
                     )}
                 </AnimatePresence>
 
-                {/* Upload Summary Modal */}
-                <AnimatePresence>
-                    {showSummaryModal && uploadSummary && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-                        >
-                            <motion.div
-                                initial={{ scale: 0.95, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.95, opacity: 0 }}
-                                className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto"
-                            >
-                                <h2 className="text-2xl font-bold text-slate-900 mb-6">Upload Summary</h2>
-
-                                {/* Summary Stats */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                                        <div className="text-2xl font-bold text-blue-600">{uploadSummary.summary?.total_rows || 0}</div>
-                                        <div className="text-xs text-slate-600">Total Rows</div>
-                                    </div>
-                                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                                        <div className="text-2xl font-bold text-green-600">{uploadSummary.summary?.successful || 0}</div>
-                                        <div className="text-xs text-slate-600">Successful</div>
-                                    </div>
-                                    <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                                        <div className="text-2xl font-bold text-red-600">{uploadSummary.summary?.failed || 0}</div>
-                                        <div className="text-xs text-slate-600">Failed</div>
-                                    </div>
-                                    <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                                        <div className="text-2xl font-bold text-yellow-600">{uploadSummary.summary?.skipped || 0}</div>
-                                        <div className="text-xs text-slate-600">Skipped</div>
-                                    </div>
-                                </div>
-
-                                {/* Created Products */}
-                                {uploadSummary.created_product_ids && uploadSummary.created_product_ids.length > 0 && (
-                                    <div className="mb-6">
-                                        <h3 className="text-lg font-semibold text-green-700 mb-3 flex items-center gap-2">
-                                            <CheckCircle2 size={20} />
-                                            Successfully Created ({uploadSummary.created_product_ids.length})
-                                        </h3>
-                                        <div className="bg-green-50 rounded-lg p-4 max-h-48 overflow-y-auto">
-                                            <div className="space-y-2">
-                                                {uploadSummary.created_product_ids.map((product: any, idx: number) => (
-                                                    <div key={idx} className="text-sm text-slate-700 pb-2 border-b border-green-200 last:border-b-0">
-                                                        <div className="font-medium">ID: {product.id}</div>
-                                                        <div className="text-xs text-slate-500">
-                                                            {product.upc_code ? `UPC: ${product.upc_code}` : `PLU: ${product.plu_code}`}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Action Buttons */}
-                                <div className="flex gap-3 pt-4 border-t border-slate-200">
-                                    <button
-                                        onClick={() => setShowSummaryModal(false)}
-                                        className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all"
-                                    >
-                                        Close
-                                    </button>
-                                </div>
-                            </motion.div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                {/* Upload Summary Modal - Now outside section */}
             </section>
 
-            {/* Toast Container */}
+            {/* Upload Summary Modal - Outside section for correct fixed positioning */}
+            <AnimatePresence>
+                {uploadSummary && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: -20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: -20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-8 max-h-[90vh] overflow-y-auto relative"
+                        >
+                            {/* Close Button (X) */}
+                            <button
+                                onClick={() => setUploadSummary(null)}
+                                className="absolute top-4 right-4 p-2 rounded-lg hover:bg-slate-100 transition-all text-slate-500 hover:text-slate-700"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+
+                            <h2 className="text-3xl font-bold text-slate-900 mb-8">Upload Summary</h2>
+
+                            {/* Summary Stats */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 hover:shadow-md transition-shadow">
+                                    <div className="text-3xl font-bold text-blue-600">{uploadSummary.summary?.total_rows || 0}</div>
+                                    <div className="text-sm text-slate-600 font-medium mt-1">Total Rows</div>
+                                </div>
+                                <div className="bg-green-50 p-4 rounded-lg border border-green-200 hover:shadow-md transition-shadow">
+                                    <div className="text-3xl font-bold text-green-600">{uploadSummary.summary?.successful || 0}</div>
+                                    <div className="text-sm text-slate-600 font-medium mt-1">Successful</div>
+                                </div>
+                                <div className="bg-red-50 p-4 rounded-lg border border-red-200 hover:shadow-md transition-shadow">
+                                    <div className="text-3xl font-bold text-red-600">{uploadSummary.summary?.failed || 0}</div>
+                                    <div className="text-sm text-slate-600 font-medium mt-1">Failed</div>
+                                </div>
+                                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 hover:shadow-md transition-shadow">
+                                    <div className="text-3xl font-bold text-yellow-600">{uploadSummary.summary?.skipped || 0}</div>
+                                    <div className="text-sm text-slate-600 font-medium mt-1">Skipped</div>
+                                </div>
+                            </div>
+
+                            {/* Created Products */}
+                            {uploadSummary.created_product_ids && uploadSummary.created_product_ids.length > 0 && (
+                                <div className="mb-6">
+                                    <h3 className="text-lg font-semibold text-green-700 mb-3 flex items-center gap-2">
+                                        <CheckCircle2 size={20} />
+                                        Successfully Created ({uploadSummary.created_product_ids.length})
+                                    </h3>
+                                    <div className="bg-green-50 rounded-lg p-4 max-h-48 overflow-y-auto border border-green-200">
+                                        <div className="space-y-2">
+                                            {uploadSummary.created_product_ids.map((product: any, idx: number) => (
+                                                <div key={idx} className="text-sm text-slate-700 pb-2 border-b border-green-200 last:border-b-0">
+                                                    <div className="font-medium">ID: {product.id}</div>
+                                                    <div className="text-xs text-slate-500">
+                                                        {product.upc_code ? `UPC: ${product.upc_code}` : `PLU: ${product.plu_code}`}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Failed Products */}
+                            {failedRows && failedRows.size > 0 && (
+                                <div className="mb-6">
+                                    <h3 className="text-lg font-semibold text-red-700 mb-3 flex items-center gap-2">
+                                        <AlertCircle size={20} />
+                                        Failed Products ({failedRows.size})
+                                    </h3>
+                                    <div className="bg-red-50 rounded-lg p-4 max-h-48 overflow-y-auto border border-red-200">
+                                        <div className="space-y-2">
+                                            {Array.from(failedRows.entries()).map(([rowIdx, errorDetail], idx) => (
+                                                <div key={idx} className="text-sm text-slate-700 pb-2 border-b border-red-200 last:border-b-0">
+                                                    <div className="font-medium text-red-900">Row {rowIdx + 1}</div>
+                                                    <div className="text-xs text-red-700 font-semibold mt-1">[{errorDetail.error_code}]</div>
+                                                    <div className="text-xs text-red-600 mt-1">{errorDetail.error_message}</div>
+                                                    {errorDetail.failed_fields && errorDetail.failed_fields.length > 0 && (
+                                                        <div className="text-xs text-slate-600 mt-1">
+                                                            Fields: {errorDetail.failed_fields.join(', ')}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            {/* <div className="flex gap-3 pt-6 border-t border-slate-200 mt-8">
+                                <button
+                                    onClick={() => {
+                                        // setShowSummaryModal(false)
+                                    }}
+                                    className="flex-1 px-6 py-3 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 transition-all"
+                                >
+                                    Dismiss
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        saveFailedRowsAsCSV();
+                                        // setShowSummaryModal(false);
+                                    }}
+                                    disabled={failedRows.size === 0}
+                                    className="flex-1 px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Download size={18} className="inline mr-2" />
+                                    Save Failed Rows
+                                </button>
+                            </div> */}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             <ToastContainer position="top-right" limit={3} />
+
+            {/* Resume Draft Prompt */}
+            <ResumeDraftPrompt
+                draft={savedDraft}
+                isOpen={showResumeDraftPrompt}
+                onResume={handleResumeDraft}
+                onDiscard={handleDiscardDraft}
+                failedRowCount={failedRows.size}
+            />
         </div>
     )
 }

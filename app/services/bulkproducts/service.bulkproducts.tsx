@@ -164,3 +164,63 @@ export const uploadBulkProducts = async ({
         throw error;
     }
 };
+
+
+export const uploadBulkProductsAsync = async ({
+    file,
+    branchId,
+    token,
+    mode = "insert",
+}: {
+    file: File;
+    branchId: string;
+    token: string;
+    mode?: "insert" | "skip" | "update";
+}) => {
+    try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const query = new URLSearchParams({
+            branch_id: branchId,
+            mode,
+        });
+
+        const res = await fetch(
+            `${BASE_URL}/inventory/products/bulk-import/async?${query.toString()}`,
+            {
+                method: "POST",
+                headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+                cache: "no-store",
+            }
+        );
+
+        if (!res.ok) {
+            let errorMessage = `Failed to upload bulk products: ${res.status}`;
+            let errorData: { message?: string; error?: string } = {};
+
+            try {
+                const text = await res.text();
+                console.error("API Error Response:", text);
+
+                if (text) {
+                    errorData = JSON.parse(text);
+                    errorMessage = errorData.message || errorData.error || errorMessage;
+                }
+            } catch (parseError) {
+                console.error("Failed to parse error response:", parseError);
+            }
+
+            throw new Error(errorMessage);
+        }
+
+        return await res.json();
+    } catch (error) {
+        console.error("Error uploading bulk products:", error);
+        throw error;
+    }
+};
