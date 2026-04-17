@@ -4,8 +4,10 @@ import React, { useState, useEffect } from "react";
 import { Plus, Gift, LayoutGrid, Edit2, Trash2, Calendar, User, ShieldCheck, ShieldAlert } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getBundles, BundleItem, getBuyNGet, BuyNGetItem } from "@/app/services/tools/serive.tools";
+import path from "path";
 
 interface Promotion {
   id: string;
@@ -41,6 +43,7 @@ const mapBuyNGetToPromotion = (offer: BuyNGetItem): Promotion => {
 };
 
 export default function PromotionPage() {
+  const router = useRouter();
   const { user, token, isLoading: authLoading } = useAuth();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,9 +92,9 @@ export default function PromotionPage() {
           buyNGetPromotions.push(...buyNGetResponse.data.items.map(mapBuyNGetToPromotion));
         }
 
-        // Merge and sort by date (decending order - newest first)
+        // Merge and sort by date (ascending order - oldest first)
         const allPromotions = [...bundlePromotions, ...buyNGetPromotions].sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
 
         setPromotions(allPromotions);
@@ -114,7 +117,7 @@ export default function PromotionPage() {
   };
 
   const handleEdit = (id: string) => {
-    alert("Edit functionality - would redirect to edit page with promotion ID: " + id);
+    router.push(`/dashboard/tools/promotion/create?id=${id}`);
   };
 
   return (

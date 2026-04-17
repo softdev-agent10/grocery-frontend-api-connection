@@ -374,6 +374,42 @@ export const getBundles = async ({
     return res.json();
 };
 
+// Fetch bundle details by ID
+export const getBundleDetails = async ({
+    bundleId,
+    branchId,
+    token,
+}: {
+    bundleId: number;
+    branchId: string;
+    token: string;
+}): Promise<{
+    status: string;
+    data: BundleItem;
+}> => {
+    const queryParams = new URLSearchParams({
+        branch_id: branchId,
+    });
+
+    const res = await fetch(
+        `${BASE_URL}/tools/bundles/${bundleId}?${queryParams.toString()}`,
+        {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+        }
+    );
+
+    if (!res.ok) {
+        throw new Error("Failed to fetch bundle details");
+    }
+
+    return res.json();
+};
+
 // Create new bundle
 export const createBundle = async ({
     branchId,
@@ -478,6 +514,116 @@ export const createBundle = async ({
         return res.json();
     } catch (error) {
         console.error("Bundle creation error:", error);
+        throw error;
+    }
+};
+
+// Update existing bundle
+export const updateBundle = async ({
+    bundleId,
+    branchId,
+    token,
+    name,
+    description,
+    type,
+    subtype,
+    discount_type,
+    flat_discount = 0,
+    percent_discount = null,
+    offer_limit,
+    plu_code,
+    tax_id,
+    fees_id,
+    start_date,
+    end_date,
+    products,
+}: {
+    bundleId: number;
+    branchId: string;
+    token: string;
+    name: string;
+    description: string;
+    type: "special" | "regular";
+    subtype: "customer" | "all";
+    discount_type: "flat" | "percent";
+    flat_discount?: number;
+    percent_discount?: number | null;
+    offer_limit: number;
+    plu_code: string;
+    tax_id: number;
+    fees_id: number;
+    start_date: string;
+    end_date: string;
+    products: BundleProduct[];
+}): Promise<{
+    status: string;
+    message: string;
+    data: BundleItem;
+    metadata?: Record<string, any>;
+}> => {
+    try {
+        const res = await fetch(
+            `${BASE_URL}/tools/bundles/${bundleId}?branch_id=${branchId}`,
+            {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    name,
+                    description,
+                    type,
+                    subtype,
+                    discount_type,
+                    flat_discount,
+                    percent_discount,
+                    offer_limit,
+                    plu_code,
+                    tax_id,
+                    fees_id,
+                    start_date,
+                    end_date,
+                    products,
+                }),
+                cache: "no-store",
+            }
+        );
+
+        if (!res.ok) {
+            let errorData: any = {};
+            try {
+                errorData = await res.json();
+            } catch {
+                errorData = { rawResponse: await res.text() };
+            }
+            console.error("❌ API Error Details (Update Bundle):", {
+                status: res.status,
+                statusText: res.statusText,
+                errorData,
+                requestBody: {
+                    name,
+                    description,
+                    type,
+                    subtype,
+                    discount_type,
+                    flat_discount,
+                    percent_discount,
+                    offer_limit,
+                    plu_code,
+                    tax_id,
+                    fees_id,
+                    start_date,
+                    end_date,
+                    products,
+                }
+            });
+            throw new Error((errorData?.message || errorData?.error || `Failed to update bundle: ${res.status} ${res.statusText}`) as string);
+        }
+
+        return res.json();
+    } catch (error) {
+        console.error("Bundle update error:", error);
         throw error;
     }
 };
@@ -700,6 +846,153 @@ export const createBuyNGet = async ({
         console.error("Buy N Get creation error:", error);
         throw error;
     }
+};
+
+// Update existing buy n get offer
+export const updateBuyNGet = async ({
+    offerId,
+    branchId,
+    token,
+    name,
+    description,
+    offer_type,
+    pricing_mode,
+    start_date,
+    end_date,
+    buy_conditions,
+    reward_items,
+    grand_reward_type,
+    grand_reward_value,
+    priority,
+    offer_limit,
+    is_active,
+}: {
+    offerId: number;
+    branchId: string;
+    token: string;
+    name: string;
+    description: string;
+    offer_type: string;
+    pricing_mode: string;
+    start_date: string;
+    end_date: string;
+    buy_conditions: BuyCondition[];
+    reward_items: RewardItem[];
+    grand_reward_type: string | null;
+    grand_reward_value: number | null;
+    priority: number;
+    offer_limit: number;
+    is_active: boolean;
+}): Promise<{
+    status: string;
+    message: string;
+    data: {
+        id: number;
+        name: string;
+        pricing_mode: string;
+        start_date: string;
+        end_date: string;
+    };
+    metadata?: Record<string, any>;
+}> => {
+    try {
+        const res = await fetch(
+            `${BASE_URL}/tools/offers/buy-n-get/${offerId}?branch_id=${branchId}`,
+            {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    name,
+                    description,
+                    offer_type,
+                    pricing_mode,
+                    start_date,
+                    end_date,
+                    buy_conditions,
+                    reward_items,
+                    grand_reward_type,
+                    grand_reward_value,
+                    priority,
+                    offer_limit,
+                    is_active,
+                }),
+                cache: "no-store",
+            }
+        );
+
+        if (!res.ok) {
+            let errorData: any = {};
+            try {
+                errorData = await res.json();
+            } catch {
+                errorData = { rawResponse: await res.text() };
+            }
+            console.error("❌ API Error Details (Update Buy N Get):", {
+                status: res.status,
+                statusText: res.statusText,
+                errorData,
+                requestBody: {
+                    name,
+                    description,
+                    offer_type,
+                    pricing_mode,
+                    start_date,
+                    end_date,
+                    buy_conditions,
+                    reward_items,
+                    grand_reward_type,
+                    grand_reward_value,
+                    priority,
+                    offer_limit,
+                    is_active,
+                }
+            });
+            throw new Error((errorData?.message || errorData?.error || `Failed to update buy n get offer: ${res.status} ${res.statusText}`) as string);
+        }
+
+        return res.json();
+    } catch (error) {
+        console.error("Buy N Get update error:", error);
+        throw error;
+    }
 }
 
+// Fetch buy n get offer details by ID
+export const getBuyNGetDetails = async ({
+    bundleId,
+    branchId,
+    token,
+}: {
+    bundleId: number;
+    branchId: string;
+    token: string;
+}): Promise<{
+    status: string;
+    data: BuyNGetItem;
+}> => {
+    const queryParams = new URLSearchParams({
+        branch_id: branchId,
+    });
+
+    const res = await fetch(
+        `${BASE_URL}/tools/offers/buy-n-get/${bundleId}?${queryParams.toString()}`,
+        {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+        }
+    );
+
+    if (!res.ok) {
+        throw new Error("Failed to fetch buy n get offer details");
+    }
+
+    return res.json();
+};
 

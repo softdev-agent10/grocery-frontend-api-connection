@@ -22,10 +22,11 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { createBundle, createBuyNGet, BundleProduct } from "@/app/services/tools/serive.tools";
+import { createBundle, createBuyNGet, BundleProduct, updateBundle, updateBuyNGet } from "@/app/services/tools/serive.tools";
 import { getProducts, type ProductData } from "@/app/services/product/service.product";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify/unstyled";
+import { getBundleDetails, getBuyNGetDetails } from "@/app/services/tools/serive.tools";
 
 enum PromotionType {
   BOGO = "BOGO",
@@ -176,9 +177,14 @@ const ProductSelector: React.FC<{
 export default function CreatePromotionPage() {
   const { user, token, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const promotionId = searchParams?.get("id");
+  const isEditMode = !!promotionId;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [isLoadingPromotion, setIsLoadingPromotion] = useState(isEditMode);
   const [products, setProducts] = useState<Product[]>([]);
 
   const [formData, setFormData] = useState<PromotionFormData>({
@@ -198,7 +204,7 @@ export default function CreatePromotionPage() {
     status: PromotionStatus.Inactive,
   });
 
-  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+  const [showTypeDropdown, setShowTypeDropdown] = useState(!isEditMode);
   const buyProduct = products.find((p) => p.id === formData.buyProductId);
   const getProduct = products.find((p) => p.id === formData.getProductId);
 
@@ -227,6 +233,83 @@ export default function CreatePromotionPage() {
 
     fetchProducts();
   }, [token]);
+
+  // Fetch promotion details if editing
+  useEffect(() => {
+    const fetchPromotionDetails = async () => {
+      if (!isEditMode || !promotionId) return;
+
+      try {
+        setIsLoadingPromotion(true);
+        const promotionType = promotionId.startsWith("bundle_") ? "bundle" : "buynget";
+
+        if (promotionType === "bundle") {
+          const bundleIdNum = parseInt(promotionId.replace("bundle_", ""));
+          const response = await getBundleDetails({
+            bundleId: bundleIdNum,
+            branchId: "1234567890",
+            token: "your_token_here",
+          });
+
+          if (response.data) {
+            const bundle = response.data;
+            setFormData({
+              type: PromotionType.BUNDLE,
+              title: bundle.name,
+              buyProductId: null,
+              buyQuantity: 1,
+              getProductId: null,
+              getQuantity: 1,
+              bundleItems: bundle.products.map((p) => ({
+                productId: p.product_id,
+                quantity: p.quantity,
+                originalPrice: typeof p.price === "string" ? parseFloat(p.price) : p.price,
+                newPrice: typeof p.price === "string" ? parseFloat(p.price) : p.price,
+                isCustomPrice: false,
+              })),
+              bundleDiscountPrice: typeof bundle.flat_discount === "string" ? parseFloat(bundle.flat_discount) : bundle.flat_discount,
+              bundleDiscountType: (bundle.discount_type as "flat" | "percent") || "flat",
+              startDate: bundle.start_date,
+              endDate: bundle.end_date,
+              status: PromotionStatus.Active,
+            });
+          }
+        } else {
+          const offerIdNum = parseInt(promotionId.replace("buynget_", ""));
+          const response = await getBuyNGetDetails({
+            bundleId: offerIdNum,
+            branchId: "1234567890",
+            token: "your_token_here",
+          });
+
+          if (response.data) {
+            const offer = response.data;
+            setFormData({
+              type: PromotionType.BOGO,
+              title: offer.name,
+              buyProductId: offer.buy_conditions[0]?.product_id || null,
+              buyQuantity: offer.buy_conditions[0]?.required_qty || 1,
+              getProductId: offer.reward_items[0]?.product_id || null,
+              getQuantity: offer.reward_items[0]?.reward_qty || 1,
+              bundleItems: [],
+              bundleDiscountPrice: 0,
+              bundleDiscountType: "flat",
+              startDate: offer.start_date,
+              endDate: offer.end_date,
+              status: offer.is_active ? PromotionStatus.Active : PromotionStatus.Inactive,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch promotion details:", error);
+        setSubmitError("Failed to load promotion details. Please try again.");
+      } finally {
+        setIsLoadingPromotion(false);
+      }
+    };
+
+    fetchPromotionDetails();
+  }, [isEditMode, promotionId, token]);
 
   const handleCreatePromotion = async (): Promise<void> => {
     // Validation
@@ -328,7 +411,7 @@ export default function CreatePromotionPage() {
       }
 
       // Success
-      toast.success("Promotion created successfully!");
+      toast.success(`Promotion ${isEditMode ? "updated" : "created"} successfully!`);
 
       router.push("/dashboard/tools/promotion");
     } catch (err) {
@@ -340,6 +423,129 @@ export default function CreatePromotionPage() {
       setIsSubmitting(false);
     }
   };
+
+  const handleUpdatePromotion = async (): Promise<void> => {
+    if (!promotionId) {
+      setSubmitError("Promotion ID not found");
+      return;
+    }
+
+    // Validation
+    if (!formData.title) {
+      setSubmitError("Please enter a promotion title");
+      return;
+    }
+    if (formData.type === PromotionType.BOGO && (!formData.buyProductId || !formData.getProductId)) {
+      setSubmitError("Please select buy and get products for BOGO promotion");
+      return;
+    }
+    if (formData.type === PromotionType.BUNDLE && formData.bundleItems.length === 0) {
+      setSubmitError("Please add at least one product to the bundle");
+      return;
+    }
+    if (formData.type === PromotionType.BUNDLE && formData.bundleDiscountPrice <= 0) {
+      setSubmitError(`Bundle ${formData.bundleDiscountType === "percent" ? "discount percentage" : "discount amount"} must be greater than 0`);
+      return;
+    }
+    if (formData.type === PromotionType.BUNDLE && formData.bundleDiscountType === "percent" && formData.bundleDiscountPrice > 100) {
+      setSubmitError("Discount percentage cannot exceed 100%");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      if (formData.type === PromotionType.BOGO) {
+        const offerId = parseInt(promotionId.replace("buynget_", ""));
+        const payload = {
+          offerId,
+          branchId: "1234567890",
+          token: "your-auth-token",
+          name: formData.title,
+          description: `Buy ${formData.buyQuantity} get ${formData.getQuantity}`,
+          offer_type: "buy_n_get",
+          pricing_mode: "individual",
+          start_date: formData.startDate,
+          end_date: formData.endDate,
+          buy_conditions: [
+            {
+              product_id: formData.buyProductId!,
+              required_qty: formData.buyQuantity,
+            },
+          ],
+          reward_items: [
+            {
+              product_id: formData.getProductId!,
+              reward_qty: formData.getQuantity,
+              reward_price_type: "free",
+              reward_value: 0,
+            },
+          ],
+          grand_reward_type: null,
+          grand_reward_value: null,
+          priority: 1,
+          offer_limit: 999,
+          is_active: formData.status === PromotionStatus.Active,
+        };
+        await updateBuyNGet(payload);
+      } else {
+        const bundleIdNum = parseInt(promotionId.replace("bundle_", ""));
+        const bundleProducts: BundleProduct[] = formData.bundleItems.map((item) => ({
+          product_id: item.productId!,
+          quantity: item.quantity,
+          price: item.newPrice,
+        }));
+
+        const firstProductId = formData.bundleItems[0]?.productId;
+        const firstProduct = firstProductId ? products.find(p => p.id === firstProductId) : null;
+        const bundlePluCode = firstProduct?.plu || Math.floor(10000000000 + Math.random() * 90000000000).toString();
+
+        const flatDiscount = formData.bundleDiscountType === "flat" ? formData.bundleDiscountPrice : null;
+        const percentDiscount = formData.bundleDiscountType === "percent" ? formData.bundleDiscountPrice : null;
+
+        const bundlePayload: Parameters<typeof updateBundle>[0] = {
+          bundleId: bundleIdNum,
+          branchId: "1234567890",
+          token: "your-auth-token",
+          name: formData.title,
+          description: `Bundle with ${formData.bundleItems.length} items`,
+          type: "special",
+          subtype: "customer",
+          discount_type: formData.bundleDiscountType,
+          flat_discount: flatDiscount as any,
+          percent_discount: percentDiscount as any,
+          offer_limit: 999,
+          plu_code: bundlePluCode,
+          tax_id: 1,
+          fees_id: 1,
+          start_date: formData.startDate,
+          end_date: formData.endDate,
+          products: bundleProducts,
+        };
+        await updateBundle(bundlePayload);
+      }
+
+      toast.success("Promotion updated successfully!");
+      router.push("/dashboard/tools/promotion");
+    } catch (err) {
+      console.error("Error updating promotion:", err);
+      setSubmitError(
+        err instanceof Error ? err.message : "Failed to update promotion"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+
+  if (isLoadingProducts || isLoadingPromotion) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -356,10 +562,10 @@ export default function CreatePromotionPage() {
           transition={{ delay: 0.2 }}
         >
           <h1 className="text-lg md:text-2xl lg:text-3xl font-black text-white tracking-tight mb-2">
-            Create Promotion
+            {isEditMode ? "Edit" : "Create"} Promotion
           </h1>
           <p className="text-xs md:text-sm lg:text-base text-blue-100 font-medium">
-            Choose promotion type and fill in the details
+            {isEditMode ? "Update promotion details" : "Choose promotion type and fill in the details"}
           </p>
         </motion.div>
         <Link href="/dashboard/tools/promotion">
@@ -373,81 +579,83 @@ export default function CreatePromotionPage() {
         </Link>
       </motion.div>
 
-      {/* Type Selection Dropdown */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="relative w-full max-w-md mb-6 md:mb-8 lg:mb-10"
-      >
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => setShowTypeDropdown(!showTypeDropdown)}
-          className="w-full flex items-center justify-between px-4 md:px-5 lg:px-6 py-3 md:py-3.5 lg:py-4 bg-white border-2 border-indigo-200 rounded-lg md:rounded-lg lg:rounded-xl text-slate-900 font-bold text-sm md:text-base lg:text-base hover:border-indigo-400 transition-all"
+      {/* Type Selection Dropdown - Only show in create mode */}
+      {!isEditMode && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="relative w-full max-w-md mb-6 md:mb-8 lg:mb-10"
         >
-          <div className="flex items-center gap-2">
-            {formData.type === PromotionType.BOGO ? (
-              <>
-                <Gift size={18} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-indigo-600" />
-                <span>Buy 1 Get 1</span>
-              </>
-            ) : (
-              <>
-                <LayoutGrid size={18} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-purple-600" />
-                <span>Bundle</span>
-              </>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowTypeDropdown(!showTypeDropdown)}
+            className="w-full flex items-center justify-between px-4 md:px-5 lg:px-6 py-3 md:py-3.5 lg:py-4 bg-white border-2 border-indigo-200 rounded-lg md:rounded-lg lg:rounded-xl text-slate-900 font-bold text-sm md:text-base lg:text-base hover:border-indigo-400 transition-all"
+          >
+            <div className="flex items-center gap-2">
+              {formData.type === PromotionType.BOGO ? (
+                <>
+                  <Gift size={18} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-indigo-600" />
+                  <span>Buy 1 Get 1</span>
+                </>
+              ) : (
+                <>
+                  <LayoutGrid size={18} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-purple-600" />
+                  <span>Bundle</span>
+                </>
+              )}
+            </div>
+            <ChevronDown
+              size={18}
+              className={`md:w-5 md:h-5 lg:w-6 lg:h-6 text-slate-400 transition-transform ${showTypeDropdown ? "rotate-180" : ""
+                }`}
+            />
+          </motion.button>
+
+          {/* Dropdown Menu */}
+          <AnimatePresence>
+            {showTypeDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg md:rounded-lg lg:rounded-xl shadow-xl z-50 overflow-hidden"
+              >
+                <motion.button
+                  whileHover={{ backgroundColor: "rgb(242 252 255)" }}
+                  onClick={() => {
+                    setFormData({ ...formData, type: PromotionType.BOGO });
+                    setShowTypeDropdown(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 md:px-5 lg:px-6 py-3 md:py-3.5 lg:py-4 text-left hover:bg-blue-50 transition-colors border-b border-slate-100"
+                >
+                  <Gift size={20} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-indigo-600" />
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm md:text-base">Buy 1 Get 1</div>
+                    <div className="text-xs md:text-sm text-slate-500">Offer free items with purchase</div>
+                  </div>
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ backgroundColor: "rgb(242 252 255)" }}
+                  onClick={() => {
+                    setFormData({ ...formData, type: PromotionType.BUNDLE });
+                    setShowTypeDropdown(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 md:px-5 lg:px-6 py-3 md:py-3.5 lg:py-4 text-left hover:bg-blue-50 transition-colors"
+                >
+                  <LayoutGrid size={20} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-purple-600" />
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm md:text-base">Bundle</div>
+                    <div className="text-xs md:text-sm text-slate-500">Combine multiple items</div>
+                  </div>
+                </motion.button>
+              </motion.div>
             )}
-          </div>
-          <ChevronDown
-            size={18}
-            className={`md:w-5 md:h-5 lg:w-6 lg:h-6 text-slate-400 transition-transform ${showTypeDropdown ? "rotate-180" : ""
-              }`}
-          />
-        </motion.button>
-
-        {/* Dropdown Menu */}
-        <AnimatePresence>
-          {showTypeDropdown && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg md:rounded-lg lg:rounded-xl shadow-xl z-50 overflow-hidden"
-            >
-              <motion.button
-                whileHover={{ backgroundColor: "rgb(242 252 255)" }}
-                onClick={() => {
-                  setFormData({ ...formData, type: PromotionType.BOGO });
-                  setShowTypeDropdown(false);
-                }}
-                className="w-full flex items-center gap-3 px-4 md:px-5 lg:px-6 py-3 md:py-3.5 lg:py-4 text-left hover:bg-blue-50 transition-colors border-b border-slate-100"
-              >
-                <Gift size={20} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-indigo-600" />
-                <div>
-                  <div className="font-bold text-slate-900 text-sm md:text-base">Buy 1 Get 1</div>
-                  <div className="text-xs md:text-sm text-slate-500">Offer free items with purchase</div>
-                </div>
-              </motion.button>
-
-              <motion.button
-                whileHover={{ backgroundColor: "rgb(242 252 255)" }}
-                onClick={() => {
-                  setFormData({ ...formData, type: PromotionType.BUNDLE });
-                  setShowTypeDropdown(false);
-                }}
-                className="w-full flex items-center gap-3 px-4 md:px-5 lg:px-6 py-3 md:py-3.5 lg:py-4 text-left hover:bg-blue-50 transition-colors"
-              >
-                <LayoutGrid size={20} className="md:w-5 md:h-5 lg:w-6 lg:h-6 text-purple-600" />
-                <div>
-                  <div className="font-bold text-slate-900 text-sm md:text-base">Bundle</div>
-                  <div className="text-xs md:text-sm text-slate-500">Combine multiple items</div>
-                </div>
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+          </AnimatePresence>
+        </motion.div>
+      )}
 
       {/* Form & Preview */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 2xl:gap-10">
@@ -744,7 +952,7 @@ export default function CreatePromotionPage() {
                               min="0.01"
                               className="w-24 md:w-28 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none"
                               placeholder="0.00"
-                              value={formData.bundleDiscountPrice}
+                              value={formData.bundleDiscountPrice || ""}
                               onChange={(e) => {
                                 setFormData({
                                   ...formData,
@@ -833,11 +1041,11 @@ export default function CreatePromotionPage() {
                 whileHover={{ scale: 1.05, boxShadow: "0 20px 25px -5px rgba(79, 70, 229, 0.4)" }}
                 whileTap={{ scale: 0.95 }}
                 disabled={isSubmitting || authLoading}
-                onClick={handleCreatePromotion}
+                onClick={isEditMode ? handleUpdatePromotion : handleCreatePromotion}
                 className="w-full flex items-center justify-center gap-2 px-5 md:px-6 lg:px-8 py-2.5 md:py-3 lg:py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg md:rounded-lg lg:rounded-xl font-bold text-xs md:text-sm lg:text-base hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus size={16} className="md:w-4 md:h-4 lg:w-5 lg:h-5" />
-                {isSubmitting ? "Creating..." : "Create Promotion"}
+                {isSubmitting ? "Saving..." : isEditMode ? "Update Promotion" : "Create Promotion"}
               </motion.button>
             </div>
           </div>
