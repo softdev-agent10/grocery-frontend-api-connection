@@ -19,7 +19,7 @@ export interface OrderItem {
 
 export interface Order {
     id: string;
-    date: string; 
+    date: string;
     customer: string;
     total: number;
     paymentMethod: string;
@@ -29,6 +29,21 @@ export interface Order {
     discount: number;
     cashGiven: number;
     change: number;
+    isRefunded?: boolean;
+}
+
+export interface CardOrder {
+    id: string;
+    date: string;
+    customer: string;
+    total: number;
+    paymentMethod: string;
+    items: OrderItem[];
+    subtotal: number;
+    tax: number;
+    discount: number;
+    cashGiven?: number;
+    change?: number;
     isRefunded?: boolean;
 }
 
@@ -47,8 +62,8 @@ export default function OrderHistory({ orders, onClose, onReprint, onRefund }: O
     const filteredOrders = useMemo(() => {
         return orders.filter(order => {
             const matchesDate = isSameDay(order.date, new Date(filterDate));
-            const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                order.customer.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                order.customer.toLowerCase().includes(searchQuery.toLowerCase());
             return matchesDate && matchesSearch;
         });
     }, [orders, filterDate, searchQuery]);
@@ -66,7 +81,7 @@ export default function OrderHistory({ orders, onClose, onReprint, onRefund }: O
                         <p className="text-blue-100 text-xs font-medium">View and manage past transactions</p>
                     </div>
                 </div>
-                <button 
+                <button
                     onClick={onClose}
                     className="p-2 hover:bg-white/20 rounded-full transition-colors"
                 >
@@ -78,8 +93,8 @@ export default function OrderHistory({ orders, onClose, onReprint, onRefund }: O
             <div className="p-4 bg-gray-50 border-b flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2 shadow-sm">
                     <Calendar className="size-4 text-gray-400" />
-                    <input 
-                        type="date" 
+                    <input
+                        type="date"
                         value={filterDate}
                         onChange={(e) => setFilterDate(e.target.value)}
                         className="outline-none text-sm font-semibold text-gray-700"
@@ -87,7 +102,7 @@ export default function OrderHistory({ orders, onClose, onReprint, onRefund }: O
                 </div>
                 <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                    <Input 
+                    <Input
                         placeholder="Search by Order ID or Customer..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -144,10 +159,10 @@ export default function OrderHistory({ orders, onClose, onReprint, onRefund }: O
                         <>
                             <div className="p-4 bg-white border-b flex items-center justify-between shadow-sm">
                                 <div className="flex items-center gap-3">
-                                    <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        className="xl:hidden p-0 h-auto" 
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="xl:hidden p-0 h-auto"
                                         onClick={() => setSelectedOrder(null)}
                                     >
                                         <ChevronRight className="rotate-180 size-5" />
@@ -163,7 +178,7 @@ export default function OrderHistory({ orders, onClose, onReprint, onRefund }: O
                                     <span className="text-[10px] font-medium text-gray-400">{format(selectedOrder.date, "MMM d, yyyy h:mm a")}</span>
                                 </div>
                             </div>
-                            
+
                             <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-6 custom-scrollbar">
                                 {/* Summary Info */}
                                 <div className="grid grid-cols-2 gap-4">
@@ -234,21 +249,21 @@ export default function OrderHistory({ orders, onClose, onReprint, onRefund }: O
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="p-4 bg-white border-t flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                                <Button 
-                                    className="flex-1 h-12 font-bold gap-2 rounded-xl border-2" 
+                                <Button
+                                    className="flex-1 h-12 font-bold gap-2 rounded-xl border-2"
                                     variant="outline"
                                     onClick={() => onReprint(selectedOrder)}
                                 >
                                     <Printer className="size-4" />
                                     Re-print
                                 </Button>
-                                <Button 
+                                <Button
                                     className={cn(
                                         "flex-1 h-12 font-bold gap-2 rounded-xl transition-all",
-                                        selectedOrder.isRefunded 
-                                            ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                                        selectedOrder.isRefunded
+                                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                             : "bg-orange-500 hover:bg-orange-600 text-white"
                                     )}
                                     disabled={selectedOrder.isRefunded}

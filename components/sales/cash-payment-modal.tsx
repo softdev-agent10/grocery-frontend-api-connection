@@ -27,7 +27,7 @@ export default function CashPaymentModal({
     onProcess
 }: CashPaymentModalProps) {
     const change = cashGiven - total;
-    
+
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -77,7 +77,7 @@ export default function CashPaymentModal({
                         <div className="flex justify-between items-center">
                             <span className="text-xl font-medium text-gray-700">Discount:</span>
                             <span className="text-xl font-bold text-red-500">
-                                ${discountAmount.toFixed(2)}123
+                                ${discountAmount.toFixed(2)}
                             </span>
                         </div>
                         <div className="flex justify-between items-center">

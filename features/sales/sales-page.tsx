@@ -28,6 +28,7 @@ import { Banknote, Calculator, ClockFading, Coffee, CookingPot, CreditCard, Down
 import { SalesActionsDialog } from "@/components/sales/sales-actions-modal";
 import CustomerModal from "@/components/sales/customer-modal";
 import CalculatorUI from "@/components/sales/calculator";
+import { processCardPayment } from "@/app/services/terminal/terminal.service";
 import MembershipModal from "@/components/sales/membership-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import CartItem, { CartItemType } from "@/components/sales/cart-items";
@@ -44,7 +45,7 @@ import CashPaymentModal from "@/components/sales/cash-payment-modal";
 import Invoice from "@/components/sales/invoice";
 import DiscountModal from "@/components/sales/discount-modal";
 import QuickAddModal from "@/components/sales/quick-add-modal";
-import OrderHistory, { Order, OrderItem } from "@/components/sales/order-history";
+import OrderHistory, { CardOrder, Order, OrderItem } from "@/components/sales/order-history";
 import ItemPricingModal from "@/components/sales/item-pricing-modal";
 import WorkingHourReport from "@/components/sales/working-hour-report";
 import PaymentOtherModal from "@/components/sales/payment-other-modal";
@@ -57,6 +58,8 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { cn } from "@/lib/utils";
 import { getCategories, getProductsByCategory } from "@/app/services/categories/service.categories";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import CardPaymentModal from "@/components/sales/card-payment-modal";
+import { ca } from "date-fns/locale";
 
 interface Product {
     id: string;
@@ -135,6 +138,7 @@ export default function SalesPage() {
     const [modalOpen, setModalOpen] = useState(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [cashPaymentOpen, setCashPaymentOpen] = useState(false);
+    const [cardPaymentOpen, setCardPaymentOpen] = useState(false);
     const [cashGiven, setCashGiven] = useState(0);
     const [modalTitle, setModalTitle] = useState<string>("");
     const [modalType, setModalType] = useState<string | null>(null);
@@ -145,6 +149,7 @@ export default function SalesPage() {
     const [reprintOrder, setReprintOrder] = useState<Order | null>(null);
     const [editingItem, setEditingItem] = useState<CartItemType | null>(null);
     const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
     const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
         setNotification({ message, type });
@@ -339,8 +344,11 @@ export default function SalesPage() {
             setProducts(PRODUCTS.filter(p => p.category === type));
             return;
         }
-
         if (type === "Cash") {
+            if (items.length === 0) {
+                showNotification("Cart is empty! Add products before payment.", "error");
+                return;
+            }
             setCashGiven(data?.cashGiven || 0);
             setCashPaymentOpen(true);
             return;
@@ -362,7 +370,11 @@ export default function SalesPage() {
         }
 
         if (type === "Credit Card") {
-            showNotification("Terminal is not connected", "error");
+            if (items.length === 0) {
+                showNotification("Cart is empty! Add products before payment.", "error");
+                return;
+            }
+            setCardPaymentOpen(true);
             return;
         }
 
@@ -559,34 +571,93 @@ export default function SalesPage() {
         }, 300);
     };
 
-    const handleProcessAndPrint = () => {
+    const handleProcessAndPrint = async (paymentType: string) => {
+        // Check if cart is empty
+        if (items.length === 0) {
+            showNotification("Cart is empty! Add products before payment.", "error");
+            return;
+        }
+
         setIsBasketOnlyPrint(false);
         setReprintOrder(null); // Clear reprint order if processing new sale
 
-        // Add to history
-        const newOrder: Order = {
-            id: `ORD-${uuidv4()}`,
-            date: new Date().toISOString(),
-            customer: customer?.name || "Guest",
-            items: [...items],
-            subtotal,
-            tax: taxAmount,
-            discount: discountAmount,
-            total,
-            paymentMethod: "Cash", // Mock payment method
-            cashGiven,
-            change: cashGiven - total
-        };
-        dispatch(addToHistory(newOrder));
+        try {
+            if (paymentType === "Cash") {
+                // Add to history
+                const newOrder: Order = {
+                    id: `ORD-${uuidv4()}`,
+                    date: new Date().toISOString(),
+                    customer: customer?.name || "Guest",
+                    items: [...items],
+                    subtotal,
+                    tax: taxAmount,
+                    discount: discountAmount,
+                    total,
+                    paymentMethod: paymentType, // Mock payment method
+                    cashGiven,
+                    change: cashGiven - total
+                };
+                dispatch(addToHistory(newOrder));
+            }
+            if (paymentType === "Card") {
+                try {
+                    setIsProcessingPayment(true);
+                    showNotification("Processing card payment... Please wait (5-10 seconds)", "success");
 
-        setPrintRequested(true);
-        setTimeout(() => {
-            window.print();
-            setCashPaymentOpen(false);
-            dispatch(cancelSale());
-            setKeypadResetKey(prev => prev + 1);
-            setPrintRequested(false);
-        }, 300);
+                    // Call fake card payment API
+                    const token = localStorage.getItem("token") || "123456";
+                    const terminalId = 1;
+                    const orderId = `ORD-${uuidv4()}`;
+
+                    const paymentResponse = await processCardPayment(
+                        {
+                            amount: total,
+                            terminal_id: terminalId,
+                            order_id: orderId,
+                        },
+                        { token }
+                    );
+
+                    // If payment succeeds, add to history
+                    const newOrder: Order = {
+                        id: orderId,
+                        date: new Date().toISOString(),
+                        customer: customer?.name || "Guest",
+                        items: [...items],
+                        subtotal,
+                        tax: taxAmount,
+                        discount: discountAmount,
+                        total,
+                        paymentMethod: paymentType,
+                        cashGiven: 0,
+                        change: 0,
+                    };
+                    dispatch(addToHistory(newOrder));
+                    showNotification("Card payment processed successfully!", "success");
+                    setIsProcessingPayment(false);
+                } catch (error: any) {
+                    showNotification(
+                        `${error.message || "Card payment failed. Please try again."}`,
+                        "error"
+                    );
+                    setIsProcessingPayment(false);
+                    return; // Don't proceed to print if payment failed
+                }
+            }
+
+            setPrintRequested(true);
+            setTimeout(() => {
+                window.print();
+                setCashPaymentOpen(false);
+                setCardPaymentOpen(false);
+                dispatch(cancelSale());
+                setKeypadResetKey(prev => prev + 1);
+                setPrintRequested(false);
+            }, 300);
+        } catch (error: any) {
+            console.error("Payment processing error:", error);
+            showNotification("Payment processing error. Please try again.", "error");
+        }
     };
 
     //TODO: Add to cart logic
@@ -1220,14 +1291,23 @@ export default function SalesPage() {
 
             {/* Cash Payment Modal */}
             <CashPaymentModal
-                open={cashPaymentOpen}
+                open={items.length > 0 ? cashPaymentOpen : false}
                 onOpenChange={setCashPaymentOpen}
                 items={items}
-                reprintOrder={reprintOrder?.discount || 0}
                 total={total}
                 cashGiven={cashGiven}
                 discountAmount={reprintOrder?.discount || discountAmount}
-                onProcess={handleProcessAndPrint} />
+                onProcess={() => handleProcessAndPrint("Cash")} />
+            <CardPaymentModal
+                open={items.length > 0 ? cardPaymentOpen : false}
+                onOpenChange={setCardPaymentOpen}
+                items={items}
+                discountAmount={reprintOrder?.discount || discountAmount}
+                total={total}
+                cashGiven={cashGiven}
+                onProcess={() => handleProcessAndPrint("Card")}
+                isLoading={isProcessingPayment}
+            />
 
             <SalesActionsDialog
                 open={modalOpen}
