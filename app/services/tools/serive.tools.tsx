@@ -384,7 +384,7 @@ export const createBundle = async ({
     subtype,
     discount_type,
     flat_discount = 0,
-    percent_discount = 0,
+    percent_discount = null,
     offer_limit,
     plu_code,
     tax_id,
@@ -401,7 +401,7 @@ export const createBundle = async ({
     subtype: "customer" | "all";
     discount_type: "flat" | "percent";
     flat_discount?: number;
-    percent_discount?: number;
+    percent_discount?: number | null;
     offer_limit: number;
     plu_code: string;
     tax_id: number;
@@ -415,39 +415,71 @@ export const createBundle = async ({
     data: BundleItem;
     metadata?: Record<string, any>;
 }> => {
-    const res = await fetch(
-        `${BASE_URL}/tools/bundles?branch_id=${branchId}`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                name,
-                description,
-                type,
-                subtype,
-                discount_type,
-                flat_discount,
-                percent_discount,
-                offer_limit,
-                plu_code,
-                tax_id,
-                fees_id,
-                start_date,
-                end_date,
-                products,
-            }),
-            cache: "no-store",
+    try {
+        const res = await fetch(
+            `${BASE_URL}/tools/bundles?branch_id=${branchId}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    name,
+                    description,
+                    type,
+                    subtype,
+                    discount_type,
+                    flat_discount,
+                    percent_discount,
+                    offer_limit,
+                    plu_code,
+                    tax_id,
+                    fees_id,
+                    start_date,
+                    end_date,
+                    products,
+                }),
+                cache: "no-store",
+            }
+        );
+
+        if (!res.ok) {
+            let errorData: any = {};
+            try {
+                errorData = await res.json();
+            } catch {
+                errorData = { rawResponse: await res.text() };
+            }
+            console.error("❌ API Error Details (Bundle):", {
+                status: res.status,
+                statusText: res.statusText,
+                errorData,
+                requestBody: {
+                    name,
+                    description,
+                    type,
+                    subtype,
+                    discount_type,
+                    flat_discount,
+                    percent_discount,
+                    offer_limit,
+                    plu_code,
+                    tax_id,
+                    fees_id,
+                    start_date,
+                    end_date,
+                    products,
+                }
+            });
+            throw new Error((errorData?.message || errorData?.error || `Failed to create bundle: ${res.status} ${res.statusText}`) as string);
         }
-    );
 
-    if (!res.ok) {
-        throw new Error("Failed to create bundle");
+        return res.json();
+    } catch (error) {
+        console.error("Bundle creation error:", error);
+        throw error;
     }
-
-    return res.json();
 };
 
 // ============================================================================
@@ -463,7 +495,7 @@ export interface RewardItem {
     product_id: number;
     reward_qty: number;
     reward_price_type: string;
-    reward_value: string;
+    reward_value: number;
 }
 
 export interface BuyNGetItem {
@@ -588,8 +620,8 @@ export const createBuyNGet = async ({
     end_date: string;
     buy_conditions: BuyCondition[];
     reward_items: RewardItem[];
-    grand_reward_type: string;
-    grand_reward_value: number;
+    grand_reward_type: string | null;
+    grand_reward_value: number | null;
     priority: number;
     offer_limit: number;
     is_active: boolean;
@@ -605,38 +637,69 @@ export const createBuyNGet = async ({
     };
     metadata?: Record<string, any>;
 }> => {
-    const res = await fetch(
-        `${BASE_URL}/tools/offers/buy-n-get?branch_id=${branchId}`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                name,
-                description,
-                offer_type,
-                pricing_mode,
-                start_date,
-                end_date,
-                buy_conditions,
-                reward_items,
-                grand_reward_type,
-                grand_reward_value,
-                priority,
-                offer_limit,
-                is_active,
-            }),
-            cache: "no-store",
+    try {
+        const res = await fetch(
+            `${BASE_URL}/tools/offers/buy-n-get?branch_id=${branchId}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    name,
+                    description,
+                    offer_type,
+                    pricing_mode,
+                    start_date,
+                    end_date,
+                    buy_conditions,
+                    reward_items,
+                    grand_reward_type,
+                    grand_reward_value,
+                    priority,
+                    offer_limit,
+                    is_active,
+                }),
+                cache: "no-store",
+            }
+        );
+
+        if (!res.ok) {
+            let errorData: any = {};
+            try {
+                errorData = await res.json();
+            } catch {
+                errorData = { rawResponse: await res.text() };
+            }
+            console.error("❌ API Error Details:", {
+                status: res.status,
+                statusText: res.statusText,
+                errorData,
+                requestBody: {
+                    name,
+                    description,
+                    offer_type,
+                    pricing_mode,
+                    start_date,
+                    end_date,
+                    buy_conditions,
+                    reward_items,
+                    grand_reward_type,
+                    grand_reward_value,
+                    priority,
+                    offer_limit,
+                    is_active,
+                }
+            });
+            throw new Error((errorData?.message || errorData?.error || `Failed to create buy n get offer: ${res.status} ${res.statusText}`) as string);
         }
-    );
 
-    if (!res.ok) {
-        throw new Error("Failed to create buy n get offer");
+        return res.json();
+    } catch (error) {
+        console.error("Buy N Get creation error:", error);
+        throw error;
     }
-
-    return res.json();
-};
+}
 
 

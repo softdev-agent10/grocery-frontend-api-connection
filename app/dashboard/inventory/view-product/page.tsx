@@ -747,8 +747,6 @@ export default function App() {
       </section>
       {/* Toolbar Section */}
       <div className="p-4 space-y-8">
-
-
         {/* Table Section */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}

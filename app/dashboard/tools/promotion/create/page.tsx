@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Plus,
   Calendar,
@@ -21,6 +21,11 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
+import { createBundle, createBuyNGet, BundleProduct } from "@/app/services/tools/serive.tools";
+import { getProducts, type ProductData } from "@/app/services/product/service.product";
+import { useRouter } from "next/navigation";
+import { toast } from "react-toastify/unstyled";
 
 enum PromotionType {
   BOGO = "BOGO",
@@ -33,17 +38,19 @@ enum PromotionStatus {
 }
 
 interface Product {
-  id: string;
+  id: number;
   name: string;
-  price: number;
-  image: string;
-  category: string;
-  upc?: string;
-  plu?: string;
+  selling_price: string | number;
+  quantity: number;
+  category: any;
+  brand: any;
+  unit: any;
+  upc: string;
+  plu: string | null;
 }
 
 interface BundleItem {
-  productId: string;
+  productId: number | null;
   quantity: number;
   originalPrice: number;
   newPrice: number;
@@ -53,90 +60,40 @@ interface BundleItem {
 interface PromotionFormData {
   type: PromotionType;
   title: string;
-  buyProductId: string;
+  buyProductId: number | null;
   buyQuantity: number;
-  getProductId: string;
+  getProductId: number | null;
   getQuantity: number;
   bundleItems: BundleItem[];
+  bundleDiscountPrice: number;
+  bundleDiscountType: "flat" | "percent";
   startDate: string;
   endDate: string;
   status: PromotionStatus;
 }
 
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: "1",
-    name: "Premium Wireless Headphones",
-    price: 199.99,
-    image: "https://picsum.photos/seed/headphones/400/400",
-    category: "Electronics",
-    upc: "880123456789",
-    plu: "1001",
-  },
-  {
-    id: "2",
-    name: "Ergonomic Mechanical Keyboard",
-    price: 129.5,
-    image: "https://picsum.photos/seed/keyboard/400/400",
-    category: "Electronics",
-    upc: "880123456790",
-    plu: "1002",
-  },
-  {
-    id: "3",
-    name: "Ultra-Wide 4K Monitor",
-    price: 449.0,
-    image: "https://picsum.photos/seed/monitor/400/400",
-    category: "Electronics",
-    upc: "880123456791",
-    plu: "1003",
-  },
-  {
-    id: "4",
-    name: "Minimalist Leather Backpack",
-    price: 85.0,
-    image: "https://picsum.photos/seed/backpack/400/400",
-    category: "Accessories",
-    upc: "880123456792",
-    plu: "1004",
-  },
-  {
-    id: "5",
-    name: "Stainless Steel Water Bottle",
-    price: 24.99,
-    image: "https://picsum.photos/seed/bottle/400/400",
-    category: "Lifestyle",
-    upc: "880123456793",
-    plu: "1005",
-  },
-  {
-    id: "6",
-    name: "Smart Fitness Tracker",
-    price: 59.99,
-    image: "https://picsum.photos/seed/watch/400/400",
-    category: "Electronics",
-    upc: "880123456794",
-    plu: "1006",
-  },
-];
+const MOCK_PRODUCTS: Product[] = [];
+
+// For real products, they'll be loaded from the API
 
 const ProductSelector: React.FC<{
   label: string;
-  selectedId: string;
-  onSelect: (id: string) => void;
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+  products: Product[];
   placeholder?: string;
-}> = ({ label, selectedId, onSelect, placeholder = "Select a product..." }) => {
+}> = ({ label, selectedId, onSelect, products, placeholder = "Select a product..." }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const filteredProducts = MOCK_PRODUCTS.filter(
+  const filteredProducts = products.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.upc?.includes(search) ||
       p.plu?.includes(search)
   );
 
-  const selectedProduct = MOCK_PRODUCTS.find((p) => p.id === selectedId);
+  const selectedProduct = products.find((p) => p.id === selectedId);
 
   return (
     <div className="space-y-2 relative">
@@ -173,38 +130,41 @@ const ProductSelector: React.FC<{
               />
             </div>
             <div className="max-h-60 overflow-y-auto">
-              {filteredProducts.map((product) => (
-                <button
-                  key={product.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect(product.id);
-                    setIsOpen(false);
-                  }}
-                  className="w-full flex items-center justify-between px-3 md:px-4 py-2 md:py-2.5 text-xs md:text-sm lg:text-base hover:bg-slate-50 transition-colors"
-                >
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <img
-                      src={product.image}
-                      alt=""
-                      className="w-7 h-7 md:w-9 md:h-9 lg:w-10 lg:h-10 rounded object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="text-left">
-                      <div className="font-medium text-slate-900 text-xs md:text-sm lg:text-base">{product.name}</div>
-                      <div className="text-[10px] md:text-xs lg:text-sm text-slate-500">
-                        UPC: {product.upc} | PLU: {product.plu}
+              {filteredProducts.length > 0 ? (
+                filteredProducts.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => {
+                      onSelect(product.id);
+                      setIsOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 md:px-4 py-2 md:py-2.5 text-xs md:text-sm lg:text-base hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <div className="w-7 h-7 md:w-9 md:h-9 lg:w-10 lg:h-10 rounded bg-slate-100 flex items-center justify-center">
+                        <Package size={16} className="text-slate-400" />
                       </div>
-                      <div className="text-[10px] md:text-xs lg:text-sm text-slate-500 font-bold">
-                        ${product.price.toFixed(2)}
+                      <div className="text-left">
+                        <div className="font-medium text-slate-900 text-xs md:text-sm lg:text-base">{product.name}</div>
+                        <div className="text-[10px] md:text-xs lg:text-sm text-slate-500">
+                          UPC: {product.upc} | PLU: {product.plu}
+                        </div>
+                        <div className="text-[10px] md:text-xs lg:text-sm text-slate-500 font-bold">
+                          ${Number(product.selling_price).toFixed(2)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  {selectedId === product.id && (
-                    <Check size={14} className="md:w-4 md:h-4 lg:w-5 lg:h-5 text-blue-600" />
-                  )}
-                </button>
-              ))}
+                    {selectedId === product.id && (
+                      <Check size={14} className="md:w-4 md:h-4 lg:w-5 lg:h-5 text-blue-600" />
+                    )}
+                  </button>
+                ))
+              ) : (
+                <div className="p-4 text-center text-slate-500 text-xs md:text-sm">
+                  No products found
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -214,14 +174,23 @@ const ProductSelector: React.FC<{
 };
 
 export default function CreatePromotionPage() {
+  const { user, token, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]);
+
   const [formData, setFormData] = useState<PromotionFormData>({
     type: PromotionType.BOGO,
     title: "",
-    buyProductId: "",
+    buyProductId: null,
     buyQuantity: 1,
-    getProductId: "",
+    getProductId: null,
     getQuantity: 1,
     bundleItems: [],
+    bundleDiscountPrice: 0,
+    bundleDiscountType: "flat",
     startDate: new Date().toISOString().split("T")[0],
     endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       .toISOString()
@@ -230,8 +199,147 @@ export default function CreatePromotionPage() {
   });
 
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-  const buyProduct = MOCK_PRODUCTS.find((p) => p.id === formData.buyProductId);
-  const getProduct = MOCK_PRODUCTS.find((p) => p.id === formData.getProductId);
+  const buyProduct = products.find((p) => p.id === formData.buyProductId);
+  const getProduct = products.find((p) => p.id === formData.getProductId);
+
+  // Fetch real products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoadingProducts(true);
+        const response = await getProducts({
+          branchId: "1234567890", // TODO: Get from user context
+          token: token,
+          limit: 100,
+        });
+
+        console.log(`Products fetched: ${response.data?.items?.length || 0} items`);
+        if (response.data?.items) {
+          setProducts(response.data.items);
+        }
+      } catch (error) {
+        console.error("Failed to fetch products:", error);
+        setSubmitError("Failed to load products. Please try again.");
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+
+    fetchProducts();
+  }, [token]);
+
+  const handleCreatePromotion = async (): Promise<void> => {
+    // Validation
+    if (!formData.title) {
+      setSubmitError("Please enter a promotion title");
+      return;
+    }
+    if (formData.type === PromotionType.BOGO && (!formData.buyProductId || !formData.getProductId)) {
+      setSubmitError("Please select buy and get products for BOGO promotion");
+      return;
+    }
+    if (formData.type === PromotionType.BUNDLE && formData.bundleItems.length === 0) {
+      setSubmitError("Please add at least one product to the bundle");
+      return;
+    }
+    if (formData.type === PromotionType.BUNDLE && formData.bundleDiscountPrice <= 0) {
+      setSubmitError(`Bundle ${formData.bundleDiscountType === "percent" ? "discount percentage" : "discount amount"} must be greater than 0`);
+      return;
+    }
+    if (formData.type === PromotionType.BUNDLE && formData.bundleDiscountType === "percent" && formData.bundleDiscountPrice > 100) {
+      setSubmitError("Discount percentage cannot exceed 100%");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      if (formData.type === PromotionType.BOGO) {
+        // Create Buy N Get offer
+        const payload = {
+          branchId: "1234567890", // TODO: Get from user context
+          token: "your-auth-token", // TODO: Get from auth context
+          name: formData.title,
+          description: `Buy ${formData.buyQuantity} get ${formData.getQuantity}`,
+          offer_type: "buy_n_get",
+          pricing_mode: "individual",
+          start_date: formData.startDate,
+          end_date: formData.endDate,
+          buy_conditions: [
+            {
+              product_id: formData.buyProductId!,
+              required_qty: formData.buyQuantity,
+            },
+          ],
+          reward_items: [
+            {
+              product_id: formData.getProductId!,
+              reward_qty: formData.getQuantity,
+              reward_price_type: "free",
+              reward_value: 0,
+            },
+          ],
+          grand_reward_type: null,
+          grand_reward_value: null,
+          priority: 1,
+          offer_limit: 999,
+          is_active: formData.status === PromotionStatus.Active,
+        };
+        const buyNGetResponse = await createBuyNGet(payload);
+
+      } else {
+        // Create Bundle
+        const bundleProducts: BundleProduct[] = formData.bundleItems.map((item) => ({
+          product_id: item.productId!,
+          quantity: item.quantity,
+          price: item.newPrice,
+        }));
+
+        // Get first product's PLU as bundle identifier (with safety check)
+        const firstProductId = formData.bundleItems[0]?.productId;
+        const firstProduct = firstProductId ? products.find(p => p.id === firstProductId) : null;
+        // Generate 11-digit random PLU code if product doesn't have one
+        const bundlePluCode = firstProduct?.plu || Math.floor(10000000000 + Math.random() * 90000000000).toString();
+
+        // Determine flat and percent discounts based on discount type
+        const flatDiscount = formData.bundleDiscountType === "flat" ? formData.bundleDiscountPrice : null;
+        const percentDiscount = formData.bundleDiscountType === "percent" ? formData.bundleDiscountPrice : null;
+
+        const bundlePayload: Parameters<typeof createBundle>[0] = {
+          branchId: "1234567890", // TODO: Get from user context
+          token: "your-auth-token", // TODO: Get from auth context
+          name: formData.title,
+          description: `Bundle with ${formData.bundleItems.length} items`,
+          type: "special",
+          subtype: "customer",
+          discount_type: formData.bundleDiscountType,
+          flat_discount: flatDiscount as any,
+          percent_discount: percentDiscount as any,
+          offer_limit: 999,
+          plu_code: bundlePluCode,
+          tax_id: 1,
+          fees_id: 1,
+          start_date: formData.startDate,
+          end_date: formData.endDate,
+          products: bundleProducts,
+        };
+        const bundleResponse = await createBundle(bundlePayload);
+      }
+
+      // Success
+      toast.success("Promotion created successfully!");
+
+      router.push("/dashboard/tools/promotion");
+    } catch (err) {
+      console.error("Error creating promotion:", err);
+      setSubmitError(
+        err instanceof Error ? err.message : "Failed to create promotion"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="w-full">
@@ -240,7 +348,7 @@ export default function CreatePromotionPage() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl md:rounded-3xl 2xl:rounded-4xl p-6 md:p-8 2xl:p-12 mb-6 md:mb-8 2xl:mb-10 shadow-lg flex justify-between items-center"
+        className="bg-blue-600 rounded-2xl md:rounded-3xl 2xl:rounded-4xl p-6 md:p-8 2xl:p-12 mb-6 md:mb-8 2xl:mb-10 shadow-lg flex justify-between items-center"
       >
         <motion.div
           initial={{ opacity: 0 }}
@@ -293,9 +401,8 @@ export default function CreatePromotionPage() {
           </div>
           <ChevronDown
             size={18}
-            className={`md:w-5 md:h-5 lg:w-6 lg:h-6 text-slate-400 transition-transform ${
-              showTypeDropdown ? "rotate-180" : ""
-            }`}
+            className={`md:w-5 md:h-5 lg:w-6 lg:h-6 text-slate-400 transition-transform ${showTypeDropdown ? "rotate-180" : ""
+              }`}
           />
         </motion.button>
 
@@ -352,6 +459,17 @@ export default function CreatePromotionPage() {
           className="lg:col-span-7 xl:col-span-8"
         >
           <div className="bg-white rounded-2xl md:rounded-2xl lg:rounded-3xl p-5 md:p-6 lg:p-8 shadow-2xl border border-indigo-100/20">
+            {/* Error Notification */}
+            {submitError && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 md:mb-5 lg:mb-6 rounded-lg bg-red-50 border border-red-200 p-3 md:p-4"
+              >
+                <p className="text-xs md:text-sm text-red-600">{submitError}</p>
+              </motion.div>
+            )}
+
             <div className="space-y-4 md:space-y-6 lg:space-y-8">
               {/* Title */}
               <div className="space-y-2">
@@ -382,18 +500,16 @@ export default function CreatePromotionPage() {
                           : PromotionStatus.Active,
                     })
                   }
-                  className={`flex items-center gap-2 px-3 md:px-4 lg:px-5 py-1.5 md:py-2 lg:py-2.5 rounded-full text-xs md:text-xs lg:text-sm font-bold transition-all ${
-                    formData.status === PromotionStatus.Active
-                      ? "bg-green-100 text-green-700 border border-green-200"
-                      : "bg-slate-100 text-slate-600 border border-slate-200"
-                  }`}
+                  className={`flex items-center gap-2 px-3 md:px-4 lg:px-5 py-1.5 md:py-2 lg:py-2.5 rounded-full text-xs md:text-xs lg:text-sm font-bold transition-all ${formData.status === PromotionStatus.Active
+                    ? "bg-green-100 text-green-700 border border-green-200"
+                    : "bg-slate-100 text-slate-600 border border-slate-200"
+                    }`}
                 >
                   <div
-                    className={`w-1.5 h-1.5 md:w-2 md:h-2 lg:w-2.5 lg:h-2.5 rounded-full ${
-                      formData.status === PromotionStatus.Active
-                        ? "bg-green-500"
-                        : "bg-slate-400"
-                    }`}
+                    className={`w-1.5 h-1.5 md:w-2 md:h-2 lg:w-2.5 lg:h-2.5 rounded-full ${formData.status === PromotionStatus.Active
+                      ? "bg-green-500"
+                      : "bg-slate-400"
+                      }`}
                   />
                   {formData.status}
                 </motion.button>
@@ -412,6 +528,7 @@ export default function CreatePromotionPage() {
                         label="Buy Product"
                         selectedId={formData.buyProductId}
                         onSelect={(id) => setFormData({ ...formData, buyProductId: id })}
+                        products={products}
                       />
                       <div className="space-y-2">
                         <label className="text-xs md:text-sm lg:text-base font-medium text-slate-700">
@@ -436,6 +553,7 @@ export default function CreatePromotionPage() {
                         label="Get Product (Free)"
                         selectedId={formData.getProductId}
                         onSelect={(id) => setFormData({ ...formData, getProductId: id })}
+                        products={products}
                       />
                       <div className="space-y-2">
                         <label className="text-xs md:text-sm lg:text-base font-medium text-slate-700">
@@ -472,12 +590,12 @@ export default function CreatePromotionPage() {
                       Bundle Products
                     </h3>
                     <p className="text-xs text-slate-500 mb-3 md:mb-4">Add multiple products to create a bundle offer</p>
-                    
+
                     {formData.bundleItems.length > 0 && (
                       <div className="space-y-2 mb-4 md:mb-5 lg:mb-6 bg-slate-50 p-3 md:p-4 lg:p-5 rounded-lg border border-slate-200">
                         <h4 className="text-xs md:text-sm font-bold text-slate-900 mb-3">Bundle Items</h4>
                         {formData.bundleItems.map((item, idx) => {
-                          const product = MOCK_PRODUCTS.find(p => p.id === item.productId);
+                          const product = products.find(p => p.id === item.productId);
                           return (
                             <div key={idx} className="bg-white p-2 md:p-3 rounded-lg border border-slate-100">
                               <div className="space-y-2">
@@ -485,24 +603,24 @@ export default function CreatePromotionPage() {
                                   <label className="text-[10px] md:text-xs font-bold text-slate-600">Product {idx + 1}</label>
                                   <select
                                     className="w-full px-2 md:px-3 py-1.5 md:py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                                    value={item.productId}
+                                    value={item.productId || ""}
                                     onChange={(e) => {
                                       const newBundleItems = [...formData.bundleItems];
-                                      const selected = MOCK_PRODUCTS.find(p => p.id === e.target.value);
+                                      const selected = products.find(p => p.id === parseInt(e.target.value));
                                       if (selected) {
                                         newBundleItems[idx] = {
                                           ...item,
-                                          productId: e.target.value,
-                                          originalPrice: selected.price,
-                                          newPrice: selected.price
+                                          productId: parseInt(e.target.value),
+                                          originalPrice: typeof selected.selling_price === "string" ? parseFloat(selected.selling_price) : selected.selling_price,
+                                          newPrice: typeof selected.selling_price === "string" ? parseFloat(selected.selling_price) : selected.selling_price
                                         };
                                         setFormData({ ...formData, bundleItems: newBundleItems });
                                       }
                                     }}
                                   >
                                     <option value="">Select Product</option>
-                                    {MOCK_PRODUCTS.map(p => (
-                                      <option key={p.id} value={p.id}>{p.name} (${p.price.toFixed(2)})</option>
+                                    {products.map(p => (
+                                      <option key={p.id} value={p.id}>{p.name} (${typeof p.selling_price === "string" ? parseFloat(p.selling_price).toFixed(2) : p.selling_price.toFixed(2)})</option>
                                     ))}
                                   </select>
                                 </div>
@@ -553,13 +671,13 @@ export default function CreatePromotionPage() {
                         })}
                       </div>
                     )}
-                    
+
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         const newItem: BundleItem = {
-                          productId: "",
+                          productId: null,
                           quantity: 1,
                           originalPrice: 0,
                           newPrice: 0,
@@ -582,22 +700,95 @@ export default function CreatePromotionPage() {
                     <div className="bg-indigo-50 rounded-lg md:rounded-lg lg:rounded-xl border border-indigo-200 p-3 md:p-4 lg:p-5">
                       <h4 className="text-xs md:text-sm lg:text-base font-bold text-slate-900 mb-3 md:mb-4">Bundle Pricing</h4>
                       <div className="space-y-2 md:space-y-3 lg:space-y-4">
+                        {/* Discount Type Toggle */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs md:text-sm text-slate-600 font-medium">Discount Type:</span>
+                          <div className="flex gap-2 bg-white rounded-lg border border-indigo-200 p-1">
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setFormData({ ...formData, bundleDiscountType: "flat" })}
+                              className={`px-3 py-1.5 text-xs md:text-sm rounded font-bold transition-all ${formData.bundleDiscountType === "flat"
+                                ? "bg-indigo-600 text-white"
+                                : "bg-white text-slate-700 hover:bg-slate-50"
+                                }`}
+                            >
+                              Flat ($)
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setFormData({ ...formData, bundleDiscountType: "percent" })}
+                              className={`px-3 py-1.5 text-xs md:text-sm rounded font-bold transition-all ${formData.bundleDiscountType === "percent"
+                                ? "bg-indigo-600 text-white"
+                                : "bg-white text-slate-700 hover:bg-slate-50"
+                                }`}
+                            >
+                              Percentage (%)
+                            </motion.button>
+                          </div>
+                        </div>
+
                         <div className="flex justify-between items-center">
                           <span className="text-xs md:text-sm text-slate-600">Original Total:</span>
                           <span className="text-sm md:text-base font-bold text-slate-900">${formData.bundleItems.reduce((sum, item) => sum + (item.originalPrice * item.quantity), 0).toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <label className="text-xs md:text-sm text-slate-600">Bundle Price:</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="w-24 md:w-28 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                            placeholder="0.00"
-                            onChange={(e) => {
-                              // Update bundle price
-                            }}
-                          />
+
+                        {/* Flat Discount Input */}
+                        {formData.bundleDiscountType === "flat" && (
+                          <div className="flex justify-between items-center">
+                            <label className="text-xs md:text-sm text-slate-600">Discount Amount ($):</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              className="w-24 md:w-28 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                              placeholder="0.00"
+                              value={formData.bundleDiscountPrice}
+                              onChange={(e) => {
+                                setFormData({
+                                  ...formData,
+                                  bundleDiscountPrice: parseFloat(e.target.value) || 0
+                                });
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {/* Percentage Discount Input */}
+                        {formData.bundleDiscountType === "percent" && (
+                          <div className="flex justify-between items-center">
+                            <label className="text-xs md:text-sm text-slate-600">Discount Percentage (%):</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              max="100"
+                              className="w-24 md:w-28 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                              placeholder="0.00"
+                              value={formData.bundleDiscountPrice}
+                              onChange={(e) => {
+                                setFormData({
+                                  ...formData,
+                                  bundleDiscountPrice: parseFloat(e.target.value) || 0
+                                });
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex justify-between items-center pt-2 border-t border-indigo-200">
+                          <span className="text-xs md:text-sm text-slate-600 font-medium">
+                            {formData.bundleDiscountType === "percent"
+                              ? "Discount Amount:"
+                              : "Final Bundle Price:"}
+                          </span>
+                          <span className="text-sm md:text-base font-bold text-green-600">
+                            {formData.bundleDiscountType === "percent"
+                              ? `$${((formData.bundleItems.reduce((sum, item) => sum + (item.originalPrice * item.quantity), 0)) * (formData.bundleDiscountPrice / 100)).toFixed(2)}`
+                              : `$${Math.max(0, formData.bundleItems.reduce((sum, item) => sum + (item.originalPrice * item.quantity), 0) - formData.bundleDiscountPrice).toFixed(2)}`
+                            }
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -641,27 +832,12 @@ export default function CreatePromotionPage() {
               <motion.button
                 whileHover={{ scale: 1.05, boxShadow: "0 20px 25px -5px rgba(79, 70, 229, 0.4)" }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  if (!formData.title) {
-                    alert("Please enter a promotion title");
-                    return;
-                  }
-                  if (formData.type === PromotionType.BOGO && (!formData.buyProductId || !formData.getProductId)) {
-                    alert("Please select buy and get products for BOGO promotion");
-                    return;
-                  }
-                  if (formData.type === PromotionType.BUNDLE && formData.bundleItems.length === 0) {
-                    alert("Please add at least one product to the bundle");
-                    return;
-                  }
-                  alert(`✓ ${formData.type} promotion "${formData.title}" created successfully!`);
-                  // Redirect back to promotion page
-                  window.location.href = "/dashboard/tools/promotion";
-                }}
-                className="w-full flex items-center justify-center gap-2 px-5 md:px-6 lg:px-8 py-2.5 md:py-3 lg:py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg md:rounded-lg lg:rounded-xl font-bold text-xs md:text-sm lg:text-base hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg"
+                disabled={isSubmitting || authLoading}
+                onClick={handleCreatePromotion}
+                className="w-full flex items-center justify-center gap-2 px-5 md:px-6 lg:px-8 py-2.5 md:py-3 lg:py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg md:rounded-lg lg:rounded-xl font-bold text-xs md:text-sm lg:text-base hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus size={16} className="md:w-4 md:h-4 lg:w-5 lg:h-5" />
-                Create Promotion
+                {isSubmitting ? "Creating..." : "Create Promotion"}
               </motion.button>
             </div>
           </div>
@@ -710,14 +886,14 @@ export default function CreatePromotionPage() {
                         BUY {formData.buyQuantity} GET {formData.getQuantity} FREE
                       </span>
                     </div>
-                    <div className="aspect-square bg-slate-50 rounded-lg md:rounded-lg lg:rounded-xl overflow-hidden border border-slate-100">
+                    <div className="aspect-square bg-slate-50 rounded-lg md:rounded-lg lg:rounded-xl overflow-hidden border border-slate-100 flex items-center justify-center">
                       {buyProduct ? (
-                        <img
-                          src={buyProduct.image}
-                          alt=""
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
+                        <div className="flex flex-col items-center justify-center text-center p-4">
+                          <Package size={32} className="text-slate-400 mb-2" />
+                          <span className="text-[10px] md:text-xs lg:text-sm text-slate-600 font-medium line-clamp-2">
+                            {buyProduct.name}
+                          </span>
+                        </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-300 italic text-[10px] md:text-xs lg:text-sm">
                           Select buy product
@@ -732,7 +908,7 @@ export default function CreatePromotionPage() {
                     </h3>
                     <div className="flex items-baseline gap-1.5 md:gap-2">
                       <span className="text-lg md:text-xl lg:text-2xl font-black text-slate-900">
-                        ${buyProduct ? buyProduct.price.toFixed(2) : "0.00"}
+                        ${buyProduct ? (typeof buyProduct.selling_price === "string" ? parseFloat(buyProduct.selling_price).toFixed(2) : buyProduct.selling_price.toFixed(2)) : "0.00"}
                       </span>
                       <span className="text-[10px] md:text-xs lg:text-sm text-slate-400 font-medium">
                         x {formData.buyQuantity}
@@ -741,14 +917,11 @@ export default function CreatePromotionPage() {
                   </div>
 
                   <div className="p-2 md:p-3 lg:p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-2 md:gap-3">
-                    <div className="w-8 h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 bg-white rounded-lg border border-blue-200 overflow-hidden shrink-0">
+                    <div className="w-8 h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 bg-white rounded-lg border border-blue-200 overflow-hidden shrink-0 flex items-center justify-center">
                       {getProduct ? (
-                        <img
-                          src={getProduct.image}
-                          alt=""
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
+                        <span className="text-[8px] md:text-[9px] lg:text-xs font-bold text-slate-500 text-center line-clamp-2">
+                          {getProduct.name}
+                        </span>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-slate-100">
                           <Package size={12} className="md:w-4 md:h-4 lg:w-5 lg:h-5 text-slate-300" />
@@ -763,7 +936,7 @@ export default function CreatePromotionPage() {
                         {getProduct ? getProduct.name : "Select free product"}
                       </div>
                       <div className="text-[10px] md:text-xs lg:text-sm text-slate-500 line-through">
-                        ${getProduct ? getProduct.price.toFixed(2) : "0.00"}
+                        ${getProduct ? (typeof getProduct.selling_price === "string" ? parseFloat(getProduct.selling_price).toFixed(2) : getProduct.selling_price.toFixed(2)) : "0.00"}
                       </div>
                     </div>
                     <div className="text-[10px] md:text-xs lg:text-sm font-bold text-green-600 bg-green-100 px-1.5 md:px-2 lg:px-3 py-0.5 md:py-1 lg:py-1.5 rounded">
@@ -790,7 +963,7 @@ export default function CreatePromotionPage() {
                         <h4 className="text-xs md:text-sm font-bold text-purple-900 mb-2">Bundle Offer</h4>
                         <div className="space-y-1.5 md:space-y-2">
                           {formData.bundleItems.slice(0, 3).map((item, idx) => {
-                            const product = MOCK_PRODUCTS.find(p => p.id === item.productId);
+                            const product = products.find(p => p.id === item.productId);
                             return (
                               <div key={idx} className="text-[10px] md:text-xs lg:text-sm text-purple-800">
                                 {item.quantity}× {product?.name || 'Product'}
