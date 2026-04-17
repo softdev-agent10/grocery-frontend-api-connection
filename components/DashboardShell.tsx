@@ -20,11 +20,11 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [currentTime, setCurrentTime] =  useState<Date | null>(null);
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
   // Update time every second
   useEffect(() => {
-   const update = () => setCurrentTime(new Date());
+    const update = () => setCurrentTime(new Date());
 
     update(); // set immediately
     const interval = setInterval(update, 1000);
@@ -45,13 +45,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
 
   const toggleFullScreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
     } else if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     }
   };
 
-   if (!currentTime) return null;
+  if (!currentTime) return null;
 
   const handleRefresh = () => window.location.reload();
 
@@ -142,13 +142,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
 
             {/* Notification Bell */}
             <div className="relative">
-              <motion.button 
+              <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
                 className="p-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 rounded-full transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-blue-500"
                 aria-label="Notifications"
               >
-                <Bell size={20} /> 
+                <Bell size={20} />
                 <motion.span
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
@@ -160,14 +160,14 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ children }) => {
             {/* Profile Dropdown */}
             <div className="pl-3 border-l border-gray-100">
               <ProfileDropdown
-                isOpen={isProfileOpen} 
+                isOpen={isProfileOpen}
                 onToggle={() => setIsProfileOpen(!isProfileOpen)}
               />
             </div>
           </div>
         </motion.nav>
 
-        {/* Main Content */} 
+        {/* Main Content */}
         <motion.main
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

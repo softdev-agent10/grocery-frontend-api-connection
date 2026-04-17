@@ -48,9 +48,12 @@ type ProductsResponse = {
   status: string;
   data: {
     items: ProductData[];
-    total?: number;
-    page?: number;
-    per_page?: number;
+    pagination?: {
+      current_page: number;
+      per_page: number;
+      total_items: number;
+      total_pages: number;
+    };
   };
   metadata?: any;
 };
@@ -61,9 +64,34 @@ type ProductResponse = {
   metadata?: any;
 };
 
-export const getProducts = async ({ branchId, token, page = 1, per_page = 100 }: any): Promise<ProductsResponse> => {
+export const getProducts = async ({
+  branchId,
+  token,
+  page = 1,
+  limit = 15,
+  category_id,
+  min_price,
+  max_price,
+  search,
+  sort_by = 'name',
+  sort_order = 'asc'
+}: any): Promise<ProductsResponse> => {
+  // Build query parameters dynamically
+  const params = new URLSearchParams();
+  params.append('branch_id', branchId);
+  params.append('page', page.toString());
+  params.append('limit', Math.min(limit, 100).toString()); // Max 100
+
+  // Add optional parameters if provided
+  if (category_id) params.append('category_id', category_id.toString());
+  if (min_price !== undefined && min_price !== null) params.append('min_price', min_price.toString());
+  if (max_price !== undefined && max_price !== null) params.append('max_price', max_price.toString());
+  if (search) params.append('search', search);
+  if (sort_by) params.append('sort_by', sort_by);
+  if (sort_order) params.append('sort_order', sort_order);
+
   const res = await fetch(
-    `${BASE_URL}/inventory/products?branch_id=${branchId}&page=${page}&per_page=${per_page}`,
+    `${BASE_URL}/inventory/products?${params.toString()}`,
     {
       method: "GET",
       headers: {

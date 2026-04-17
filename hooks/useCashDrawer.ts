@@ -15,6 +15,7 @@ export interface Transaction {
   amount: number;
   type: TransactionType;
   note: string;
+  timestamp?: Date; // For sorting purposes
 }
 
 /**

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, Plus, Eye, Trash2, Edit2, Mail, Phone, CheckCircle2, XCircle, Search, X, ArrowUpDown } from "lucide-react";
 import { ToolHeader } from "../components/ToolHeader";
@@ -10,6 +10,8 @@ import { EmptyState } from "../components/EmptyState";
 import DownloadModal from "@/components/download-modal";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 import { DownloadButton, FilterButton, EditButton, DeleteButton } from "@/components/toolbar-buttons";
+import { useAuth } from "@/hooks/useAuth";
+import { getCustomers, createCustomer, CustomerItem } from "@/app/services/tools/serive.tools";
 
 interface CustomerAccount {
   id: string;
@@ -21,39 +23,31 @@ interface CustomerAccount {
   status: "active" | "inactive";
 }
 
-const mockData: CustomerAccount[] = [
-  {
-    id: "1",
-    name: "Ahmed Hassan",
-    email: "ahmed@example.com",
-    phone: "01712345678",
-    joinDate: "2025-06-15",
-    totalPurchase: "$2,450.00",
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Fatima Khan",
-    email: "fatima@example.com",
-    phone: "01812345678",
-    joinDate: "2025-08-20",
-    totalPurchase: "$1,850.00",
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Mohammad Ali",
-    email: "ali@example.com",
-    phone: "01912345678",
-    joinDate: "2024-12-10",
-    totalPurchase: "$5,200.00",
-    status: "inactive",
-  },
-];
+// Helper function to map API response to component format
+const mapApiCustomerToAccount = (customer: CustomerItem): CustomerAccount => {
+  const joinDate = new Date(customer.created_at).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  return {
+    id: customer.id.toString(),
+    name: customer.name,
+    email: customer.email,
+    phone: customer.phone_number,
+    joinDate,
+    totalPurchase: `${customer.point} Points`,
+    status: customer.is_active ? 'active' : 'inactive',
+  };
+};
 
 export default function CustomerAccountsPage() {
+  const { user, token, isLoading: authLoading } = useAuth();
   const [searchValue, setSearchValue] = useState("");
-  const [records, setRecords] = useState<CustomerAccount[]>(mockData);
+  const [records, setRecords] = useState<CustomerAccount[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
@@ -61,11 +55,48 @@ export default function CustomerAccountsPage() {
   const [isCustomerEditOpen, setIsCustomerEditOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [filters, setFilters] = useState({ status: "all" });
-  const [formData, setFormData] = useState({ name: "", email: "", phone: "", status: "active" });
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", status: "active" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerAccount | null>(null);
   const [editFormData, setEditFormData] = useState({ name: "", email: "", phone: "", status: "active" as "active" | "inactive" });
   const [sortBy, setSortBy] = useState("Recently Added");
   const [dateFilter, setDateFilter] = useState("All Time");
+
+  // Fetch customers from API
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      // if (authLoading || !user || !token) {
+      //   return;
+      // }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response = await getCustomers({
+          branchId: "1234567890", // Replace with actual branch ID
+          token: "your_token_here", // Replace with actual token
+          page: 1,
+          perPage: 50,
+          sortBy: "created_at",
+          order: "desc",
+        });
+
+        if (response.status === 'success' && response.data?.items) {
+          const mappedCustomers = response.data.items.map(mapApiCustomerToAccount);
+          setRecords(mappedCustomers);
+        }
+      } catch (err) {
+        console.error('Failed to fetch customers:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch customers');
+        setRecords([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCustomers();
+  }, [user, token, authLoading]);
 
   // Table view customization
   const defaultColumns = {
@@ -100,35 +131,56 @@ export default function CustomerAccountsPage() {
         scope
       });
     }
-    
+
     setIsDownloadModalOpen(false);
   };
   const filteredRecords = records.filter(
     (record) => {
       const matchesSearch = record.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-                          record.email.toLowerCase().includes(searchValue.toLowerCase());
+        record.email.toLowerCase().includes(searchValue.toLowerCase());
       const matchesFilter = filters.status === "all" || record.status === filters.status;
       return matchesSearch && matchesFilter;
     }
   );
 
-  const handleAddCustomer = () => {
+  const handleAddCustomer = async () => {
     if (!formData.name || !formData.email || !formData.phone) {
-      alert("Please fill all fields");
+      alert("Please fill all required fields");
       return;
     }
-    const newCustomer: CustomerAccount = {
-      id: (records.length + 1).toString(),
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      status: formData.status as "active" | "inactive",
-      joinDate: new Date().toISOString().split('T')[0],
-      totalPurchase: "$0.00",
-    };
-    setRecords([...records, newCustomer]);
-    setFormData({ name: "", email: "", phone: "", status: "active" });
-    setShowModal(false);
+
+    // if (!user || !token) {
+    //   alert("Please login first");
+    //   return;
+    // }
+
+    try {
+      setIsSubmitting(true);
+      const response = await createCustomer({
+        branchId: "1234567890", // Replace with actual branch ID
+        token: "your_token_here", // Replace with actual token
+        name: formData.name,
+        phone_number: formData.phone,
+        email: formData.email,
+        address: formData.address,
+        point: 0,
+        is_active: formData.status === "active",
+      });
+
+      if (response.status === "success") {
+        // Add new customer to the list
+        const newCustomer = mapApiCustomerToAccount(response.data);
+        setRecords([newCustomer, ...records]);
+        setFormData({ name: "", email: "", phone: "", address: "", status: "active" });
+        setShowModal(false);
+        alert("Customer created successfully!");
+      }
+    } catch (err) {
+      console.error('Failed to create customer:', err);
+      alert(err instanceof Error ? err.message : 'Failed to create customer');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEditCustomer = (customer: CustomerAccount) => {
@@ -147,8 +199,8 @@ export default function CustomerAccountsPage() {
       alert("Please fill all fields");
       return;
     }
-    setRecords(records.map(r => 
-      r.id === selectedCustomer?.id 
+    setRecords(records.map(r =>
+      r.id === selectedCustomer?.id
         ? { ...r, name: editFormData.name, email: editFormData.email, phone: editFormData.phone, status: editFormData.status }
         : r
     ));
@@ -159,11 +211,10 @@ export default function CustomerAccountsPage() {
   const getStatusBadge = (status: string) => {
     return (
       <span
-        className={`px-3 py-1 rounded-full text-xs font-bold ${
-          status === "active"
-            ? "bg-green-100 text-green-800"
-            : "bg-gray-100 text-gray-800"
-        }`}
+        className={`px-3 py-1 rounded-full text-xs font-bold ${status === "active"
+          ? "bg-green-100 text-green-800"
+          : "bg-gray-100 text-gray-800"
+          }`}
       >
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
@@ -216,6 +267,13 @@ export default function CustomerAccountsPage() {
           Manage and track customer accounts and their purchase history
         </motion.p>
       </div>
+
+      {/* Error Notification */}
+      {error && (
+        <div className="mx-4 rounded-lg bg-red-50 border border-red-200 p-4">
+          <p className="text-sm text-red-600">Error: {error}</p>
+        </div>
+      )}
 
       {/* Toolbar Section */}
       <motion.div
@@ -286,11 +344,10 @@ export default function CustomerAccountsPage() {
                       <button
                         key={opt}
                         onClick={() => setSortBy(opt)}
-                        className={`px-4 py-2.5 rounded text-sm font-medium border text-left transition-all ${
-                          sortBy === opt
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300"
-                        }`}
+                        className={`px-4 py-2.5 rounded text-sm font-medium border text-left transition-all ${sortBy === opt
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300"
+                          }`}
                       >
                         {opt}
                       </button>
@@ -304,11 +361,10 @@ export default function CustomerAccountsPage() {
                       <button
                         key={opt}
                         onClick={() => setFilters({ status: opt.toLowerCase() === "all" ? "all" : opt.toLowerCase() })}
-                        className={`w-full px-4 py-2.5 rounded text-sm font-medium border text-left transition-all ${
-                          filters.status === (opt.toLowerCase() === "all" ? "all" : opt.toLowerCase())
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300"
-                        }`}
+                        className={`w-full px-4 py-2.5 rounded text-sm font-medium border text-left transition-all ${filters.status === (opt.toLowerCase() === "all" ? "all" : opt.toLowerCase())
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300"
+                          }`}
                       >
                         {opt}
                       </button>
@@ -501,7 +557,7 @@ export default function CustomerAccountsPage() {
                   </button>
                 </div>
               </div>
-              
+
               <div className="p-8 max-h-[70vh] overflow-y-auto">
                 <div className="space-y-6">
                   {/* Row 1 - Name and Email */}
@@ -613,10 +669,15 @@ export default function CustomerAccountsPage() {
         transition={{ duration: 0.4, delay: 0.2 }}
       >
         <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowModal(true)}
-          className="w-full md:w-auto flex items-center gap-2 px-6 py-3 bg-linear-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl"
+          whileHover={{ scale: isLoading ? 1 : 1.05 }}
+          whileTap={{ scale: isLoading ? 1 : 0.95 }}
+          onClick={() => !isLoading && setShowModal(true)}
+          disabled={isLoading}
+          className={`w-full md:w-auto flex items-center gap-2 px-6 py-3 rounded-xl transition-all shadow-lg ${isLoading
+            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            : 'bg-linear-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold hover:shadow-xl'
+            }`}
+          title={isLoading ? 'Loading customers...' : 'Add new customer'}
         >
           <Plus size={20} />
           Add Customer
@@ -630,6 +691,7 @@ export default function CustomerAccountsPage() {
             ...record,
             status: getStatusBadge(record.status),
           }))}
+          isLoading={isLoading}
           actionButton={(row) => {
             const originalRecord = filteredRecords.find(r => r.id === row.id);
             return (
@@ -660,11 +722,15 @@ export default function CustomerAccountsPage() {
             );
           }}
         />
+      ) : isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
       ) : (
         <EmptyState
           icon={<Users size={48} />}
           title="No Customers Found"
-          description="Start by adding your first customer account"
+          description="No customer records available"
           action={{
             label: "Add Customer",
             onClick: () => setShowModal(true),
@@ -689,29 +755,41 @@ export default function CustomerAccountsPage() {
             <div className="space-y-4">
               <input
                 type="text"
-                placeholder="Customer Name"
+                placeholder="Customer Name *"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isSubmitting}
               />
               <input
                 type="email"
-                placeholder="Email Address"
+                placeholder="Email Address *"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isSubmitting}
               />
               <input
                 type="tel"
-                placeholder="Phone Number"
+                placeholder="Phone Number *"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isSubmitting}
+              />
+              <input
+                type="text"
+                placeholder="Address (optional)"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isSubmitting}
               />
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as "active" | "inactive" })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isSubmitting}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -719,20 +797,32 @@ export default function CustomerAccountsPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: isSubmitting ? 1 : 1.05 }}
+                whileTap={{ scale: isSubmitting ? 1 : 0.95 }}
                 onClick={handleAddCustomer}
-                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-all"
+                disabled={isSubmitting}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${isSubmitting
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-green-500 text-white hover:bg-green-600'
+                  }`}
               >
-                Save
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Customer'
+                )}
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition-all"
+                whileHover={{ scale: isSubmitting ? 1 : 1.05 }}
+                whileTap={{ scale: isSubmitting ? 1 : 0.95 }}
+                onClick={() => !isSubmitting && setShowModal(false)}
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Cancel
+                Close
               </motion.button>
             </div>
           </motion.div>

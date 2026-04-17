@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
@@ -11,93 +11,37 @@ import {
   StatsFooter,
 } from '@/components/dashboard/cash-drawer';
 import { useCashDrawer, Transaction } from '@/hooks/useCashDrawer';
+import { useAuth } from '@/hooks/useAuth';
+import { getCashInHistory, getCashOutHistory, CashHistoryItem } from '@/app/services/tools/serive.tools';
 
 // ============================================================================
-// SAMPLE DATA - Replace with API call in production
+// Helper function to map API response to Transaction format
 // ============================================================================
+const mapApiResponseToTransaction = (item: CashHistoryItem, type: 'in' | 'out'): Transaction => {
+  const timestamp = new Date(item.timestamp);
+  const date = timestamp.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  });
+  const time = timestamp.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 
-const MOCK_TRANSACTIONS: Transaction[] = [
-  {
-    id: '1',
-    name: 'John Davis',
-    role: 'Admin',
-    date: 'Mar 06, 2026',
-    time: '03:15 PM',
-    amount: 5000,
-    type: 'open',
-    note: 'Opening drawer - Initial cash',
-  },
-  {
-    id: '2',
-    name: 'Sarah Miller',
-    role: 'Manager',
-    date: 'Mar 06, 2026',
-    time: '03:20 PM',
-    amount: 2500,
-    type: 'in',
-    note: 'Cash deposit from sales',
-  },
-  {
-    id: '3',
-    name: 'Mike Johnson',
-    role: 'Employee',
-    date: 'Mar 06, 2026',
-    time: '03:45 PM',
-    amount: 750,
-    type: 'out',
-    note: 'Change shortage correction',
-  },
-  {
-    id: '4',
-    name: 'Emma Wilson',
-    role: 'Manager',
-    date: 'Mar 06, 2026',
-    time: '04:10 PM',
-    amount: 1200,
-    type: 'in',
-    note: 'Mid-shift deposit',
-  },
-  {
-    id: '5',
-    name: 'Alex Brown',
-    role: 'Customer',
-    date: 'Mar 06, 2026',
-    time: '04:30 PM',
-    amount: 500,
-    type: 'out',
-    note: 'Customer refund',
-  },
-  {
-    id: '6',
-    name: 'Lisa Anderson',
-    role: 'Employee',
-    date: 'Mar 06, 2026',
-    time: '05:00 PM',
-    amount: 3200,
-    type: 'in',
-    note: 'Afternoon sales deposit',
-  },
-  {
-    id: '7',
-    name: 'David Lee',
-    role: 'Admin',
-    date: 'Mar 06, 2026',
-    time: '05:30 PM',
-    amount: 400,
-    type: 'out',
-    note: 'Supply purchase',
-  },
-  {
-    id: '8',
-    name: 'Jennifer White',
-    role: 'Manager',
-    date: 'Mar 06, 2026',
-    time: '06:00 PM',
-    amount: 1800,
-    type: 'in',
-    note: 'Evening deposit',
-  },
-];
+  return {
+    id: item.id.toString(),
+    name: `Device ${item.device_id}`, // Placeholder, adjust based on actual API data
+    role: 'Employee', // Placeholder, adjust based on actual API data
+    date,
+    time,
+    amount: Math.abs(Math.floor(Number(item.amount))), // Convert string to absolute number
+    type: type,
+    note: item.note || `Cash ${type} transaction`,
+    timestamp: new Date(item.timestamp), // Add timestamp for sorting
+  };
+};
 
 /**
  * Cash Drawer Page
@@ -107,15 +51,93 @@ const MOCK_TRANSACTIONS: Transaction[] = [
  * - Data table displaying detailed transaction history
  * - Real-time statistics footer
  * - Responsive design for all screen sizes (Volcora, Mobile, Nest Hub, Desktop)
+ * - Fetches real data from API
  */
 export default function CashDrawerPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab') || 'all';
   const [showSuccess, setShowSuccess] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const { user, token, isLoading: authLoading } = useAuth();
 
   // Use the custom hook to handle filtering and statistics
-  const { filteredTransactions, stats } = useCashDrawer(MOCK_TRANSACTIONS, currentTab);
+  const { filteredTransactions, stats } = useCashDrawer(transactions, currentTab);
+
+  // Fetch cash-in and cash-out history data
+  useEffect(() => {
+    const fetchCashData = async () => {
+      // if (authLoading || !user || !token) {
+      //   return;
+      // }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch both cash-in and cash-out data in parallel
+        const [cashInResponse, cashOutResponse] = await Promise.all([
+          getCashInHistory({
+            branchId: "1234567890",
+            token: "your_token_here",
+            page: 1,
+            perPage: 50, // Increased to get more records for merged list
+            sortBy: 'date',
+            order: 'desc',
+          }),
+          getCashOutHistory({
+            branchId: "1234567890",
+            token: "your_token_here",
+            page: 1,
+            perPage: 50,
+            sortBy: 'date',
+            order: 'desc',
+          }),
+        ]);
+
+        console.log('Cash In Response:', cashInResponse);
+        console.log('Cash Out Response:', cashOutResponse);
+
+        // Map and merge both responses
+        const cashInTransactions: Transaction[] = [];
+        const cashOutTransactions: Transaction[] = [];
+
+        if (cashInResponse.status === 'success' && cashInResponse.data?.items) {
+          cashInTransactions.push(
+            ...cashInResponse.data.items.map((item) =>
+              mapApiResponseToTransaction(item, 'in')
+            )
+          );
+        }
+
+        if (cashOutResponse.status === 'success' && cashOutResponse.data?.items) {
+          cashOutTransactions.push(
+            ...cashOutResponse.data.items.map((item) =>
+              mapApiResponseToTransaction(item, 'out')
+            )
+          );
+        }
+
+        // Merge and sort by timestamp (newest first)
+        const allTransactions = [...cashInTransactions, ...cashOutTransactions].sort(
+          (a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)
+        );
+
+        setTransactions(allTransactions);
+      } catch (err) {
+        console.error('Failed to fetch cash history:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch data');
+        setTransactions([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCashData();
+  }, [user, token, authLoading]);
 
   /**
    * Handle drawer opening action
@@ -147,12 +169,19 @@ export default function CashDrawerPage() {
       {/* Success Notification */}
       {showSuccess && <SuccessNotification show={showSuccess} />}
 
+      {/* Error Notification */}
+      {error && (
+        <div className="mx-4 rounded-lg bg-red-50 border border-red-200 p-4 mt-4">
+          <p className="text-sm text-red-600">Error: {error}</p>
+        </div>
+      )}
+
       {/* Tab Navigation Bar */}
       <TabBar currentTab={currentTab} onTabChange={handleTabChange} />
 
       {/* Main Content Area - Responsive */}
       <div className="flex-1 overflow-auto px-4 py-4 md:px-6 md:py-6 lg:px-8">
-        <DataTable transactions={filteredTransactions} />
+        <DataTable transactions={filteredTransactions} isLoading={isLoading} />
       </div>
 
       {/* Footer Statistics */}

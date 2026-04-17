@@ -123,6 +123,7 @@ export default function App() {
   // Pagination & Sorting State
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [totalProducts, setTotalProducts] = useState(0);
 
   const [tempColumns, setTempColumns] = useState<TableViewColumns>(visibleColumns);
   const [tempItemsPerPage, setTempItemsPerPage] = useState(itemsPerPage);
@@ -227,67 +228,51 @@ export default function App() {
     localStorage.removeItem("tableSettingsProductsView");
   };
 
-  // Memoized sorted and filtered products
-  const sortedAndFilteredProducts = useMemo(() => {
-    let result = products.filter(p => {
-      const matchesSearch =
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.upc.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.brand.name.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesFilter = filterStatus === "All" || p.in_stock === (filterStatus === "In Stock");
-
-      return matchesSearch && matchesFilter;
-    });
-
-    if (sortConfig.key !== 'none') {
-      result.sort((a, b) => {
-        let aValue: any = a[sortConfig.key as keyof Product];
-        let bValue: any = b[sortConfig.key as keyof Product];
-
-        if (sortConfig.key === 'selling_price') {
-          aValue = parseFloat(a.selling_price.replace('$', '').replace(',', ''));
-          bValue = parseFloat(b.selling_price.replace('$', '').replace(',', ''));
-        }
-
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return result;
-  }, [products, searchQuery, filterStatus, sortConfig]);
-
-  const totalPages = Math.ceil(sortedAndFilteredProducts.length / itemsPerPage);
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return sortedAndFilteredProducts.slice(start, start + itemsPerPage);
-  }, [sortedAndFilteredProducts, currentPage, itemsPerPage]);
+  // Calculate total pages from API total count
+  const totalPages = Math.ceil(totalProducts / itemsPerPage);
+  // Use products directly from API (already paginated server-side)
+  const paginatedProducts = products;
 
 
   /**
-   * Fetch products from API - Replace mock data with real API call
+   * Fetch products from API with filters and pagination
    */
-  const loadProducts = async () => {
+  const loadProducts = async (searchTerm = "", categoryId?: number) => {
     try {
       setLoading(true);
-      const response = await getProducts({ branchId: 1234567890, token: "your_token_here", page: 1, per_page: 100 });
+      const response = await getProducts({
+        branchId: "1234567890",
+        token: "your_token_here",
+        page: currentPage,
+        limit: itemsPerPage,
+        search: searchTerm || undefined,
+        category_id: categoryId || undefined,
+        sort_by: sortConfig.key !== 'none' ? (sortConfig.key === 'selling_price' ? 'selling_price' : sortConfig.key === 'quantity' ? 'quantity' : sortConfig.key) : 'name',
+        sort_order: sortConfig.direction,
+      });
+
       const productsData = response.data.items.map((item: any) => ({
         id: item.id,
         name: item.name,
         upc: item.upc,
         category: { id: item.category.id, name: item.category.name },
         brand: { id: item.brand.id, name: item.brand.name },
-        selling_price: item.selling_price,
+        selling_price: typeof item.selling_price === 'number' ? `$${item.selling_price.toFixed(2)}` : item.selling_price,
         quantity: item.quantity,
         in_stock: item.in_stock,
         plu: item.plu,
       }));
+
       setProducts(productsData);
+      setTotalProducts(response.data.pagination?.total_items || 0);
       setLoading(false);
-      console.log("Fetched products:", productsData);
+      console.log("✅ Products loaded:", {
+        count: productsData.length,
+        totalProducts: response.data.pagination?.total_items,
+        currentPage: response.data.pagination?.current_page,
+        perPage: response.data.pagination?.per_page,
+        totalPages: response.data.pagination?.total_pages,
+      });
     } catch (error) {
       console.error("Error fetching products:", error);
       setLoading(false);
@@ -303,12 +288,30 @@ export default function App() {
   };
 
 
-  // Reset page when filters change
+  // Reset page when filters/search change
   useEffect(() => {
     fetchData();
-    loadProducts();
     setCurrentPage(1);
-  }, [searchQuery, filterStatus, sortConfig]);
+  }, [searchQuery, sortConfig]);
+
+  // Reload products when page or items per page changes
+  useEffect(() => {
+    loadProducts(searchQuery);
+  }, [searchQuery, sortConfig]);
+
+  // Reload products when page changes
+  useEffect(() => {
+    if (currentPage >= 1) {
+      loadProducts(searchQuery);
+    }
+  }, [currentPage, itemsPerPage]);
+
+  // Initial load on component mount
+  useEffect(() => {
+    console.log("Component mounted, loading initial data...");
+    fetchData();
+    loadProducts("");
+  }, []);
 
 
   /**
@@ -547,7 +550,8 @@ export default function App() {
   };
 
   const downloadCSV = (scope: 'current' | 'all') => {
-    const dataToExport = scope === 'current' ? paginatedProducts : sortedAndFilteredProducts;
+    // With server-side pagination, only current page data is available
+    const dataToExport = paginatedProducts;
     const headers = ["ID", "Name", "UPC", "PLU", "Category", "Brand", "Buying Price", "Selling Price", "Quantity", "Status"];
     const rows = dataToExport.map(p => [
       p.id,
@@ -562,13 +566,14 @@ export default function App() {
       p.in_stock ? "In Stock" : "Out of Stock"
     ]);
 
-    generateCSV(headers, rows, `products_${scope}_${new Date().getTime()}.csv`);
-    addHistory("Download", `Exported ${scope === 'current' ? 'current page' : 'all'} products as CSV`);
+    generateCSV(headers, rows, `products_page-${currentPage}_${new Date().getTime()}.csv`);
+    addHistory("Download", `Exported current page (page ${currentPage}) products as CSV`);
     setIsDownloadModalOpen(false);
   };
 
   const downloadPDF = (scope: 'current' | 'all') => {
-    const dataToExport = scope === 'current' ? paginatedProducts : sortedAndFilteredProducts;
+    // With server-side pagination, only current page data is available
+    const dataToExport = paginatedProducts;
     const columns = ["ID", "Name", "UPC", "PLU", "Category", "Brand", "Selling Price", "Quantity", "Status"];
     const rows = dataToExport.map(p => [
       p.id,
@@ -583,14 +588,14 @@ export default function App() {
     ]);
 
     generatePDFWithLogo({
-      title: `Product Inventory Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+      title: `Product Inventory Report (Current Page)`,
       columns,
       rows,
-      fileName: `products_${scope}_${new Date().getTime()}.pdf`,
-      scope
+      fileName: `products_page-${currentPage}_${new Date().getTime()}.pdf`,
+      scope: 'current'
     });
 
-    addHistory("Download", `Exported ${scope === 'current' ? 'current page' : 'all'} products as PDF`);
+    addHistory("Download", `Exported current page products as PDF`);
     setIsDownloadModalOpen(false);
   };
 
@@ -929,7 +934,7 @@ export default function App() {
         {/* Pagination Section */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-lg shadow-slate-200/50">
           <div className="text-xl font-bold text-slate-500 uppercase tracking-widest">
-            Showing <span className="text-blue-600">{paginatedProducts.length}</span> of <span className="text-slate-800">{sortedAndFilteredProducts.length}</span> products
+            Showing <span className="text-blue-600">{paginatedProducts.length}</span> of <span className="text-slate-800">{totalProducts}</span> products
           </div>
 
           <div className="flex items-center gap-2">
@@ -938,8 +943,13 @@ export default function App() {
               <select
                 value={itemsPerPage}
                 onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value));
+                  const newItemsPerPage = Number(e.target.value);
+                  setItemsPerPage(newItemsPerPage);
                   setCurrentPage(1);
+                  // Save to localStorage
+                  const savedSettings = localStorage.getItem("tableSettingsProductsView");
+                  const settings = savedSettings ? JSON.parse(savedSettings) : { columns: visibleColumns };
+                  localStorage.setItem("tableSettingsProductsView", JSON.stringify({ ...settings, itemsPerPage: newItemsPerPage }));
                 }}
                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer"
               >
@@ -964,20 +974,66 @@ export default function App() {
               </motion.button>
 
               <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <motion.button
-                    key={page}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-10 h-10 rounded-xl font-black text-xs transition-all ${currentPage === page
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
-                      : "text-slate-500 hover:bg-slate-50"
-                      }`}
-                  >
-                    {page}
-                  </motion.button>
-                ))}
+                {(() => {
+                  // Generate page numbers to display with ellipsis
+                  const pages: (number | string)[] = [];
+                  const maxPagesToShow = 5; // Show max 5 page buttons
+
+                  if (totalPages <= maxPagesToShow) {
+                    // Show all pages if less than max
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(i);
+                    }
+                  } else {
+                    // Always show first page
+                    pages.push(1);
+
+                    // Calculate range around current page
+                    const start = Math.max(2, currentPage - 1);
+                    const end = Math.min(totalPages - 1, currentPage + 1);
+
+                    // Add ellipsis before if needed
+                    if (start > 2) {
+                      pages.push('...');
+                    }
+
+                    // Add pages around current
+                    for (let i = start; i <= end; i++) {
+                      if (!pages.includes(i)) {
+                        pages.push(i);
+                      }
+                    }
+
+                    // Add ellipsis after if needed
+                    if (end < totalPages - 1) {
+                      pages.push('...');
+                    }
+
+                    // Always show last page
+                    if (!pages.includes(totalPages)) {
+                      pages.push(totalPages);
+                    }
+                  }
+
+                  return pages.map((page, idx) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="text-slate-400 px-1">...</span>
+                    ) : (
+                      <motion.button
+                        key={page}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setCurrentPage(page as number)}
+                        className={`w-10 h-10 rounded-xl font-black text-xs transition-all ${currentPage === page
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                          : "text-slate-500 hover:bg-slate-50"
+                          }`}
+                      >
+                        {page}
+                      </motion.button>
+                    )
+                  ));
+                })()}
               </div>
 
               <motion.button

@@ -91,7 +91,7 @@ export function DataTable({ transactions, isLoading = false, className = '' }: D
                 <td
                   className={`px-4 py-4 text-right text-sm font-semibold lg:px-6 ${AMOUNT_STYLES[transaction.type]}`}
                 >
-                  {transaction.type === 'out' ? '-' : '+'} PKR{' '}
+                  {transaction.type === 'out' ? '-' : '+'} USD{' '}
                   {transaction.amount.toLocaleString()}
                 </td>
                 <td className="hidden px-4 py-4 text-sm text-gray-600 lg:table-cell lg:px-6 lg:max-w-xs lg:truncate">
@@ -136,7 +136,7 @@ export function DataTable({ transactions, isLoading = false, className = '' }: D
               <span
                 className={`text-sm font-bold ${AMOUNT_STYLES[transaction.type]}`}
               >
-                {transaction.type === 'out' ? '-' : '+'} PKR{' '}
+                {transaction.type === 'out' ? '-' : '+'} USD{' '}
                 {transaction.amount.toLocaleString()}
               </span>
             </div>
