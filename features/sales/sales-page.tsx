@@ -57,9 +57,11 @@ import { useRouter } from "next/navigation";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { cn } from "@/lib/utils";
 import { getCategories, getProductsByCategory } from "@/app/services/categories/service.categories";
+import { getBundles, getBuyNGet } from "@/app/services/tools/serive.tools";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import CardPaymentModal from "@/components/sales/card-payment-modal";
 import { ca } from "date-fns/locale";
+import { set } from "date-fns";
 
 interface Product {
     id: string;
@@ -150,6 +152,10 @@ export default function SalesPage() {
     const [editingItem, setEditingItem] = useState<CartItemType | null>(null);
     const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [promotions, setPromotions] = useState<any[]>([]);
+    const [isLoadingPromotions, setIsLoadingPromotions] = useState(false);
+    const [viewMode, setViewMode] = useState<'categories' | 'promotions'>('categories');
+    const [promotionFilterType, setPromotionFilterType] = useState<'all' | 'buynget'>('all');
 
     const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
         setNotification({ message, type });
@@ -254,6 +260,7 @@ export default function SalesPage() {
     // Load categories when component mounts
     useEffect(() => {
         fetchCategories();
+        fetchPromotions();
     }, []); // Empty array means run once when component loads
 
 
@@ -299,6 +306,75 @@ export default function SalesPage() {
             setProducts([]);
         } finally {
             setIsLoadingProducts(false);
+        }
+    };
+
+
+    // Fetch all promotions (BOGO and Bundles)
+    const fetchPromotions = async () => {
+        setIsLoadingPromotions(true);
+        try {
+            const [bundlesResponse, bogoResponse] = await Promise.all([
+                getBundles({
+                    branchId: "1234567890",
+                    token: "123456",
+                    page: 1,
+                    perPage: 50,
+                }),
+                getBuyNGet({
+                    branchId: "1234567890",
+                    token: "123456",
+                    page: 1,
+                    perPage: 50,
+                }),
+            ]);
+
+            const allPromotions: any[] = [];
+
+            // Format bundles
+            if (bundlesResponse?.status === "success" && bundlesResponse?.data?.items) {
+                bundlesResponse.data.items.forEach((bundle: any) => {
+                    allPromotions.push({
+                        id: `bundle_${bundle.id}`,
+                        name: bundle.name,
+                        type: "Bundle",
+                        description: bundle.description || "",
+                        discount: bundle.discount_type === "flat"
+                            ? `$${bundle.flat_discount}`
+                            : `${bundle.percent_discount}%`,
+                        discountType: bundle.discount_type,
+                        products: bundle.products,
+                        startDate: bundle.start_date,
+                        endDate: bundle.end_date,
+                        productCount: bundle.products?.length || 0,
+                    });
+                });
+            }
+
+            // Format BOGO offers
+            if (bogoResponse?.status === "success" && bogoResponse?.data?.items) {
+                bogoResponse.data.items.forEach((offer: any) => {
+                    allPromotions.push({
+                        id: `buynget_${offer.id}`,
+                        name: offer.name,
+                        type: "Buy N Get",
+                        description: offer.description || "",
+                        discount: "Free Reward",
+                        buyQty: offer.buy_conditions[0]?.required_qty || 1,
+                        getQty: offer.reward_items[0]?.reward_qty || 1,
+                        startDate: offer.start_date,
+                        endDate: offer.end_date,
+                    });
+                });
+            }
+
+            setPromotions(allPromotions);
+        } catch (error: any) {
+            console.error("Fetch Promotions Error:", error.message);
+            showNotification(error.message, "error");
+            setPromotions([]);
+        } finally {
+            setIsLoadingPromotions(false);
         }
     };
 
@@ -402,13 +478,15 @@ export default function SalesPage() {
         }
 
         if (type === "Buy N Get N") {
-            showNotification("Under development", "success");
+            setPromotionFilterType('buynget');
+            setViewMode('promotions');
             setModalOpen(false);
             return;
         }
 
         if (type === "Promotions") {
-            showNotification("Under development", "success");
+            setPromotionFilterType('all');
+            setViewMode('promotions');
             setModalOpen(false);
             return
         }
@@ -572,14 +650,13 @@ export default function SalesPage() {
     };
 
     const handleProcessAndPrint = async (paymentType: string) => {
-        // Check if cart is empty
         if (items.length === 0) {
             showNotification("Cart is empty! Add products before payment.", "error");
             return;
         }
 
         setIsBasketOnlyPrint(false);
-        setReprintOrder(null); // Clear reprint order if processing new sale
+        setReprintOrder(null);
 
         try {
             if (paymentType === "Cash") {
@@ -593,7 +670,7 @@ export default function SalesPage() {
                     tax: taxAmount,
                     discount: discountAmount,
                     total,
-                    paymentMethod: paymentType, // Mock payment method
+                    paymentMethod: paymentType,
                     cashGiven,
                     change: cashGiven - total
                 };
@@ -749,6 +826,15 @@ export default function SalesPage() {
         return <ShoppingCart className="size-8 text-gray-400" />;
     };
 
+    const getPromotionIcon = (promotionType: string) => {
+        if (promotionType === "Buy N Get") {
+            return <Box className="size-8 text-blue-500" />;
+        } else if (promotionType === "Bundle") {
+            return <Gift className="size-8 text-blue-500" />;
+        }
+        return <Box className="size-8 text-gray-400" />;
+    };
+
 
     return (
         <>
@@ -829,20 +915,6 @@ export default function SalesPage() {
                                                 <span className="font-medium">Contact:</span>{" "}
                                                 {customer?.contact || "No Customer Selected"}
                                             </p>
-
-                                            {/* <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                                            <p>
-                                                <span className="font-medium text-white">Membership:</span>{" "}
-                                                <span className="px-2 py-1 text-xs sm:text-sm bg-yellow-100 text-yellow-700 rounded-md">
-                                                    {customer?.membership || "N/A"}
-                                                </span>
-                                            </p>
-
-                                            <p>
-                                                <span className="font-medium text-white">Points:</span>{" "}
-                                                <span className="font-semibold text-white">{customer?.points || 0}</span>
-                                            </p>
-                                        </div> */}
                                         </div>
 
                                     </div>)
@@ -942,56 +1014,122 @@ export default function SalesPage() {
 
                                 <div className="flex-1 overflow-auto custom-scrollbar">
                                     {!(selectedCategory || searchQuery) ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 xl:mt-2 gap-4">
-                                            {isLoadingCategories ? (
-                                                // Loading skeletons
-                                                <>
-                                                    {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                                                        <div key={i} className="animate-pulse">
-                                                            <div className="flex items-center p-4 bg-gray-200 rounded-2xl h-32"></div>
-                                                        </div>
-                                                    ))}
-                                                </>
-                                            ) : categories.length > 0 ? (
-                                                // Display categories from API
-                                                categories.map((cat) => (
-                                                    <div
-                                                        key={cat.id}
-                                                        onClick={() => handleAction(cat.name)}
-                                                        className="flex items-center p-4 bg-black/80 rounded-2xl hover:bg-gray-900 transition-all cursor-pointer shadow-lg group border border-gray-800"
+                                        <>
+                                            {/* Toggle Buttons */}
+                                            <div className="flex gap-2 mb-3 sticky top-0 bg-white z-10 pb-2 px-1">
+                                                {viewMode === 'promotions' && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 sm:h-10 flex items-center gap-2 hover:bg-gray-100 px-2 sm:px-3"
+                                                        onClick={() => {
+                                                            setViewMode('categories');
+                                                        }}
                                                     >
-                                                        <div className="bg-white rounded-xl p-4 flex items-center justify-center shrink-0 mr-4 transition-transform group-hover:scale-105">
-                                                            {cat.icon ? (
-                                                                cat.icon
-                                                            ) : (
-                                                                <span className="text-black font-bold text-sm">
-                                                                    {cat.name?.slice(0, 2).toUpperCase()}
-                                                                </span>
-                                                            )}
+                                                        <ArrowLeft className="size-5" />
+                                                        <span className="text-sm font-semibold">Back</span>
+                                                    </Button>
+                                                )}
+                                            </div>
+
+                                            {/* Categories View */}
+                                            {viewMode === 'categories' && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 xl:mt-2 gap-4">
+                                                    {isLoadingCategories ? (
+                                                        <>
+                                                            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                                                                <div key={i} className="animate-pulse">
+                                                                    <div className="flex items-center p-4 bg-gray-200 rounded-2xl h-32"></div>
+                                                                </div>
+                                                            ))}
+                                                        </>
+                                                    ) : categories.length > 0 ? (
+                                                        categories.map((cat) => (
+                                                            <div
+                                                                key={cat.id}
+                                                                onClick={() => handleAction(cat.name)}
+                                                                className="flex items-center p-4 bg-black/80 rounded-2xl hover:bg-gray-900 transition-all cursor-pointer shadow-lg group border border-gray-800"
+                                                            >
+                                                                <div className="bg-white rounded-xl p-4 flex items-center justify-center shrink-0 mr-4 transition-transform group-hover:scale-105">
+                                                                    {cat.icon ? (
+                                                                        cat.icon
+                                                                    ) : (
+                                                                        <span className="text-black font-bold text-sm">
+                                                                            {cat.name?.slice(0, 2).toUpperCase()}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <span className="text-lg xl:text-xl font-bold text-white leading-tight break-words">
+                                                                        {cat.name}
+                                                                    </span>
+                                                                    <span className="text-[12px] xl:text-[13px] font-medium text-gray-400 mt-1 uppercase tracking-wide">
+                                                                        {cat.count} In Stock
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="col-span-full text-center py-10">
+                                                            <p className="text-gray-500">No categories available</p>
+                                                            <button
+                                                                onClick={fetchCategories}
+                                                                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
+                                                            >
+                                                                Retry
+                                                            </button>
                                                         </div>
-                                                        <div className="flex flex-col min-w-0">
-                                                            <span className="text-lg xl:text-xl font-bold text-white leading-tight break-words">
-                                                                {cat.name}
-                                                            </span>
-                                                            <span className="text-[12px] xl:text-[13px] font-medium text-gray-400 mt-1 uppercase tracking-wide">
-                                                                {cat.count} In Stock
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                // No categories found
-                                                <div className="col-span-full text-center py-10">
-                                                    <p className="text-gray-500">No categories available</p>
-                                                    <button
-                                                        onClick={fetchCategories}
-                                                        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
-                                                    >
-                                                        Retry
-                                                    </button>
+                                                    )}
                                                 </div>
                                             )}
-                                        </div>
+
+                                            {/* Promotions View */}
+                                            {viewMode === 'promotions' && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 xl:mt-2 gap-4">
+                                                    {isLoadingPromotions ? (
+                                                        <>
+                                                            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                                                                <div key={i} className="animate-pulse">
+                                                                    <div className="flex items-center p-4 bg-gray-200 rounded-2xl h-32"></div>
+                                                                </div>
+                                                            ))}
+                                                        </>
+                                                    ) : promotions.filter(p => promotionFilterType === 'all' || p.type === 'Buy N Get').length > 0 ? (
+                                                        promotions.filter(p => promotionFilterType === 'all' || p.type === 'Buy N Get').map((promo) => (
+                                                            <div
+                                                                key={promo.id}
+                                                                onClick={() => {
+                                                                    showNotification(`Applied promotion: ${promo.name}`, "success");
+                                                                }}
+                                                                className="flex items-center p-4 bg-black/80 rounded-2xl hover:bg-gray-900 transition-all cursor-pointer shadow-lg group border border-gray-800"
+                                                            >
+                                                                <div className="bg-white rounded-xl p-4 flex items-center justify-center shrink-0 mr-4 transition-transform group-hover:scale-105">
+                                                                    {getPromotionIcon(promo.type)}
+                                                                </div>
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <span className="text-lg xl:text-xl font-bold text-white leading-tight break-words">
+                                                                        {promo.name}
+                                                                    </span>
+                                                                    <span className="text-[12px] xl:text-[13px] font-medium text-white/80 mt-1 uppercase tracking-wide">
+                                                                        {promo.discount}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="col-span-full text-center py-10">
+                                                            <p className="text-gray-500">No promotions available</p>
+                                                            <button
+                                                                onClick={fetchPromotions}
+                                                                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
+                                                            >
+                                                                Retry
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
                                     ) : (
                                         <div>
                                             <div className="flex items-center justify-between mb-1 sm:mb-2 -mt-1 sticky top-0 bg-white z-10 py-0.5 sm:py-1">
@@ -1087,24 +1225,6 @@ export default function SalesPage() {
                                                 <p className="text-md xl:text-xl">Membership</p>
                                             </div>
                                         </Button>
-                                        {/* <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="w-full h-full border border-black"
-                                            aria-label="Loyalty Card Lookup"
-                                            onClick={() => handleAction('Loyalty Card Lookup')}
-                                        >
-                                            <HandCoins className="size-14 xl:size-20" />
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="w-full h-full border border-black"
-                                            aria-label="Gift"
-                                            onClick={() => handleAction('Find Gift Card')}
-                                        >
-                                            <Gift className="size-14 xl:size-20" />
-                                        </Button> */}
                                         <Button
                                             variant="outline"
                                             size="icon"
@@ -1313,9 +1433,9 @@ export default function SalesPage() {
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 title={modalTitle}
-                showFooter={modalTitle !== "Recent Holds" && modalTitle !== "History" && modalTitle !== "Item Pricing" && modalTitle !== "Working Hours" && modalTitle !== "Attendance" && modalTitle !== "Other Payments" && modalTitle !== "Refund Transaction"}
+                showFooter={modalTitle !== "Recent Holds" && modalTitle !== "History" && modalTitle !== "Item Pricing" && modalTitle !== "Working Hours" && modalTitle !== "Attendance" && modalTitle !== "Other Payments" && modalTitle !== "Refund Transaction" && modalTitle !== "Promotions" && modalTitle !== "All Promotions"}
                 showHeader={modalTitle !== "History" && modalTitle !== "Item Pricing" && modalTitle !== "Working Hours" && modalTitle !== "Attendance" && modalTitle !== "Other Payments" && modalTitle !== "Refund Transaction"}
-                className={modalTitle === "History" || modalTitle === "Working Hours" || modalTitle === "Other Payments" || modalTitle === "Refund Transaction" || modalTitle === "Attendance" ? "w-[90%] sm:w-[60%] max-w-[90%] sm:max-w-[60%] h-[90%] sm:h-[80%] max-h-[90%] sm:max-h-[80%] p-0 overflow-hidden" : ""}
+                className={modalTitle === "History" || modalTitle === "Working Hours" || modalTitle === "Other Payments" || modalTitle === "Refund Transaction" || modalTitle === "Attendance" || modalTitle === "Promotions" || modalTitle === "All Promotions" ? "w-[90%] sm:w-[70%] max-w-[90%] sm:max-w-[70%] h-[90%] sm:h-[80%] max-h-[90%] sm:max-h-[80%] p-0 overflow-hidden" : ""}
                 onSubmit={(e) => {
                     e.preventDefault();
                     setModalOpen(false);
