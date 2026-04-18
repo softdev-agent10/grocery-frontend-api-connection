@@ -39,7 +39,6 @@ import { useEffect, useRef } from "react";
 import LoyaltyModal from "@/components/sales/loyalty-modal";
 import GiftCardModal from "@/components/sales/giftcard-modal";
 import CashInForm from "@/components/sales/cash-in-form";
-import CashOutForm from "@/components/sales/cash-out-form";
 import CashPaymentModal from "@/components/sales/cash-payment-modal";
 import Invoice from "@/components/sales/invoice";
 import DiscountModal from "@/components/sales/discount-modal";
@@ -57,6 +56,7 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { cn } from "@/lib/utils";
 import { getCategories, getProductsByCategory } from "@/app/services/categories/service.categories";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import CashOutForm from "@/components/sales/cash-out-form";
 
 interface Product {
     id: string;

@@ -82,7 +82,7 @@ export function SalesActionsDialog({
               <DialogClose asChild>
                 <Button className="md:text-xl md:px-5 md:py-5" variant="outline">Cancel</Button>
               </DialogClose>
-              <Button className="md:text-xl md:px-5 md:py-5" type="submit">Save</Button>
+              {/* <Button className="md:text-xl md:px-5 md:py-5" type="submit">Save</Button> */}
             </DialogFooter>
           )}
         </form>

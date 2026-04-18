@@ -1,53 +1,130 @@
 import { Field, FieldGroup } from '../ui/field'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
-import { useState } from 'react'
 import { SearchInput } from './search-input'
 import { Button } from '../ui/button'
 import { SalesActionsDialog } from './sales-actions-modal'
 import { DateOfBirthInput } from '../date-of-birth-input'
 import { Textarea } from '../ui/textarea'
+// import { getCustomers } from '@/app/services/customer/service.customer'
+import { useEffect, useState } from 'react'
+import { getCustomers, createCustomer } from '@/app/services/customer/service.customer'
 
-const users = [
-    {
-        id: "1",
-        name: "John Doe",
-        contact: "8888888888"
-    },
-    {
-        id: "2",
-        name: "Alex Smith",
-        contact: "9999999999"
-    },
-    {
-        id: "3",
-        name: "Jane Doe",
-        contact: "7777777777"
-    },
-]
+
+
 
 export default function CustomerModal({ customer, setCustomer }: { customer: { name: string; contact: string } | null; setCustomer: (customer: { name: string; contact: string }) => void }) {
+    const [customers, setCustomers] = useState<any[]>([]);
     const [modalOpen, setModalOpen] = useState(false)
     const [formData, setFormData] = useState({ name: "", dob: "", contact: "", email: "", address: "" })
 
-    const handleSaveCustomer = () => {
-        if (!formData.name || !formData.contact) {
-            alert("Name and Contact Number are required");
-            return;
-        }
-        // Add new customer to the list
-        const newCustomer = {
-            id: (users.length + 1).toString(),
-            name: formData.name,
-            contact: formData.contact,
+    // api coinnect
+    useEffect(() => {
+        const fetchCustomers = async () => {
+            try {
+                const res = await getCustomers({
+                    branchId: "1234567890",
+                    token: "123456"
+                });
+
+                const items = res?.data?.items || [];
+
+                const formatted = items.map((item: any) => ({
+                    id: item.id?.toString(),
+                    name: item.name,
+                    contact: item.phone_number || "",
+                }));
+
+                setCustomers(formatted);
+            } catch (err) {
+                console.error(err);
+            }
         };
-        users.push(newCustomer);
-        setCustomer(newCustomer);
-        // Reset form
-        setFormData({ name: "", dob: "", contact: "", email: "", address: "" });
-        setModalOpen(false);
+
+        fetchCustomers();
+    }, []);
+
+    // helper function for validation
+    const validateCustomer = () => {
+    const name = formData.name.trim();
+    const contact = formData.contact.trim();
+    const email = formData.email?.trim();
+
+    if (!name || name.length < 2) {
+        return "Name must be at least 2 characters";
     }
 
+    if (!contact) {
+        return "Contact number is required";
+    }
+
+    // Bangladesh-style validation (adjust if needed)
+    const phoneRegex = /^(01[3-9]\d{8})$/;
+    if (!phoneRegex.test(contact)) {
+        return "Enter a valid Bangladeshi phone number (01XXXXXXXXX)";
+    }
+
+    if (email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return "Invalid email address";
+        }
+    }
+
+    return null;
+};
+
+    const handleSaveCustomer = async () => {
+    const error = validateCustomer();
+
+    if (error) {
+        alert(error);
+        return;
+    }
+
+    try {
+        const payload = {
+            name: formData.name.trim(),
+            phone_number: formData.contact.trim(),
+            email: formData.email?.trim() || null,
+            address: formData.address?.trim() || null,
+        };
+
+        const res = await createCustomer({
+            data: payload,
+            token: "123456",
+        });
+
+        const created = res?.data;
+
+        if (!created?.id) {
+            throw new Error("Customer creation failed");
+        }
+
+        const newCustomer = {
+            id: created.id.toString(),
+            name: created.name,
+            contact: created.phone_number,
+        };
+
+        setCustomers((prev) => [newCustomer, ...prev]);
+        setCustomer(newCustomer);
+
+        setFormData({
+            name: "",
+            dob: "",
+            contact: "",
+            email: "",
+            address: "",
+        });
+
+        setModalOpen(false);
+
+    } catch (error) {
+        console.error("Create customer error:", error);
+        alert("Failed to create customer. Please try again.");
+    }
+};
     return (
 
         <>
@@ -65,7 +142,7 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
                     /> */}
                         <div className='flex gap-2'>
                             <SearchInput
-                                items={users}
+                                items={customers}
                                 placeholder="Search users..."
                                 inputClassName='md:h-12 flex-1'
                                 onSelect={(item) => {
@@ -110,33 +187,33 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
                     {/* Modal content goes here */}
                     <div className="flex flex-col mt-5">
                         <div className='flex gap-2'>
-                            <Input 
-                                placeholder="Customer Name" 
+                            <Input
+                                placeholder="Customer Name"
                                 className="mb-4 md:h-12"
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             />
-                            <DateOfBirthInput 
+                            <DateOfBirthInput
                                 className="mb-4"
                                 onChange={(date: string) => setFormData({ ...formData, dob: date })}
                             />
                         </div>
                         <div className='flex gap-2'>
-                            <Input 
-                                placeholder="Contact Number" 
+                            <Input
+                                placeholder="Contact Number"
                                 className="mb-4 md:h-12"
                                 value={formData.contact}
                                 onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
                             />
-                            <Input 
-                                placeholder="Email Address" 
+                            <Input
+                                placeholder="Email Address"
                                 className="mb-4 md:h-12"
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                             />
                         </div>
-                        <Textarea 
-                            placeholder="Address" 
+                        <Textarea
+                            placeholder="Address"
                             className="mb-4 md:h-24"
                             value={formData.address}
                             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
