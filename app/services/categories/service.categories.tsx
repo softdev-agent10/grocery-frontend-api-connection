@@ -1,13 +1,14 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
 
-export const getCategories = async ({ branchId, token }: any) => {
+export const getCategories = async ({  merchant_id,branchId, token }: any) => {
   const res = await fetch(
-    `${BASE_URL}/inventory/categories?branch_id=${branchId}`,
+    `${BASE_URL}/inventory/departments?merchant_id=${merchant_id}&branch_id=${branchId}`,
     {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
+        // merchant_id: "9",
       },
       cache: "no-store",
     }
@@ -67,7 +68,7 @@ export const createCategories = async ({
   data: any;
 }) => {
   const res = await fetch(
-    `${BASE_URL}/inventory/categories?branch_id=${branchId}`,
+    `${BASE_URL}/inventory/departments?branch_id=${branchId}`,
     {
       method: "POST",
       headers: {
@@ -76,6 +77,7 @@ export const createCategories = async ({
       },
       body: JSON.stringify(data),
     }
+    
   );
 
   if (!res.ok) {

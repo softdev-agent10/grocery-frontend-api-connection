@@ -69,6 +69,17 @@ interface Product {
     image?: string;
     promotion?: string;
 }
+interface Category {
+    id: number;
+    name: string;
+    description: string;
+    count: string;
+    product_count: number;
+    is_active: boolean;
+    taxes: any[];
+    fees: any[];
+    icon?: ReactNode;
+}
 
 const CATEGORIES = [
     { name: "Produce & Floral", icon: <Apple className="size-8 text-green-600" />, count: "10,000+" },
@@ -208,8 +219,9 @@ export default function SalesPage() {
         try {
 
             const response = await getCategories({
-                branchId: "1234567890",
-                token: "123456"
+                merchant_id: 9,
+                branchId: "572239267760986",
+                token: "1234"
             });
 
             // console.log("API Response:", response);
