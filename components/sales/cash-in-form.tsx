@@ -10,33 +10,32 @@ export default function CashInForm() {
   const [note, setNote] = useState("");
 
   const handleSubmit = async () => {
-    try {
-      const token = "123456"; // replace with real auth
+  try {
+    const token = localStorage.getItem("token"); // FIX
 
-      // TODO IMPORTANT: get real branchId (NOT hardcoded)
-      const branchId = Number(localStorage.getItem("branch_id"));
+    const branchId = "048139845401497";
 
-      if (!branchId) {
-        throw new Error("Branch ID not found");
-      }
+    if (!token) throw new Error("Token missing");
+    if (!amount) throw new Error("Amount required");
 
-      const payload = {
-        amount: Number(amount),
-        note,
-        device_id: "1234567890",
-      };
+    const payload = {
+      amount: Number(amount),
+      note,
+      device_id: "572239267760986",
+    };
 
-      const res = await createCashIn({
-        data: payload,
-        branchId,
-        token,
-      });
+    const res = await createCashIn({
+      data: payload,
+      branchId,
+      token,
+    });
 
-      console.log("CashIn Success:", res);
-    } catch (error) {
-      console.error("CashIn Error:", error);
-    }
-  };
+    console.log("CashIn Success:", res);
+  } catch (error) {
+    console.error("CashIn Error:", error);
+  }
+};
+ 
 
   return (
     <div className="flex flex-col mt-5">

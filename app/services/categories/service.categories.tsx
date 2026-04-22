@@ -2,13 +2,12 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
 
 export const getCategories = async ({  merchant_id,branchId, token }: any) => {
   const res = await fetch(
-    `${BASE_URL}/inventory/departments?merchant_id=${merchant_id}&branch_id=${branchId}`,
+    `${BASE_URL}/inventory/departments?merchant_id=${merchant_id}&branch_id=${branchId}`,   
     {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
-        // merchant_id: "9",
       },
       cache: "no-store",
     }
@@ -32,16 +31,18 @@ export const getCategories = async ({  merchant_id,branchId, token }: any) => {
 
 //  GET PRODUCTS BY CATEGORY
 export const getProductsByCategory = async ({
+  merchant_id,
   branchId,
   categoryId,
   token,
 }: {
+  merchant_id: number;
   branchId: number;
   categoryId: number;
   token: string;
 }) => {
   const res = await fetch(
-    `${BASE_URL}/inventory/products?branch_id=${branchId}&category_id=${categoryId}`,
+    `${BASE_URL}/inventory/products?merchant_id=${merchant_id}&branch_id=${branchId}&departments_id=${categoryId}`,
     {
       method: "GET",
       headers: {
@@ -59,16 +60,18 @@ export const getProductsByCategory = async ({
   return res.json();
 };
 export const createCategories = async ({
+  merchant_id,
   branchId,
   token,
   data
 }: {
-  branchId: number;
+  merchant_id: number;
+  branchId: string;
   token: string;
-  data: any;
+  data: unknown;
 }) => {
   const res = await fetch(
-    `${BASE_URL}/inventory/departments?branch_id=${branchId}`,
+    `${BASE_URL}/inventory/departments?merchant_id=${merchant_id}&branch_id=${branchId}`,
     {
       method: "POST",
       headers: {
@@ -89,17 +92,19 @@ export const createCategories = async ({
 
 // updateCategory
 export const updateCategory = async ({
+    merchant_id,
   branchId,
   token,
   data
-}: {
-  branchId: number;
+}: {  
+  merchant_id: number;
+  branchId: string;
   token: string;
-  data: any;
+  data: unknown;
 }) => {
   // /api/v1/inventory/categories/{category_id}
   const res = await fetch(
-    `${BASE_URL}/inventory/categories/${data.id}?branch_id=${branchId}`,
+    `${BASE_URL}/inventory/departments?merchant_id=${merchant_id}&branch_id=${branchId}`,
     {
       method: "PATCH",
       headers: {

@@ -2,8 +2,10 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
 
 // /api/v1/tools/customer
 export const getCustomers = async ({ branchId, token }: any) => {
+  const merchant_id = 9;
+
   const res = await fetch(
-    `${BASE_URL}/tools/customer?branch_id=${branchId}`,
+    `${BASE_URL}/tools/customer?merchant_id=${merchant_id}&branch_id=${branchId}`,
     {
       method: "GET",
       headers: {
@@ -14,18 +16,36 @@ export const getCustomers = async ({ branchId, token }: any) => {
     }
   );
 
-  if (!res.ok) {
-    throw new Error("Failed to fetch customers");
+  const text = await res.text(); 
+
+  console.log("STATUS:", res.status);
+  console.log("RAW RESPONSE:", text);
+
+  if (!text) {
+    console.warn("Empty response from API");
+    return null;
   }
 
-  return res.json();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (err) {
+    console.error("Invalid JSON:", err);
+    throw new Error("Invalid JSON response");
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.message || "Failed to fetch customers");
+  }
+
+  return data;
 };
 
-
 // create new 
-export const createCustomer = async ({ data, token }: any) => {
+export const createCustomer = async ({branchId, data, token }: any) => {
+  const merchant_id = 9;
   const res = await fetch(
-  `${BASE_URL}/tools/customer?branch_id=${data.branch_id}`,
+  `${BASE_URL}/tools/customer?merchant_id=${merchant_id}&branch_id=${branchId}`,
   {
     method: "POST",
     headers: {

@@ -21,8 +21,9 @@ export default function MembershipModal() {
             setLoading(true);
 
             const res = await getCustomers({
-                branchId: "1234567890",
+                branchId: "1234657890",
                 token: "123456",
+                merchant_id: 1,
             });
 
             const items = res?.data?.items || [];

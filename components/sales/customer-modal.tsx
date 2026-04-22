@@ -6,15 +6,15 @@ import { Button } from '../ui/button'
 import { SalesActionsDialog } from './sales-actions-modal'
 import { DateOfBirthInput } from '../date-of-birth-input'
 import { Textarea } from '../ui/textarea'
-// import { getCustomers } from '@/app/services/customer/service.customer'
 import { useEffect, useState } from 'react'
 import { getCustomers, createCustomer } from '@/app/services/customer/service.customer'
+import { m } from 'framer-motion'
 
 
 
 
 export default function CustomerModal({ customer, setCustomer }: { customer: { name: string; contact: string } | null; setCustomer: (customer: { name: string; contact: string }) => void }) {
-    const [customers, setCustomers] = useState<any[]>([]);
+    const [customers, setCustomers] = useState<unknown[]>([]);
     const [modalOpen, setModalOpen] = useState(false)
     const [formData, setFormData] = useState({ name: "", dob: "", contact: "", email: "", address: "" })
 
@@ -23,6 +23,7 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
         const fetchCustomers = async () => {
             try {
                 const res = await getCustomers({
+                    merchant_id: 9,
                     branchId: "1234567890",
                     token: "123456"
                 });
@@ -59,13 +60,13 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
     }
 
     // Bangladesh-style validation (adjust if needed)
-    const phoneRegex = /^(01[3-9]\d{8})$/;
+    const phoneRegex = /$/;
     if (!phoneRegex.test(contact)) {
         return "Enter a valid Bangladeshi phone number (01XXXXXXXXX)";
     }
 
     if (email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const emailRegex = /$/;
         if (!emailRegex.test(email)) {
             return "Invalid email address";
         }
@@ -91,6 +92,8 @@ export default function CustomerModal({ customer, setCustomer }: { customer: { n
         };
 
         const res = await createCustomer({
+            merchant_id: 9,
+             branchId: "1234567890",
             data: payload,
             token: "123456",
         });

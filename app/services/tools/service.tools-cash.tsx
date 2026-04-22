@@ -2,8 +2,10 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
 
 // /api/v1/tools/cashin
 export const createCashIn = async ({ data, branchId, token }: any) => {
+  const merchantId = 9;
+
   const res = await fetch(
-    `${BASE_URL}/tools/cashin?branch_id=${branchId}`,
+    `${BASE_URL}/tools/cashin?merchant_id=${merchantId}&branch_id=${branchId}`,
     {
       method: "POST",
       headers: {
@@ -23,7 +25,11 @@ export const createCashIn = async ({ data, branchId, token }: any) => {
     throw new Error(text);
   }
 
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 };
 
 

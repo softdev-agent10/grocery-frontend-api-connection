@@ -219,8 +219,8 @@ export default function SalesPage() {
         try {
 
             const response = await getCategories({
-                merchant_id: 9,
-                branchId: "572239267760986",
+                merchant_id: 1,
+                branchId: "432273096245408",
                 token: "1234"
             });
 
@@ -268,46 +268,46 @@ export default function SalesPage() {
     const [isLoadingProducts, setIsLoadingProducts] = useState(false);
     // Fetch products when category is selected
     const fetchProductsByCategory = async (categoryId: number) => {
-        setIsLoadingProducts(true);
-        try {
-            const response = await getProductsByCategory({
-                branchId: 1234567890,
-                categoryId: categoryId,
-                token: "123456",
-            });
+    setIsLoadingProducts(true);
 
-            // console.log("Products API Response:", response);
+    try {
+        const response = await getProductsByCategory({
+            merchant_id: 1,
+            branchId: "432273096245408",
+            categoryId,
+            token: "123456",
+        });
 
-            if (response?.status !== "success") {
-                throw new Error(response?.error?.message || "Invalid API response");
-            }
-
-            const items = response?.data?.items || [];
-
-            // FIXED: Map the API response correctly
-            const formattedProducts = items.map((prod: any) => ({
-                id: prod.id.toString(),
-                name: prod.name,
-                price: parseFloat(prod.selling_price) || 0,  // ← CHANGE: use selling_price
-                category: prod.category?.name || prod.category_name || "Uncategorized", // ← CHANGE: get category name from object
-                stock: parseInt(prod.quantity) || 0,  // ← CHANGE: use quantity
-                barcode: prod.barcode || "",
-                icon: getProductIcon(prod.name),
-                image: prod.image,
-                promotion: prod.promotion
-            }));
-
-            console.log("Formatted products:", formattedProducts); // Debug: check if products are formatted correctly
-            setProducts(formattedProducts);
-
-        } catch (error: any) {
-            console.error("Fetch Products Error:", error.message);
-            showNotification(error.message, "error");
-            setProducts([]);
-        } finally {
-            setIsLoadingProducts(false);
+        if (!response || response.status !== "success") {
+            throw new Error(response?.message || "Invalid API response");
         }
-    };
+
+        const items = Array.isArray(response?.data?.items)
+            ? response.data.items
+            : [];
+
+        const formattedProducts = items.map((prod: any) => ({
+            id: String(prod.id),
+            name: prod.name,
+            price: isNaN(Number(prod.selling_price)) ? 0 : Number(prod.selling_price),
+            category: prod.category?.name || prod.category_name || "Uncategorized",
+            stock: Number(prod.quantity) || 0,
+            barcode: prod.barcode || "",
+            icon: getProductIcon(prod.name),
+            image: prod.image,
+            promotion: prod.promotion
+        }));
+
+        setProducts(formattedProducts);
+
+    } catch (error: any) {
+        console.error("Fetch Products Error:", error);
+        showNotification(error.message || "Something went wrong", "error");
+        setProducts([]);
+    } finally {
+        setIsLoadingProducts(false);
+    }
+};
 
 
     const handleDeleteHeldSale = (id: string) => {

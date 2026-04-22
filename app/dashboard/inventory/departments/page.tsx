@@ -244,8 +244,9 @@ export default function App() {
   ): Promise<Category | null> => {
     try {
       const res = await createCategories({
-        branchId: 1234567890,
-        token: "your_token_here",
+        merchant_id: 1,
+        branchId: "432273096245408",
+        token: "123456",
         data
       });
 
@@ -279,8 +280,9 @@ export default function App() {
         addHistory("Edit", `Updated category: ${formData.name}`);
 
         const updated = await updateCategory({
-          branchId: 1234567890,
-          token: "your_token_here",
+          merchant_id: 1,
+          branchId: "432273096245408",
+          token: "123456",
           data: {
             id: editingCategory.id,
             name: formData.name,
