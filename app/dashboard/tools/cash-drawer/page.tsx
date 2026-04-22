@@ -12,7 +12,11 @@ import {
 } from '@/components/dashboard/cash-drawer';
 import { useCashDrawer, Transaction } from '@/hooks/useCashDrawer';
 import { useAuth } from '@/hooks/useAuth';
-import { getCashInHistory, getCashOutHistory, CashHistoryItem } from '@/app/services/tools/serive.tools';
+// import { getCashInHistory, getCashOutHistory, CashHistoryItem } from '@/app/services/tools/serive.tools';
+import { useNotification } from '@/hooks/useNotification';
+import { div } from 'framer-motion/client';
+import { Notification } from '@/components/Notification';
+import { CashHistoryItem, getCashIn, getCashOut } from '@/app/services/tools/service.cash';
 
 // ============================================================================
 // Helper function to map API response to Transaction format
@@ -55,6 +59,7 @@ const mapApiResponseToTransaction = (item: CashHistoryItem, type: 'in' | 'out'):
  */
 export default function CashDrawerPage() {
   const router = useRouter();
+  const { notification, showNotification } = useNotification();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab') || 'all';
   const [showSuccess, setShowSuccess] = useState(false);
@@ -70,9 +75,7 @@ export default function CashDrawerPage() {
   // Fetch cash-in and cash-out history data
   useEffect(() => {
     const fetchCashData = async () => {
-      // if (authLoading || !user || !token) {
-      //   return;
-      // }
+
 
       try {
         setIsLoading(true);
@@ -80,22 +83,8 @@ export default function CashDrawerPage() {
 
         // Fetch both cash-in and cash-out data in parallel
         const [cashInResponse, cashOutResponse] = await Promise.all([
-          getCashInHistory({
-            branchId: "1234567890",
-            token: "your_token_here",
-            page: 1,
-            perPage: 50, // Increased to get more records for merged list
-            sortBy: 'date',
-            order: 'desc',
-          }),
-          getCashOutHistory({
-            branchId: "1234567890",
-            token: "your_token_here",
-            page: 1,
-            perPage: 50,
-            sortBy: 'date',
-            order: 'desc',
-          }),
+          getCashIn({}),
+          getCashOut({}), // Uncomment when getCashOut is implemented
         ]);
 
         console.log('Cash In Response:', cashInResponse);
@@ -127,8 +116,9 @@ export default function CashDrawerPage() {
         );
 
         setTransactions(allTransactions);
+        showNotification('Cash history loaded successfully!', 'success');
       } catch (err) {
-        console.error('Failed to fetch cash history:', err);
+        showNotification('Failed to fetch cash history', 'error');
         setError(err instanceof Error ? err.message : 'Failed to fetch data');
         setTransactions([]);
       } finally {
@@ -157,40 +147,40 @@ export default function CashDrawerPage() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-gray-50 to-white"
-    >
-      {/* Page Header with Quick Open Action */}
-      <PageHeader onOpenDrawer={handleOpenDrawer} />
+    <div>
+      {notification && <Notification message={notification.message} type={notification.type} />}
+      <motion.div
+        initial={{ opacity: 1, y: 0 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex h-full w-full flex-col overflow-hidden bgblue-500"
+      >
+        {/* Page Header with Quick Open Action */}
+        <PageHeader onOpenDrawer={handleOpenDrawer} />
 
-      {/* Success Notification */}
-      {showSuccess && <SuccessNotification show={showSuccess} />}
+        {/* Success Notification */}
+        {showSuccess && <SuccessNotification show={showSuccess} />}
 
-      {/* Error Notification */}
-      {error && (
-        <div className="mx-4 rounded-lg bg-red-50 border border-red-200 p-4 mt-4">
-          <p className="text-sm text-red-600">Error: {error}</p>
+
+
+        {/* Tab Navigation Bar */}
+        <TabBar currentTab={currentTab} onTabChange={handleTabChange} />
+
+        {/* Main Content Area - Responsive */}
+        <div className="flex-1 overflow-auto px-4 py-4 md:px-6 md:py-6 lg:px-8 ">
+          <DataTable transactions={filteredTransactions} isLoading={isLoading} />
         </div>
-      )}
 
-      {/* Tab Navigation Bar */}
-      <TabBar currentTab={currentTab} onTabChange={handleTabChange} />
-
-      {/* Main Content Area - Responsive */}
-      <div className="flex-1 overflow-auto px-4 py-4 md:px-6 md:py-6 lg:px-8">
-        <DataTable transactions={filteredTransactions} isLoading={isLoading} />
-      </div>
-
-      {/* Footer Statistics */}
-      <StatsFooter
-        totalCashIn={stats.totalCashIn}
-        totalCashOut={stats.totalCashOut}
-        transactionCount={stats.transactionCount}
-        netBalance={stats.netBalance}
-      />
-    </motion.div>
+        {/* Footer Statistics */}
+        <StatsFooter
+          totalCashIn={stats.totalCashIn}
+          totalCashOut={stats.totalCashOut}
+          transactionCount={stats.transactionCount}
+          netBalance={stats.netBalance}
+        />
+      </motion.div>
+    </div>
   );
 }
+
+
+

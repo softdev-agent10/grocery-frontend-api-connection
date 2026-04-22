@@ -11,7 +11,9 @@ import DownloadModal from "@/components/download-modal";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 import { DownloadButton, FilterButton, EditButton, DeleteButton } from "@/components/toolbar-buttons";
 import { useAuth } from "@/hooks/useAuth";
-import { getCustomers, createCustomer, CustomerItem } from "@/app/services/tools/serive.tools";
+import { useNotification } from "@/hooks/useNotification";
+import { Notification } from "@/components/Notification";
+import { createCustomer, Customer, getCustomers } from "@/app/services/tools/service.customer";
 
 interface CustomerAccount {
   id: string;
@@ -24,7 +26,7 @@ interface CustomerAccount {
 }
 
 // Helper function to map API response to component format
-const mapApiCustomerToAccount = (customer: CustomerItem): CustomerAccount => {
+const mapApiCustomerToAccount = (customer: Customer): CustomerAccount => {
   const joinDate = new Date(customer.created_at).toLocaleDateString('en-US', {
     year: 'numeric',
     month: '2-digit',
@@ -44,6 +46,7 @@ const mapApiCustomerToAccount = (customer: CustomerItem): CustomerAccount => {
 
 export default function CustomerAccountsPage() {
   const { user, token, isLoading: authLoading } = useAuth();
+  const { notification, showNotification } = useNotification();
   const [searchValue, setSearchValue] = useState("");
   const [records, setRecords] = useState<CustomerAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,14 +76,7 @@ export default function CustomerAccountsPage() {
         setIsLoading(true);
         setError(null);
 
-        const response = await getCustomers({
-          branchId: "1234567890", // Replace with actual branch ID
-          token: "your_token_here", // Replace with actual token
-          page: 1,
-          perPage: 50,
-          sortBy: "created_at",
-          order: "desc",
-        });
+        const response = await getCustomers();
 
         if (response.status === 'success' && response.data?.items) {
           const mappedCustomers = response.data.items.map(mapApiCustomerToAccount);
@@ -88,8 +84,10 @@ export default function CustomerAccountsPage() {
         }
       } catch (err) {
         console.error('Failed to fetch customers:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch customers');
+        const errorMsg = err instanceof Error ? err.message : 'Failed to fetch customers';
+        setError(errorMsg);
         setRecords([]);
+        showNotification(errorMsg, 'error');
       } finally {
         setIsLoading(false);
       }
@@ -116,23 +114,29 @@ export default function CustomerAccountsPage() {
   const [tempItemsPerPage, setTempItemsPerPage] = useState(15);
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
-    const dataToExport = scope === 'current' ? records.slice(0, 5) : records;
-    const columns = ['Name', 'Email', 'Phone', 'Join Date', 'Total Purchase', 'Status'];
-    const rows = dataToExport.map(r => [r.name, r.email, r.phone, r.joinDate, r.totalPurchase, r.status]);
+    try {
+      const dataToExport = scope === 'current' ? records.slice(0, 5) : records;
+      const columns = ['Name', 'Email', 'Phone', 'Join Date', 'Total Purchase', 'Status'];
+      const rows = dataToExport.map(r => [r.name, r.email, r.phone, r.joinDate, r.totalPurchase, r.status]);
 
-    if (format === 'csv') {
-      generateCSV(columns, rows, `customer-accounts_${scope}_${new Date().getTime()}.csv`);
-    } else if (format === 'pdf') {
-      generatePDFWithLogo({
-        title: `Customer Accounts Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
-        columns,
-        rows,
-        fileName: `customer-accounts_${scope}_${new Date().getTime()}.pdf`,
-        scope
-      });
+      if (format === 'csv') {
+        generateCSV(columns, rows, `customer-accounts_${scope}_${new Date().getTime()}.csv`);
+      } else if (format === 'pdf') {
+        generatePDFWithLogo({
+          title: `Customer Accounts Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+          columns,
+          rows,
+          fileName: `customer-accounts_${scope}_${new Date().getTime()}.pdf`,
+          scope
+        });
+      }
+
+      showNotification(`${format.toUpperCase()} file downloaded successfully!`, 'success');
+      setIsDownloadModalOpen(false);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      showNotification("Failed to download file", 'error');
     }
-
-    setIsDownloadModalOpen(false);
   };
   const filteredRecords = records.filter(
     (record) => {
@@ -145,20 +149,14 @@ export default function CustomerAccountsPage() {
 
   const handleAddCustomer = async () => {
     if (!formData.name || !formData.email || !formData.phone) {
-      alert("Please fill all required fields");
+      showNotification("Please fill all required fields", 'error');
       return;
     }
 
-    // if (!user || !token) {
-    //   alert("Please login first");
-    //   return;
-    // }
 
     try {
       setIsSubmitting(true);
       const response = await createCustomer({
-        branchId: "1234567890", // Replace with actual branch ID
-        token: "your_token_here", // Replace with actual token
         name: formData.name,
         phone_number: formData.phone,
         email: formData.email,
@@ -173,11 +171,12 @@ export default function CustomerAccountsPage() {
         setRecords([newCustomer, ...records]);
         setFormData({ name: "", email: "", phone: "", address: "", status: "active" });
         setShowModal(false);
-        alert("Customer created successfully!");
+        showNotification(`Customer "${formData.name}" created successfully!`, 'success');
       }
     } catch (err) {
       console.error('Failed to create customer:', err);
-      alert(err instanceof Error ? err.message : 'Failed to create customer');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create customer';
+      showNotification(errorMsg, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -196,16 +195,22 @@ export default function CustomerAccountsPage() {
 
   const handleSaveCustomerEdit = () => {
     if (!editFormData.name || !editFormData.email || !editFormData.phone) {
-      alert("Please fill all fields");
+      showNotification("Please fill all fields", 'error');
       return;
     }
-    setRecords(records.map(r =>
-      r.id === selectedCustomer?.id
-        ? { ...r, name: editFormData.name, email: editFormData.email, phone: editFormData.phone, status: editFormData.status }
-        : r
-    ));
-    setIsCustomerEditOpen(false);
-    setSelectedCustomer(null);
+    try {
+      setRecords(records.map(r =>
+        r.id === selectedCustomer?.id
+          ? { ...r, name: editFormData.name, email: editFormData.email, phone: editFormData.phone, status: editFormData.status }
+          : r
+      ));
+      showNotification(`Customer "${editFormData.name}" updated successfully!`, 'success');
+      setIsCustomerEditOpen(false);
+      setSelectedCustomer(null);
+    } catch (error) {
+      console.error("Error saving customer:", error);
+      showNotification("Failed to save customer", 'error');
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -243,6 +248,7 @@ export default function CustomerAccountsPage() {
 
   return (
     <div className="space-y-6">
+      {notification && <Notification message={notification.message} type={notification.type} />}
       {/* Header Section */}
       <div className="bg-blue-600 rounded-2xl p-8 shadow-lg">
         <div className="flex items-center gap-4 mb-2">
@@ -267,13 +273,6 @@ export default function CustomerAccountsPage() {
           Manage and track customer accounts and their purchase history
         </motion.p>
       </div>
-
-      {/* Error Notification */}
-      {error && (
-        <div className="mx-4 rounded-lg bg-red-50 border border-red-200 p-4">
-          <p className="text-sm text-red-600">Error: {error}</p>
-        </div>
-      )}
 
       {/* Toolbar Section */}
       <motion.div

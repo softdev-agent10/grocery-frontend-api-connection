@@ -17,18 +17,18 @@ interface PageHeaderProps {
  */
 export function PageHeader({ onOpenDrawer }: PageHeaderProps) {
   return (
-    <div className="border-b border-gray-200 bg-white px-4 py-4 md:px-6 md:py-6 lg:px-8">
+    <div className="border-b bg-blue-600 px-4 py-4 md:px-6 md:py-6 lg:px-8 rounded-xl">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         {/* Title Section */}
         <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-indigo-100 p-2 md:p-3">
-            <Wallet className="h-5 w-5 text-indigo-600 md:h-6 md:w-6" />
+          <div className="rounded-lg  bg-white/20 backdrop-blur-sm p-2 md:p-3">
+            <Wallet className="h-5 w-5 text-white md:h-6 md:w-6" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold text-gray-900 md:text-2xl">
+            <h1 className="text-xl font-bold text-white md:text-4xl">
               Cash Drawer
             </h1>
-            <p className="text-xs text-gray-500 md:text-sm">
+            <p className="text-white/90 text-sm md:text-base">
               Manage cash transactions
             </p>
           </div>

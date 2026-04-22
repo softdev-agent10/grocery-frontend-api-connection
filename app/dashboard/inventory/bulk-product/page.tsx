@@ -11,10 +11,12 @@ import {
     uploadBulkProductsAsync,
     pollJobUntilCompletion
 } from '@/app/services/bulkproducts/service.bulkproducts';
-import { toast, Bounce } from "react-toastify/unstyled";
 import Papa from "papaparse";
 import { useAuth } from '@/hooks/useAuth';
 import { useUploadDraft } from '@/hooks/useUploadDraft';
+import { useNotification } from '@/hooks/useNotification';
+import { useApiContext } from '@/hooks/useApiContext';
+import { Notification } from '@/components/Notification';
 import { ResumeDraftPrompt } from '@/components/ResumeDraftPrompt';
 
 // Memoized Row Component for Virtual Scrolling
@@ -89,10 +91,12 @@ TableRow.displayName = 'TableRow';
 
 function Page() {
     const { user, token, isAuthenticated } = useAuth();
-    const branchId = '1234567890'; // TODO: Get from actual user context
+    const { notification, showNotification } = useNotification();
+    // Set API context globally (merchant_id, branch_id, token)
+    useApiContext('9', '1234567890');
 
     // Draft management
-    const { savedDraft, isLoading: isDraftLoading, save: saveDraft, remove: removeDraft } = useUploadDraft(branchId);
+    const { savedDraft, isLoading: isDraftLoading, save: saveDraft, remove: removeDraft } = useUploadDraft('1234567890');
     const [showResumeDraftPrompt, setShowResumeDraftPrompt] = useState(false);
 
     const [isDownloadModalOpen, setIsDownloadModalOpen] = React.useState(false);
@@ -169,18 +173,12 @@ function Page() {
 
     function validateFile(file: File): boolean {
         if (!file.name.endsWith('.csv')) {
-            toast.error("Please select a CSV file", {
-                autoClose: 3000,
-                transition: Bounce,
-            });
+            showNotification("Please select a CSV file", 'error');
             return false;
         }
 
         if (file.size > 100 * 1024 * 1024) { // 100MB limit
-            toast.error("File size must be less than 100MB", {
-                autoClose: 3000,
-                transition: Bounce,
-            });
+            showNotification("File size must be less than 100MB", 'error');
             return false;
         }
 
@@ -206,10 +204,7 @@ function Page() {
             // });
         } catch (error) {
             console.error('Error resuming draft:', error);
-            toast.error("Failed to resume draft", {
-                autoClose: 3000,
-                transition: Bounce,
-            });
+            showNotification("Failed to resume draft", 'error');
         }
     }
 
@@ -223,16 +218,10 @@ function Page() {
             setUploadCompleted(false);
             // setUploadSummary(null);
 
-            toast.info("Draft discarded", {
-                autoClose: 2000,
-                transition: Bounce,
-            });
+            showNotification("Draft discarded", 'info');
         } catch (error) {
             console.error('Error discarding draft:', error);
-            toast.error("Failed to discard draft", {
-                autoClose: 3000,
-                transition: Bounce,
-            });
+            showNotification("Failed to discard draft", 'error');
         }
     }
 
@@ -294,12 +283,10 @@ function Page() {
             // Use async endpoint for large files (> 2000 rows)
             const uploadFunction = csvData.length > 2000 ? uploadBulkProductsAsync : uploadBulkProducts;
 
-            const result = await uploadFunction({
-                file: selectedFile,
-                branchId: '1234567890',
-                token: "your_token_here",
-                mode: uploadMode,
-            });
+            const result = await uploadFunction(
+                selectedFile,
+                { mode: uploadMode }
+            );
 
             // Check if this is an async response
             let responseData = result.data || result;
@@ -315,10 +302,9 @@ function Page() {
 
                 try {
                     const pollResult = await pollJobUntilCompletion({
-                        jobId,
+                        jobId: jobId as string,
                         pollUrl,
-                        branchId: '1234567890',
-                        token: "your_token_here",
+                        useDetailedStatus: true,
                         onProgress: (progress) => {
                             setJobProgress(progress);
                             console.log("Job progress:", progress);
@@ -388,7 +374,7 @@ function Page() {
                         uploadSummary: result_data,
                         originalCsvData: originalCsvData,
                         uploadMode: uploadMode,
-                        branchId: branchId,
+                        branchId: '1234567890',
                     });
                 } catch (error) {
                     console.error('Error saving draft:', error);
@@ -399,10 +385,7 @@ function Page() {
                 // Partial or full success
                 if (failed === 0 && skipped === 0) {
                     // All products imported successfully
-                    toast.success(`All ${successful} products imported successfully!`, {
-                        autoClose: 5000,
-                        transition: Bounce,
-                    });
+                    showNotification(`All ${successful} products imported successfully!`, 'success');
                     // Clear the draft from IndexedDB
                     try {
                         await removeDraft();
@@ -415,17 +398,11 @@ function Page() {
                     setUploadCompleted(false);
                 } else {
                     // Partial success
-                    toast.warning(`Partial success: ${successful} imported, ${failed} failed!`, {
-                        autoClose: 5000,
-                        transition: Bounce,
-                    });
+                    showNotification(`Partial success: ${successful} imported, ${failed} failed!`, 'warning');
                 }
             } else if (failed > 0) {
                 // All failed
-                toast.error(`All ${failed} products failed to import. Check validation errors.`, {
-                    autoClose: 5000,
-                    transition: Bounce,
-                });
+                showNotification(`All ${failed} products failed to import. Check validation errors.`, 'error');
                 setSelectedFile(null);
                 setCsvData([]);
                 setFailedRows(new Map());
@@ -434,10 +411,7 @@ function Page() {
             console.log("Upload result:", result);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to upload bulk products";
-            toast.error(`Upload error: ${errorMessage}`, {
-                autoClose: 5000,
-                transition: Bounce,
-            });
+            showNotification(`Upload error: ${errorMessage}`, 'error');
             console.error("Upload error:", error);
         } finally {
             setIsUploading(false);
@@ -448,18 +422,12 @@ function Page() {
 
     function downloadPDF(scope: string) {
         // TODO: Implement PDF export
-        toast.info("PDF export coming soon", {
-            autoClose: 3000,
-            transition: Bounce,
-        });
+        showNotification("PDF export coming soon", 'info');
     }
 
     function downloadCSV(scope: string) {
         // TODO: Implement CSV export
-        toast.info("CSV export coming soon", {
-            autoClose: 3000,
-            transition: Bounce,
-        });
+        showNotification("CSV export coming soon", 'info');
     }
 
     function saveFailedRowsAsCSV() {
@@ -503,10 +471,7 @@ function Page() {
         setCurrentPage(0);
         setIsParsingCsv(false);
         removeDraft().catch((error) => console.error('Error removing draft:', error));
-        toast.info("Data cleared", {
-            autoClose: 2000,
-            transition: Bounce,
-        });
+        showNotification("Data cleared", 'info');
     }
 
     async function handleRetryUploadFromTable(): Promise<void> {
@@ -531,12 +496,10 @@ function Page() {
             // Use async endpoint for large files (> 2000 rows)
             const uploadFunction = csvData.length > 2000 ? uploadBulkProductsAsync : uploadBulkProducts;
 
-            const result = await uploadFunction({
-                file: file,
-                branchId: '1234567890',
-                token: "your_token_here",
-                mode: uploadMode,
-            });
+            const result = await uploadFunction(
+                file,
+                { mode: uploadMode }
+            );
 
             // Check if this is an async response
             let responseData = result.data || result;
@@ -551,10 +514,9 @@ function Page() {
 
                 try {
                     const pollResult = await pollJobUntilCompletion({
-                        jobId,
+                        jobId: jobId as string,
                         pollUrl,
-                        branchId: '1234567890',
-                        token: "your_token_here",
+                        useDetailedStatus: true,
                         onProgress: (progress) => {
                             setJobProgress(progress);
                             console.log("Job progress:", progress);
@@ -624,7 +586,7 @@ function Page() {
                         uploadSummary: result_data,
                         originalCsvData: originalCsvData,
                         uploadMode: uploadMode,
-                        branchId: branchId,
+                        branchId: '1234567890',
                     });
                 } catch (error) {
                     console.error('Error saving draft:', error);
@@ -642,10 +604,7 @@ function Page() {
                 // Partial or full success
                 if (failed === 0) {
                     // All products imported successfully
-                    // toast.success(`All ${successful} products imported successfully!`, {
-                    //     autoClose: 3000,
-                    //     transition: Bounce,
-                    // });
+                    // showNotification(`All ${successful} products imported successfully!`, 'success');
                     setCsvData([]);
                     setFailedRows(new Map());
 
@@ -655,30 +614,18 @@ function Page() {
                     } catch (error) {
                         console.error('Error removing draft:', error);
                     }
-                    toast.success(`All ${successful} products imported successfully!`, {
-                        autoClose: 5000,
-                        transition: Bounce,
-                    });
+                    showNotification(`All ${successful} products imported successfully!`, 'success');
                 } else {
                     // Partial success - keep showing table for remaining failed rows
-                    toast.warning(`Partial success: ${successful} imported, ${failed} still failed!`, {
-                        autoClose: 5000,
-                        transition: Bounce,
-                    });
+                    showNotification(`Partial success: ${successful} imported, ${failed} still failed!`, 'warning');
                 }
             } else if (failed > 0) {
                 // All failed
-                toast.error(` All ${failed} products failed. Check the errors below.`, {
-                    autoClose: 5000,
-                    transition: Bounce,
-                });
+                showNotification(` All ${failed} products failed. Check the errors below.`, 'error');
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to upload bulk products";
-            toast.error(`Retry error: ${errorMessage}`, {
-                autoClose: 5000,
-                transition: Bounce,
-            });
+            showNotification(`Retry error: ${errorMessage}`, 'error');
             console.error("Upload error:", error);
         } finally {
             setIsUploading(false);
@@ -690,6 +637,7 @@ function Page() {
 
     return (
         <div className=" bg-[#F8FAFC] font-sans text-slate-900">
+            {notification && <Notification message={notification.message} type={notification.type} />}
             <section className=" rounded-2xl border-b border-slate-200 overflow-hidden bg-white  mt-0">
                 <header className="bg-blue-600 rounded-2xl px-6 py-8 flex justify-between items-center shadow-lg relative overflow-hidden ">
                     <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
@@ -741,7 +689,7 @@ function Page() {
                     </div> */}
                     <div className="relative">
                         <DownloadTemplateButton
-                            onClick={() => downloadBulkProductTemplate({ branchId: '1234567890', token: "your_token_here" })}
+                            onClick={() => downloadBulkProductTemplate()}
                             label="Export Template"
                             icon={<Download size={20} />}
                         />
@@ -804,8 +752,8 @@ function Page() {
                         {!isParsingCsv && csvData.length > 0 && (
                             <div className="border rounded-xl bg-white flex flex-col h-[60vh]">
                                 {/* Table Header - Sticky Top */}
-                                <div className="">
-                                    <table className="min-w-full text-md text-left">
+                                {/* <div className="">
+                                    <table className="max-w-full text-md text-left">
                                         <thead className="bg-slate-400 sticky top-0 z-50">
                                             <tr>
                                                 <th className="p-2 border w-12 text-center text-sm font-semibold">Index</th>
@@ -817,11 +765,11 @@ function Page() {
                                             </tr>
                                         </thead>
                                     </table>
-                                </div>
+                                </div> */}
 
                                 {/* Table Body - Scrollable */}
-                                <div className="overflow-x-auto flex-1 overflow-y-auto">
-                                    <table className="min-w-full text-md text-left">
+                                {/* <div className="overflow-x-auto flex-1 overflow-y-auto">
+                                    <table className="min-w-max text-md text-left">
                                         <tbody>
                                             {csvData.slice(currentPage * ROWS_PER_PAGE, (currentPage + 1) * ROWS_PER_PAGE).map((row, displayIndex) => {
                                                 const actualIndex = currentPage * ROWS_PER_PAGE + displayIndex;
@@ -845,6 +793,47 @@ function Page() {
                                                 );
                                             })}
                                         </tbody>
+                                    </table>
+                                </div> */}
+
+                                <div className="overflow-auto h-[60vh] border rounded-xl bg-white">
+                                    <table className="min-w-max text-md text-left">
+
+                                        <thead className="bg-slate-400 sticky top-0 z-50">
+                                            <tr>
+                                                <th className="p-2 border w-12 text-center text-sm font-semibold">Index</th>
+                                                {Object.keys(csvData[0]).map((header) => (
+                                                    <th key={header} className="p-2 border whitespace-nowrap text-sm font-semibold">
+                                                        {header}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+
+                                        <tbody>
+                                            {csvData.slice(currentPage * ROWS_PER_PAGE, (currentPage + 1) * ROWS_PER_PAGE).map((row, displayIndex) => {
+                                                const actualIndex = currentPage * ROWS_PER_PAGE + displayIndex;
+                                                const isRowFailed = failedRows.has(actualIndex);
+                                                const errorDetail = failedRows.get(actualIndex);
+                                                const failedFieldsSet = new Set(errorDetail?.failed_fields || []);
+                                                const columns = Object.keys(csvData[0]);
+
+                                                return (
+                                                    <TableRow
+                                                        key={actualIndex}
+                                                        rowIndex={actualIndex}
+                                                        row={row}
+                                                        isRowFailed={isRowFailed}
+                                                        errorDetail={errorDetail}
+                                                        failedFieldsSet={failedFieldsSet}
+                                                        columns={columns}
+                                                        uploadCompleted={uploadCompleted}
+                                                        onCellChange={handleCellChange}
+                                                    />
+                                                );
+                                            })}
+                                        </tbody>
+
                                     </table>
                                 </div>
 

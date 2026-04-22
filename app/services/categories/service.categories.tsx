@@ -1,5 +1,7 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
+import { apiClient } from '@/lib/apiClient';
+import { Category, PaginatedResponse, SingleResponse } from '@/lib/types/api.types';
 
+<<<<<<< HEAD
 export const getCategories = async ({  merchant_id,branchId, token }: any) => {
   const res = await fetch(
     `${BASE_URL}/inventory/departments?merchant_id=${merchant_id}&branch_id=${branchId}`,   
@@ -12,20 +14,48 @@ export const getCategories = async ({  merchant_id,branchId, token }: any) => {
       cache: "no-store",
     }
   );
+=======
+/**
+ * Category filter options
+ */
+export interface CategoryFilter {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+>>>>>>> origin/feature/fixRerenderCart
 
-  // // Log the actual response
-  // console.log("Response status:", res.status);
-  // console.log("Response status text:", res.statusText);
+/**
+ * Category payload for create/update
+ */
+export interface CategoryPayload {
+  name: string;
+  description?: string;
+  tax_id?: number;
+  fee_id?: number;
+  category_image?: string;
+  is_active?: boolean;
+}
 
-  // Get the actual error message from API
-  // const responseText = await res.text();
-  // console.log("Response body:", responseText);
+/**
+ * Get all categories (departments)
+ */
+export const getCategories = (filters?: CategoryFilter) =>
+  apiClient.get<PaginatedResponse<Category>>('/inventory/departments', filters);
 
+/**
+ * Create a new category
+ */
+export const createCategory = (data: CategoryPayload) =>
+  apiClient.post<SingleResponse<Category>>('/inventory/departments', data);
 
-  if (!res.ok) {
-    throw new Error("Failed to fetch categories");
-  }
+/**
+ * Update an existing category
+ */
+export const updateCategory = (id: number, data: Partial<CategoryPayload>) =>
+  apiClient.patch<SingleResponse<Category>>(`/inventory/departments/${id}`, data);
 
+<<<<<<< HEAD
   return res.json();
 };
 
@@ -121,3 +151,10 @@ export const updateCategory = async ({
 
   return res.json();
 };
+=======
+/**
+ * Delete a category
+ */
+export const deleteCategory = (id: number) =>
+  apiClient.delete<{ status: string }>(`/inventory/departments/${id}`);
+>>>>>>> origin/feature/fixRerenderCart

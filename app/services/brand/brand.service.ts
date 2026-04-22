@@ -1,86 +1,78 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
+// services/brand.service.ts
 
-export const getBrands = async ({ branchId, token }: any) => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/brands?branch_id=${branchId}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    }
-  );
+import { apiClient } from '@/lib/apiClient';
+import { Brand, PaginatedResponse, SingleResponse } from '@/lib/types/api.types';
 
-  if (!res.ok) {
-    throw new Error("Failed to fetch brands");
-  }
-
-  return res.json();
-};
-
-
-
-export const createBrands = async ({ branchId, token, name, image }: any) => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/brands?branch_id=${branchId}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-      body: JSON.stringify({
-        name: name,
-        brand_image: image || "https://example.com/default-brand-image.png",
-      }),
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error("Failed to create brands");
-  }
-
-  return res.json();
-};
-
-export const updateBrands = async ({
-  brandId,
-  branchId,
-  token,
-  name,
-  brand_image,
-}: {
-  brandId: number;
-  branchId: number;
-  token: string;
+/**
+ * Payload
+ */
+export interface BrandPayload {
   name: string;
-  brand_image: string;
-}) => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/brands/${brandId}?branch_id=${branchId}`,
+  brand_image?: string;
+}
+
+/**
+ * Filters
+ */
+export interface BrandFilter {
+  page?: number;
+  perPage?: number;
+  search?: string;
+  limit?: number;
+}
+
+/**
+ * Get all brands
+ */
+export const getBrands = (filters?: BrandFilter) =>
+  apiClient.get<PaginatedResponse<Brand>>(
+    '/inventory/brands',
     {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        accept: "application/json",
-      },
-      body: JSON.stringify({
-        name,
-        brand_image, // ✅ correct key
-      }),
+      page: filters?.page,
+      per_page: filters?.perPage,
+      search: filters?.search,
+      limit: filters?.limit,
     }
   );
 
-  if (!res.ok) {
-    throw new Error("Failed to update brand");
-  }
+/**
+ * Get single brand
+ */
+export const getBrandById = (id: number) =>
+  apiClient.get<SingleResponse<Brand>>(
+    `/inventory/brands/${id}`
+  );
 
-  return res.json();
-};
+/**
+ * Create brand
+ */
+export const createBrand = (data: BrandPayload) =>
+  apiClient.post<SingleResponse<Brand>>(
+    '/inventory/brands',
+    {
+      name: data.name,
+      brand_image:
+        data.brand_image ||
+        'https://example.com/default-brand-image.png',
+    }
+  );
 
+/**
+ * Update brand
+ */
+export const updateBrand = (
+  id: number,
+  data: Partial<BrandPayload>
+) =>
+  apiClient.patch<SingleResponse<Brand>>(
+    `/inventory/brands/${id}`,
+    data
+  );
 
-// http://192.168.0.109:8000/api/v1/inventory/brands?branch_id=1234567890 net::ERR_CONNECTION_TIMED_OUT
+/**
+ * Delete brand
+ */
+export const deleteBrand = (id: number) =>
+  apiClient.delete<{ status: string }>(
+    `/inventory/brands/${id}`
+  );

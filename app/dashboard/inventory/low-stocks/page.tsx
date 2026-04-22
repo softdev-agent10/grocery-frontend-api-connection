@@ -22,48 +22,12 @@ import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { getLowStock } from "@/app/services/lowstok/service.lowstok";
-import { fetchInventory } from "@/app/services/comon/service.fetchInventory";
+import { getLowStocks } from "@/app/services/lowstok/service.lowstok";
+import { LowStockProduct } from "@/lib/types/api.types";
 import { se } from "date-fns/locale";
-
-// interface LowStockProduct {
-//   id: number;
-//   name: string;
-//   category: string;
-//   currentStock: number;
-//   reorderLevel: number;
-//   unit: string;
-//   price: string;
-//   status: "Critical" | "Warning";
-// }
-
-interface LowStockProduct {
-  id: number,
-  name: string,
-  upc_code: string,
-  plu_code: string,
-  category: {
-    id: number,
-    name: string,
-  },
-  brand: {
-    id: number,
-    name: string,
-  },
-  unit: {
-    id: number,
-    name: string,
-  },
-  selling_price: number,
-  buying_price: number,
-  quantity: number,
-  quantity_alert: number,
-  stock_status: string,
-  percentage_of_alert: number,
-  image_url: string | null,
-  last_updated: string
-
-}
+import { useNotification } from "@/hooks/useNotification";
+import { useApiContext } from "@/hooks/useApiContext";
+import { Notification } from "@/components/Notification";
 
 interface TableViewColumns {
   name: boolean;
@@ -77,21 +41,12 @@ interface TableViewColumns {
   buying_price: boolean;
 }
 
-// const INITIAL_MOCK_DATA: LowStockProduct[] = [
-//   { id: 1, name: "Chicken Breast", category: "Poultry", currentStock: 4, reorderLevel: 10, unit: "kg", price: "$180.00", status: "Critical" },
-//   { id: 2, name: "Milk 1 Liter", category: "Dairy", currentStock: 7, reorderLevel: 15, unit: "L", price: "$90.00", status: "Warning" },
-//   { id: 3, name: "Butter 500g", category: "Dairy", currentStock: 3, reorderLevel: 8, unit: "pcs", price: "$250.00", status: "Critical" },
-//   { id: 4, name: "Eggs (Dozen)", category: "Dairy", currentStock: 12, reorderLevel: 20, unit: "box", price: "$130.00", status: "Warning" },
-//   { id: 5, name: "Salmon Fillet", category: "Seafood", currentStock: 2, reorderLevel: 5, unit: "kg", price: "$450.00", status: "Critical" },
-//   { id: 6, name: "Basmati Rice", category: "Grains", currentStock: 15, reorderLevel: 50, unit: "kg", price: "$25.00", status: "Critical" },
-//   { id: 7, name: "Olive Oil 500ml", category: "Pantry", currentStock: 5, reorderLevel: 10, unit: "bottle", price: "$42.00", status: "Warning" },
-//   { id: 8, name: "Flour 1kg", category: "Pantry", currentStock: 8, reorderLevel: 25, unit: "bag", price: "$15.00", status: "Critical" },
-//   { id: 9, name: "Sugar 1kg", category: "Pantry", currentStock: 10, reorderLevel: 15, unit: "bag", price: "$18.00", status: "Warning" },
-//   { id: 10, name: "Coffee Beans", category: "Beverages", currentStock: 1, reorderLevel: 5, unit: "kg", price: "$280.00", status: "Critical" },
-// ];
-
 export default function App() {
+  // Set API context once (merchant_id, branch_id, token)
+  useApiContext('9', '1234567890');
+
   const [products, setProducts] = useState<LowStockProduct[]>([]);
+  const { notification, showNotification } = useNotification();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [sortConfig, setSortConfig] = useState<{ key: keyof LowStockProduct | 'none', direction: 'asc' | 'desc' }>({ key: 'none', direction: 'asc' });
@@ -209,39 +164,32 @@ export default function App() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-  const getLowStocks = async () => {
+  const loadLowStocks = async () => {
     try {
-      // const data = await getLowStock({
-      //   branchId: 1234567890,
-      //   token: "your-token",
-      // });
+      const mapThresholdFilter = (): 'critical' | 'warning' | 'all' => {
+        if (statusFilter === 'Critical') return 'critical';
+        if (statusFilter === 'Warning') return 'warning';
+        return 'all';
+      };
 
-      const data = await fetchInventory("low-stock", {
-        branchId: "1234567890",
-        token: "your-auth-token",
+      const data = await getLowStocks({
         page: 1,
         limit: 100,
+        threshold: mapThresholdFilter(),
+        search: searchTerm || undefined,
       });
 
-
-
-      console.log("Fetched low stock products:", data);
-
-      // Example:
-      const items = data.data.items;
-      setProducts(items);
-
-      console.log("Items:", items);
-
+      console.log("Fetched low stock products:", data.data.items);
+      setProducts(data.data.items);
     } catch (error) {
       console.error("Error fetching low stock products:", error);
+      showNotification("Failed to load low stock products", 'error');
     }
   };
 
   useEffect(() => {
-
     setCurrentPage(1);
-    getLowStocks();
+    loadLowStocks();
   }, [searchTerm, statusFilter, sortConfig]);
 
   // Export Functions
@@ -281,46 +229,66 @@ export default function App() {
 
   const handleSendEmail = async () => {
     setIsSending(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsSending(false);
-    setSendSuccess(true);
-    setTimeout(() => {
-      setSendSuccess(false);
-      setIsEmailModalOpen(false);
-    }, 2000);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setSendSuccess(true);
+      showNotification("Email sent successfully!", 'success');
+      setTimeout(() => {
+        setSendSuccess(false);
+        setIsEmailModalOpen(false);
+      }, 2000);
+    } catch (error) {
+      console.error("Error sending email:", error);
+      showNotification("Failed to send email", 'error');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleUpdateProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
 
-    setProducts(prev => prev.map(p => p.id === editingProduct.id ? editingProduct : p));
-    setIsEditModalOpen(false);
+    try {
+      setProducts(prev => prev.map(p => p.id === editingProduct.id ? editingProduct : p));
+      showNotification(`Product "${editingProduct.name}" updated successfully!", 'success'`);
+      setIsEditModalOpen(false);
+    } catch (error) {
+      console.error("Error updating product:", error);
+      showNotification("Failed to update product", 'error');
+    }
   };
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
-    const data = scope === 'current' ? paginatedProducts : filteredProducts;
-    const columns = ['Product Name', 'Category', 'Current Stock', 'Reorder Level', 'Unit', 'Status'];
-    const rows = data.map(p => [p.name, p.category, p.quantity_alert, p.quantity_alert, p.unit, p.stock_status]);
+    try {
+      const data = scope === 'current' ? paginatedProducts : filteredProducts;
+      const columns = ['Product Name', 'Category', 'Current Stock', 'Reorder Level', 'Unit', 'Status'];
+      const rows = data.map(p => [p.name, p.category, p.quantity_alert, p.quantity_alert, p.unit, p.stock_status]);
 
-    if (format === 'csv') {
-      generateCSV(columns, rows, `low-stock_${scope}_${new Date().getTime()}.csv`);
-    } else if (format === 'pdf') {
-      generatePDFWithLogo({
-        title: `Low Stock Products Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
-        columns,
-        rows,
-        fileName: `low-stock_${scope}_${new Date().getTime()}.pdf`,
-        scope
-      });
+      if (format === 'csv') {
+        generateCSV(columns, rows, `low - stock_${scope}_${new Date().getTime()}.csv`);
+      } else if (format === 'pdf') {
+        generatePDFWithLogo({
+          title: `Low Stock Products Report(${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+          columns,
+          rows,
+          fileName: `low - stock_${scope}_${new Date().getTime()}.pdf`,
+          scope
+        });
+      }
+
+      showNotification(`${format.toUpperCase()} file downloaded successfully!", 'success'`);
+      setIsDownloadModalOpen(false);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      showNotification("Failed to download file", 'error');
     }
-
-    setIsDownloadModalOpen(false);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-slate-900">
+      {notification && <Notification message={notification.message} type={notification.type} />}
       <div className="  mx-auto space-y-6">
 
         {/* Header Section */}

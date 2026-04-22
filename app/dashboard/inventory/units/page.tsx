@@ -33,11 +33,13 @@ import {
   HistoryButton
 } from "@/components/toolbar-buttons";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
+import { useApiContext } from "@/hooks/useApiContext";
+import { createUnits, getUnits, updateUnits, deleteUnits } from "@/app/services/units/units.service";
+import { useNotification } from "@/hooks/useNotification";
+import { Notification } from "@/components/Notification";
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { createUnits, getUnits, updateUnits } from "@/app/services/units/units.service";
-import { fetchInventory } from "@/app/services/comon/service.fetchInventory";
 
 // --- Types ---
 
@@ -80,7 +82,11 @@ interface HistoryItem {
 // --- Components ---
 
 export default function App() {
+  // Set API context once (merchant_id, branch_id, token)
+  useApiContext('9', '1234567890');
+
   const [units, setUnits] = useState<Unit[]>([]);
+  const { notification, showNotification } = useNotification();
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
@@ -129,17 +135,9 @@ export default function App() {
   useEffect(() => {
     async function fetchUnits() {
       try {
-        // const data = await getUnits({
-        //   branchId: 1234567890,
-        //   token: "1234",
-        // });
-        const data = await fetchInventory("units", {
-          branchId: "1234567890",
-          token: "1234",
+        const data = await getUnits({
           page: 1,
           limit: 100,
-          sortBy: "name",
-          sortOrder: "asc",
         });
 
         const mappedUnits: Unit[] = data.data.items.map((item: any) => ({
@@ -153,6 +151,7 @@ export default function App() {
         setUnits(mappedUnits);
       } catch (error) {
         console.error("Error fetching units:", error);
+        showNotification("Failed to load units", 'error');
       }
     }
 
@@ -180,19 +179,13 @@ export default function App() {
 
     try {
       if (editingUnit) {
-        console.log(editingUnit)
-        // ✅ CALL UPDATE API
-        const res = await updateUnits({
-          brandId: editingUnit.id, // ⚠️ API expects string
-          branchId: 1234567890,
-          token: "1234",
+        // UPDATE: Pass id and data only
+        const res = await updateUnits(Number(editingUnit.id), {
           name: formData.name,
           short_name: formData.shortName,
         });
 
-        console.log("Update response:", res);
-
-        // ✅ Update UI AFTER success
+        // Update UI AFTER success
         setUnits(prev =>
           prev.map(u =>
             u.id === editingUnit.id
@@ -205,12 +198,11 @@ export default function App() {
           )
         );
 
+        showNotification(`Unit "${formData.name}" updated successfully!`, 'success');
         addHistory("Edit", `Updated unit: ${formData.name}`);
       } else {
-        // ✅ CREATE (already done earlier)
+        // ✅ CREATE: Pass data only
         const res = await createUnits({
-          branchId: 1234567890,
-          token: "1234",
           name: formData.name,
           short_name: formData.shortName,
         });
@@ -225,20 +217,29 @@ export default function App() {
 
         setUnits(prev => [newUnit, ...prev]);
 
+        showNotification(`Unit "${formData.name}" created successfully!`, 'success');
         addHistory("Add", `Created new unit: ${formData.name}`);
       }
 
       closeModal();
     } catch (error) {
       console.error("Save failed:", error);
+      showNotification("Failed to save unit", 'error');
     }
   };
 
   const handleDelete = (id: string) => {
     const unit = units.find(u => u.id === id);
     if (window.confirm("Are you sure you want to delete this unit?")) {
-      setUnits(prev => prev.filter(u => u.id !== id));
-      addHistory("Delete", `Deleted unit: ${unit?.name}`);
+      try {
+        deleteUnits(Number(id));
+        setUnits(prev => prev.filter(u => u.id !== id));
+        showNotification(`Unit "${unit?.name}" deleted successfully!`, 'success');
+        addHistory("Delete", `Deleted unit: ${unit?.name}`);
+      } catch (error) {
+        console.error("Delete failed:", error);
+        showNotification("Failed to delete unit", 'error');
+      }
     }
   };
 
@@ -260,28 +261,34 @@ export default function App() {
   };
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
-    const data = scope === 'current' ? paginatedUnits : filteredAndSortedUnits;
-    const columns = ['Name', 'Short Name', 'Product Count', 'Created At'];
-    const rows = data.map(u => [
-      u.name,
-      u.shortName,
-      u.productCount,
-      u.createdAt
-    ]);
+    try {
+      const data = scope === 'current' ? paginatedUnits : filteredAndSortedUnits;
+      const columns = ['Name', 'Short Name', 'Product Count', 'Created At'];
+      const rows = data.map(u => [
+        u.name,
+        u.shortName,
+        u.productCount,
+        u.createdAt
+      ]);
 
-    if (format === 'csv') {
-      generateCSV(columns, rows, `units_${scope}_${new Date().getTime()}.csv`);
-    } else if (format === 'pdf') {
-      generatePDFWithLogo({
-        title: `Units Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
-        columns,
-        rows,
-        fileName: `units_${scope}_${new Date().getTime()}.pdf`,
-        scope
-      });
+      if (format === 'csv') {
+        generateCSV(columns, rows, `units_${scope}_${new Date().getTime()}.csv`);
+      } else if (format === 'pdf') {
+        generatePDFWithLogo({
+          title: `Units Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+          columns,
+          rows,
+          fileName: `units_${scope}_${new Date().getTime()}.pdf`,
+          scope
+        });
+      }
+
+      showNotification(`${format.toUpperCase()} file downloaded successfully!`, 'success');
+      setIsDownloadModalOpen(false);
+    } catch (error) {
+      console.error("Download failed:", error);
+      showNotification("Failed to download file", 'error');
     }
-
-    setIsDownloadModalOpen(false);
   };
 
   // --- Export Functions ---
@@ -316,13 +323,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50  font-sans text-gray-900">
+      {notification && <Notification message={notification.message} type={notification.type} />}
       <div className="space-y-6">
 
         {/* Header Section */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 1, y: 0 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-linear-to-br from-blue-700 via-blue-600 to-indigo-700 p-8 text-white shadow-xl shadow-blue-200/50"
+          className="rounded-2xl  bg-blue-600  p-8 text-white shadow-xl shadow-blue-200/50"
         >
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>

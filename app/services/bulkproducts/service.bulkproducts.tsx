@@ -1,79 +1,163 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
+import { apiClient } from '@/lib/apiClient';
 
-type BaseInventoryParams = {
-    branchId: string;
-    job_id?: string;
-    token: string;
+/**
+ * Filter options for bulk product import
+ */
+export interface BulkImportFilter {
+    mode?: 'insert' | 'skip' | 'update';
+    callback_url?: string;
+}
+
+/**
+ * Response type for bulk import operations
+ */
+export interface BulkImportResponse {
+    status: string;
+    data: {
+        job_id?: string;
+        poll_url?: string;
+        message?: string;
+        [key: string]: any;
+    };
+    metadata?: any;
+}
+
+/**
+ * Job status response type
+ */
+export interface JobStatusResponse {
+    status: string;
+    data: {
+        status: 'completed' | 'success' | 'failed' | 'error' | 'queued' | 'processing' | 'in_progress';
+        progress?: {
+            total_rows: number;
+            processed_rows: number;
+            successful: number;
+            failed: number;
+            skipped: number;
+            percent_complete: number;
+        };
+        [key: string]: any;
+    };
+    metadata?: any;
+}
+
+/**
+ * Detailed job status response with full result data
+ */
+export interface JobStatusDetailedResponse {
+    status: string;
+    data: {
+        job_id: string;
+        status: 'completed' | 'success' | 'failed' | 'error' | 'queued' | 'processing' | 'in_progress';
+        progress?: {
+            total_rows: number;
+            processed_rows: number;
+            successful: number;
+            failed: number;
+            skipped: number;
+            percent_complete: number;
+        };
+        result?: {
+            summary: {
+                total_rows: number;
+                successful: number;
+                failed: number;
+                skipped: number;
+                updated: number;
+            };
+            created_product_ids: Array<{
+                id: number;
+                upc_code: string;
+                plu_code: string;
+            }>;
+            updated_product_ids: Array<{
+                id: number;
+                upc_code: string;
+                plu_code: string;
+            }>;
+            skipped_rows: Array<{
+                row_number: number;
+                name: string;
+                upc_code: string;
+                reason: string;
+            }>;
+            failed_rows: Array<{
+                row_number: number;
+                name: string;
+                upc_code: string;
+                plu_code: string;
+                error_code: string;
+                error_message: string;
+                failed_fields: string[];
+            }>;
+        };
+        started_at?: string;
+        completed_at?: string;
+        estimated_completion_at?: string;
+    };
+    metadata?: any;
+}
+
+/**
+ * Upload bulk products via CSV file (synchronous)
+ * @param file - CSV file to upload
+ * @param filters - Filter options (mode: insert|skip|update)
+ */
+export const uploadBulkProducts = (file: File, filters?: BulkImportFilter) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return apiClient.postFile<BulkImportResponse>(
+        '/inventory/products/bulk-import',
+        formData,
+        filters
+    );
 };
 
-// export const fetchBulkProducts = async (
-//     endpoint: string,
-//     {
-//         branchId,
-//         job_id,
-//         token,
-//     }: BaseInventoryParams
-// ) => {
-//     const query = new URLSearchParams({
-//         branch_id: branchId,
-//         job_id: job_id ?? "",
-//     });
+/**
+ * Upload bulk products asynchronously with job tracking
+ * @param file - CSV file to upload
+ * @param filters - Filter options (mode: insert|skip|update, callback_url: optional)
+ */
+export const uploadBulkProductsAsync = (file: File, filters?: BulkImportFilter) => {
+    const formData = new FormData();
+    formData.append('file', file);
 
-//     const res = await fetch(
-//         `${BASE_URL}/inventory/${endpoint}?${query.toString()}`,
-//         {
-//             method: "GET",
-//             headers: {
-//                 accept: "application/json",
-//                 Authorization: `Bearer ${token}`,
-//             },
-//             cache: "no-store",
-//         }
-//     );
-
-//     if (!res.ok) {
-//         throw new Error(`Failed to fetch ${endpoint}`);
-//     }
-
-//     return res.json();
-// };
+    return apiClient.postFile<BulkImportResponse>(
+        '/inventory/products/bulk-import/async',
+        formData,
+        filters
+    );
+};
 
 /**
  * Download bulk product import template as CSV
- * @param branchId - Branch ID
- * @param token - Authorization token
  */
-export const downloadBulkProductTemplate = async ({
-    branchId,
-    token,
-}: Omit<BaseInventoryParams, "job_id">) => {
+export const downloadBulkProductTemplate = async () => {
     try {
-        const query = new URLSearchParams({
-            branch_id: branchId,
-        });
+        const baseUrl = process.env.NEXT_PUBLIC_API_URI;
+        if (!baseUrl) throw new Error('NEXT_PUBLIC_API_URI is not configured');
 
-        const res = await fetch(
-            `${BASE_URL}/inventory/products/bulk-import/template?${query.toString()}`,
+        const { token, merchantId, branchId } = apiClient.getContext();
+        const response = await fetch(
+            `${baseUrl}/inventory/products/bulk-import/template?merchant_id=${merchantId}&branch_id=${branchId}`,
             {
-                method: "GET",
+                method: 'GET',
                 headers: {
-                    accept: "application/json",
-                    Authorization: `Bearer ${token}`,
+                    'Authorization': `Bearer ${token}`,
                 },
-                cache: "no-store",
+                cache: 'no-store',
             }
         );
 
-        if (!res.ok) {
-            throw new Error(`Failed to download template: ${res.status}`);
+        if (!response.ok) {
+            throw new Error(`Failed to download template: ${response.status}`);
         }
 
-        // Get the blob
-        const blob = await res.blob();
-
-        // Extract filename from Content-Disposition header
-        const contentDisposition = res.headers.get("content-disposition");
-        let filename = "product_import_template.csv";
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get('content-disposition');
+        let filename = 'product_import_template.csv';
 
         if (contentDisposition) {
             const filenameMatch = contentDisposition.match(/filename="(.+?)"/);
@@ -82,9 +166,8 @@ export const downloadBulkProductTemplate = async ({
             }
         }
 
-        // Create blob URL and trigger download
         const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        const link = document.createElement('a');
         link.href = url;
         link.download = filename;
         document.body.appendChild(link);
@@ -94,266 +177,82 @@ export const downloadBulkProductTemplate = async ({
 
         return { success: true, filename };
     } catch (error) {
-        console.error("Error downloading bulk product template:", error);
+        console.error('Error downloading bulk product template:', error);
         throw error;
     }
 };
 
 /**
- * Upload bulk products via CSV file
- * @param file - CSV file to upload
- * @param branchId - Branch ID
- * @param token - Authorization token
- * @param mode - Import mode: 'insert', 'skip', or 'update' (default: 'insert')
+ * Poll job status by job_id
+ * @param jobId - Job ID returned from async upload
  */
-export const uploadBulkProducts = async ({
-    file,
-    branchId,
-    token,
-    mode = "insert",
-}: {
-    file: File;
-    branchId: string;
-    token: string;
-    mode?: "insert" | "skip" | "update";
-}) => {
-    try {
-        const formData = new FormData();
-        formData.append("file", file);
+export const pollJobStatusById = (jobId: string) =>
+    apiClient.get<JobStatusResponse>(`/inventory/products/bulk-import/jobs/${jobId}`);
 
-        const query = new URLSearchParams({
-            branch_id: branchId,
-            mode,
-        });
-
-        const res = await fetch(
-            `${BASE_URL}/inventory/products/bulk-import?${query.toString()}`,
-            {
-                method: "POST",
-                headers: {
-                    accept: "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: formData,
-                cache: "no-store",
-            }
-        );
-
-        if (!res.ok) {
-            let errorMessage = `Failed to upload bulk products: ${res.status}`;
-            let errorData: { message?: string; error?: string } = {};
-
-            try {
-                const text = await res.text();
-                console.error("API Error Response:", text);
-
-                if (text) {
-                    errorData = JSON.parse(text);
-                    errorMessage = errorData.message || errorData.error || errorMessage;
-                }
-            } catch (parseError) {
-                console.error("Failed to parse error response:", parseError);
-            }
-
-            throw new Error(errorMessage);
-        }
-
-        return await res.json();
-    } catch (error) {
-        console.error("Error uploading bulk products:", error);
-        throw error;
-    }
-};
-
-
-export const uploadBulkProductsAsync = async ({
-    file,
-    branchId,
-    token,
-    mode = "insert",
-}: {
-    file: File;
-    branchId: string;
-    token: string;
-    mode?: "insert" | "skip" | "update";
-}) => {
-    try {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const query = new URLSearchParams({
-            branch_id: branchId,
-            mode,
-        });
-
-        const res = await fetch(
-            `${BASE_URL}/inventory/products/bulk-import/async?${query.toString()}`,
-            {
-                method: "POST",
-                headers: {
-                    accept: "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: formData,
-                cache: "no-store",
-            }
-        );
-
-        if (!res.ok) {
-            let errorMessage = `Failed to upload bulk products: ${res.status}`;
-            let errorData: { message?: string; error?: string } = {};
-
-            try {
-                const text = await res.text();
-                console.error("API Error Response:", text);
-
-                if (text) {
-                    errorData = JSON.parse(text);
-                    errorMessage = errorData.message || errorData.error || errorMessage;
-                }
-            } catch (parseError) {
-                console.error("Failed to parse error response:", parseError);
-            }
-
-            throw new Error(errorMessage);
-        }
-
-        return await res.json();
-    } catch (error) {
-        console.error("Error uploading bulk products:", error);
-        throw error;
-    }
-};
+/**
+ * Get detailed job status with full result data
+ * @param jobId - Job ID returned from async upload
+ */
+export const getJobStatusDetailed = (jobId: string) =>
+    apiClient.get<JobStatusDetailedResponse>(`/inventory/products/bulk-import/${jobId}/status`);
 
 /**
  * Poll job status using poll_url
  * @param pollUrl - The URL to poll for job status (can be relative or absolute)
- * @param branchId - Branch ID (required as query parameter)
- * @param token - Authorization token
  */
-export const pollJobStatus = async ({
-    pollUrl,
-    branchId,
-    token,
-}: {
-    pollUrl: string;
-    branchId: string;
-    token: string;
-}) => {
+export const pollJobStatus = async (pollUrl: string) => {
     try {
-        // Construct full URL if pollUrl is relative
         let fullUrl = pollUrl;
 
-        // Check if URL is relative (doesn't start with http)
-        if (!pollUrl.startsWith("http")) {
+        // Check if URL is relative
+        if (!pollUrl.startsWith('http')) {
             const baseUrl = process.env.NEXT_PUBLIC_API_URI;
-            if (!baseUrl) {
-                throw new Error("NEXT_PUBLIC_API_URI is not configured");
-            }
+            if (!baseUrl) throw new Error('NEXT_PUBLIC_API_URI is not configured');
 
-            // Extract origin (protocol + host) from base URL
-            // e.g., from http://192.168.0.186:8000/api/v1 -> http://192.168.0.186:8000
             const url = new URL(baseUrl);
-            const origin = url.origin;
-
-            // Prepend origin to relative URL
-            fullUrl = `${origin}${pollUrl}`;
+            fullUrl = `${url.origin}${pollUrl}`;
         }
 
-        // Ensure branch_id is included as a query parameter
-        const urlObj = new URL(fullUrl);
-        if (!urlObj.searchParams.has("branch_id")) {
-            urlObj.searchParams.append("branch_id", branchId);
-        }
-        fullUrl = urlObj.toString();
-
-        const res = await fetch(fullUrl, {
-            method: "GET",
+        const { token } = apiClient.getContext();
+        const response = await fetch(fullUrl, {
+            method: 'GET',
             headers: {
-                accept: "application/json",
-                Authorization: `Bearer ${token}`,
+                'Authorization': `Bearer ${token}`,
             },
-            cache: "no-store",
+            cache: 'no-store',
         });
 
-        if (!res.ok) {
-            throw new Error(`Failed to poll job status: ${res.status}`);
+        if (!response.ok) {
+            throw new Error(`Failed to poll job status: ${response.status}`);
         }
 
-        return await res.json();
+        return await response.json();
     } catch (error) {
-        console.error("Error polling job status:", error);
+        console.error('Error polling job status:', error);
         throw error;
     }
 };
 
 /**
- * Poll job status by job_id and branch_id
+ * Poll job until completion with progress callback
  * @param jobId - Job ID returned from async upload
- * @param branchId - Branch ID
- * @param token - Authorization token
- */
-export const pollJobStatusById = async ({
-    jobId,
-    branchId,
-    token,
-}: {
-    jobId: string;
-    branchId: string;
-    token: string;
-}) => {
-    try {
-        const query = new URLSearchParams({
-            branch_id: branchId,
-        });
-
-        const res = await fetch(
-            `${BASE_URL}/inventory/products/bulk-import/jobs/${jobId}?${query.toString()}`,
-            {
-                method: "GET",
-                headers: {
-                    accept: "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                cache: "no-store",
-            }
-        );
-
-        if (!res.ok) {
-            throw new Error(`Failed to poll job status: ${res.status}`);
-        }
-
-        return await res.json();
-    } catch (error) {
-        console.error("Error polling job status:", error);
-        throw error;
-    }
-};
-
-/**
- * Handle async upload with polling
- * Automatically polls the job until completion
- * @param jobId - Job ID returned from async upload
- * @param pollUrl - Poll URL returned from async upload
- * @param branchId - Branch ID
- * @param token - Authorization token
- * @param onProgress - Optional callback for progress updates
- * @param maxAttempts - Maximum polling attempts (default: 120 for 10 minutes with 5s interval)
- * @param pollInterval - Polling interval in milliseconds (default: 5000ms)
+ * @param pollUrl - Poll URL returned from async upload (optional)
+ * @param useDetailedStatus - Use detailed status endpoint instead of basic endpoint (default: false)
+ * @param onProgress - Callback for progress updates
+ * @param maxAttempts - Maximum polling attempts (default: 120)
+ * @param pollInterval - Polling interval in milliseconds (default: 5000)
  */
 export const pollJobUntilCompletion = async ({
     jobId,
     pollUrl,
-    branchId,
-    token,
+    useDetailedStatus = false,
     onProgress,
     maxAttempts = 120,
     pollInterval = 5000,
 }: {
     jobId: string;
     pollUrl?: string;
-    branchId: string;
-    token: string;
+    useDetailedStatus?: boolean;
     onProgress?: (progress: {
         totalRows: number;
         processedRows: number;
@@ -366,14 +265,18 @@ export const pollJobUntilCompletion = async ({
     pollInterval?: number;
 }) => {
     let attempts = 0;
-    const maxRetries = maxAttempts;
 
-    while (attempts < maxRetries) {
+    while (attempts < maxAttempts) {
         try {
-            // Use poll_url if provided, otherwise construct the URL
-            const statusResponse = pollUrl
-                ? await pollJobStatus({ pollUrl, branchId, token })
-                : await pollJobStatusById({ jobId, branchId, token });
+            let statusResponse: any;
+
+            if (pollUrl) {
+                statusResponse = await pollJobStatus(pollUrl);
+            } else if (useDetailedStatus) {
+                statusResponse = await getJobStatusDetailed(jobId);
+            } else {
+                statusResponse = await pollJobStatusById(jobId);
+            }
 
             const data = statusResponse.data;
             const status = data.status;
@@ -391,24 +294,24 @@ export const pollJobUntilCompletion = async ({
             }
 
             // Check if job is completed
-            if (status === "completed" || status === "success") {
+            if (status === 'completed' || status === 'success') {
                 return statusResponse;
             }
 
             // Check for failed status
-            if (status === "failed" || status === "error") {
+            if (status === 'failed' || status === 'error') {
                 throw new Error(`Job failed with status: ${status}`);
             }
 
             // If still processing, wait and retry
-            if (status === "queued" || status === "processing" || status === "in_progress") {
+            if (status === 'queued' || status === 'processing' || status === 'in_progress') {
                 attempts++;
-                if (attempts < maxRetries) {
+                if (attempts < maxAttempts) {
                     await new Promise((resolve) => setTimeout(resolve, pollInterval));
                     continue;
                 } else {
                     throw new Error(
-                        `Job polling timeout after ${maxRetries} attempts (${(maxRetries * pollInterval) / 1000}s)`
+                        `Job polling timeout after ${maxAttempts} attempts (${(maxAttempts * pollInterval) / 1000}s)`
                     );
                 }
             }
@@ -418,16 +321,14 @@ export const pollJobUntilCompletion = async ({
         } catch (error) {
             console.error(`Error polling job (attempt ${attempts}):`, error);
 
-            // If this is the last attempt, throw the error
-            if (attempts >= maxRetries - 1) {
+            if (attempts >= maxAttempts - 1) {
                 throw error;
             }
 
-            // Otherwise, wait and retry
             attempts++;
             await new Promise((resolve) => setTimeout(resolve, pollInterval));
         }
     }
 
-    throw new Error("Job polling failed: maximum attempts reached");
+    throw new Error('Job polling failed: maximum attempts reached');
 };

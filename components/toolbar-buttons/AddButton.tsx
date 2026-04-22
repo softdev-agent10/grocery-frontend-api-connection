@@ -29,7 +29,7 @@ export const AddButton: React.FC<AddButtonProps> = ({
       whileTap={!disabled ? { scale: 0.95 } : {}}
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-200 hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed group ${sizeClasses[size]}`}
+      className={`flex items-center gap-2 bg-blue-600 hover:bg-blue-600 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-200 hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed group ${sizeClasses[size]}`}
     >
       <Plus size={20} className="group-hover:rotate-90 transition-transform" /> {label}
     </motion.button>

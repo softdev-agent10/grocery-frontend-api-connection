@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { CartItemType } from '@/components/sales/cart-items';
-import { Order } from '@/components/sales/order-history';
+import { CardOrder, Order } from '@/components/sales/order-history';
 
 export interface HeldSale {
   id: string;

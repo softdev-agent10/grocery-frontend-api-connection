@@ -3,6 +3,8 @@
 import { useState, ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks";
+import { useNotification } from "@/hooks/useNotification";
+import { Notification } from "@/components/Notification";
 import {
     addItem,
     updateItemQty,
@@ -28,6 +30,7 @@ import { Banknote, Calculator, ClockFading, Coffee, CookingPot, CreditCard, Down
 import { SalesActionsDialog } from "@/components/sales/sales-actions-modal";
 import CustomerModal from "@/components/sales/customer-modal";
 import CalculatorUI from "@/components/sales/calculator";
+import { processCardPayment } from "@/app/services/terminal/terminal.service";
 import MembershipModal from "@/components/sales/membership-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import CartItem, { CartItemType } from "@/components/sales/cart-items";
@@ -39,11 +42,12 @@ import { useEffect, useRef } from "react";
 import LoyaltyModal from "@/components/sales/loyalty-modal";
 import GiftCardModal from "@/components/sales/giftcard-modal";
 import CashInForm from "@/components/sales/cash-in-form";
+import CashOutForm from "@/components/sales/cash-out-form";
 import CashPaymentModal from "@/components/sales/cash-payment-modal";
 import Invoice from "@/components/sales/invoice";
 import DiscountModal from "@/components/sales/discount-modal";
 import QuickAddModal from "@/components/sales/quick-add-modal";
-import OrderHistory, { Order, OrderItem } from "@/components/sales/order-history";
+import OrderHistory, { CardOrder, Order, OrderItem } from "@/components/sales/order-history";
 import ItemPricingModal from "@/components/sales/item-pricing-modal";
 import WorkingHourReport from "@/components/sales/working-hour-report";
 import PaymentOtherModal from "@/components/sales/payment-other-modal";
@@ -54,9 +58,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useRouter } from "next/navigation";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { cn } from "@/lib/utils";
-import { getCategories, getProductsByCategory } from "@/app/services/categories/service.categories";
+import { getCategories, } from "@/app/services/categories/service.categories";
+import { getBuyNGet } from "@/app/services/tools/serive.buynget";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import CashOutForm from "@/components/sales/cash-out-form";
+import CardPaymentModal from "@/components/sales/card-payment-modal";
+import { ca } from "date-fns/locale";
+import { set } from "date-fns";
+import { i, li, p } from "framer-motion/client";
+import page from "@/app/sales/page";
+import { getProductsByCategory } from "@/app/services/product/service.product";
+import { getBundles } from "@/app/services/tools/service.bundle";
 
 interface Product {
     id: string;
@@ -69,6 +80,7 @@ interface Product {
     image?: string;
     promotion?: string;
 }
+
 interface Category {
     id: number;
     name: string;
@@ -141,11 +153,12 @@ export default function SalesPage() {
     }, [items.length]);
 
 
-    const [categories, setCategories] = useState([]);        // Store categories from API
+    const [categories, setCategories] = useState<Category[]>([]);        // Store categories from API
     const [isLoadingCategories, setIsLoadingCategories] = useState(false);  // Loading state
     const [modalOpen, setModalOpen] = useState(false);
-    const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const { notification, showNotification } = useNotification();
     const [cashPaymentOpen, setCashPaymentOpen] = useState(false);
+    const [cardPaymentOpen, setCardPaymentOpen] = useState(false);
     const [cashGiven, setCashGiven] = useState(0);
     const [modalTitle, setModalTitle] = useState<string>("");
     const [modalType, setModalType] = useState<string | null>(null);
@@ -156,11 +169,11 @@ export default function SalesPage() {
     const [reprintOrder, setReprintOrder] = useState<Order | null>(null);
     const [editingItem, setEditingItem] = useState<CartItemType | null>(null);
     const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
-
-    const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-        setNotification({ message, type });
-        setTimeout(() => setNotification(null), 3000);
-    };
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [promotions, setPromotions] = useState<any[]>([]);
+    const [isLoadingPromotions, setIsLoadingPromotions] = useState(false);
+    const [viewMode, setViewMode] = useState<'categories' | 'promotions'>('categories');
+    const [promotionFilterType, setPromotionFilterType] = useState<'all' | 'buynget'>('all');
 
     const subtotal = items.reduce((sum, item) => {
         const itemSubtotal = item.price * item.qty;
@@ -219,16 +232,16 @@ export default function SalesPage() {
         try {
 
             const response = await getCategories({
-                merchant_id: 1,
-                branchId: "432273096245408",
-                token: "1234"
+                limit: 15,
+                page: 1,
             });
 
             // console.log("API Response:", response);
 
             //  Validate API structure
+            // ...existing code...
             if (response?.status !== "success") {
-                throw new Error(response?.error?.message || "Invalid API response");
+                throw new Error(response?.status || "Invalid API response");
             }
 
             const items = response?.data?.items || [];
@@ -261,6 +274,7 @@ export default function SalesPage() {
     // Load categories when component mounts
     useEffect(() => {
         fetchCategories();
+        fetchPromotions();
     }, []); // Empty array means run once when component loads
 
 
@@ -268,46 +282,114 @@ export default function SalesPage() {
     const [isLoadingProducts, setIsLoadingProducts] = useState(false);
     // Fetch products when category is selected
     const fetchProductsByCategory = async (categoryId: number) => {
-    setIsLoadingProducts(true);
+        setIsLoadingProducts(true);
+        try {
+            const response = await getProductsByCategory(categoryId, {
+                page: 1,
+                limit: 50,
+            });
 
-    try {
-        const response = await getProductsByCategory({
-            merchant_id: 1,
-            branchId: "432273096245408",
-            categoryId,
-            token: "123456",
-        });
+            // console.log("Products API Response:", response);
 
-        if (!response || response.status !== "success") {
-            throw new Error(response?.message || "Invalid API response");
+            if (response?.status !== "success") {
+                throw new Error(response?.status || "Invalid API response");
+            }
+
+            const items = response?.data?.items || [];
+
+            // FIXED: Map the API response correctly
+            const formattedProducts = items.map((prod: any) => ({
+                id: prod.id.toString(),
+                name: prod.name,
+                price: parseFloat(prod.selling_price) || 0,  // ← CHANGE: use selling_price
+                category: prod.category?.name || prod.category_name || "Uncategorized", // ← CHANGE: get category name from object
+                stock: parseInt(prod.quantity) || 0,  // ← CHANGE: use quantity
+                barcode: prod.barcode || "",
+                icon: getProductIcon(prod.name),
+                image: prod.image,
+                promotion: prod.promotion
+            }));
+
+            console.log("Formatted products:", formattedProducts); // Debug: check if products are formatted correctly
+            setProducts(formattedProducts);
+
+        } catch (error: any) {
+            console.error("Fetch Products Error:", error.message);
+            showNotification(error.message, "error");
+            setProducts([]);
+        } finally {
+            setIsLoadingProducts(false);
         }
+    };
 
-        const items = Array.isArray(response?.data?.items)
-            ? response.data.items
-            : [];
 
-        const formattedProducts = items.map((prod: any) => ({
-            id: String(prod.id),
-            name: prod.name,
-            price: isNaN(Number(prod.selling_price)) ? 0 : Number(prod.selling_price),
-            category: prod.category?.name || prod.category_name || "Uncategorized",
-            stock: Number(prod.quantity) || 0,
-            barcode: prod.barcode || "",
-            icon: getProductIcon(prod.name),
-            image: prod.image,
-            promotion: prod.promotion
-        }));
+    // Fetch all promotions (BOGO and Bundles)
+    const fetchPromotions = async () => {
+        setIsLoadingPromotions(true);
+        try {
+            const [bundlesResponse, bogoResponse] = await Promise.all([
+                getBundles({
+                    branchId: "1234567890",
+                    token: "123456",
+                    page: 1,
+                    perPage: 50,
+                }),
+                getBuyNGet({
+                    branchId: "1234567890",
+                    token: "123456",
+                    page: 1,
+                    perPage: 50,
+                }),
+            ]);
 
-        setProducts(formattedProducts);
+            const allPromotions: any[] = [];
 
-    } catch (error: any) {
-        console.error("Fetch Products Error:", error);
-        showNotification(error.message || "Something went wrong", "error");
-        setProducts([]);
-    } finally {
-        setIsLoadingProducts(false);
-    }
-};
+            // Format bundles
+            if (bundlesResponse?.status === "success" && bundlesResponse?.data?.items) {
+                bundlesResponse.data.items.forEach((bundle: any) => {
+                    allPromotions.push({
+                        id: `bundle_${bundle.id}`,
+                        name: bundle.name,
+                        type: "Bundle",
+                        description: bundle.description || "",
+                        discount: bundle.discount_type === "flat"
+                            ? `$${bundle.flat_discount}`
+                            : `${bundle.percent_discount}%`,
+                        discountType: bundle.discount_type,
+                        products: bundle.products,
+                        startDate: bundle.start_date,
+                        endDate: bundle.end_date,
+                        productCount: bundle.products?.length || 0,
+                    });
+                });
+            }
+
+            // Format BOGO offers
+            if (bogoResponse?.status === "success" && bogoResponse?.data?.items) {
+                bogoResponse.data.items.forEach((offer: any) => {
+                    allPromotions.push({
+                        id: `buynget_${offer.id}`,
+                        name: offer.name,
+                        type: "Buy N Get",
+                        description: offer.description || "",
+                        discount: "Free Reward",
+                        buyQty: offer.buy_conditions[0]?.required_qty || 1,
+                        getQty: offer.reward_items[0]?.reward_qty || 1,
+                        startDate: offer.start_date,
+                        endDate: offer.end_date,
+                    });
+                });
+            }
+
+            setPromotions(allPromotions);
+        } catch (error: any) {
+            console.error("Fetch Promotions Error:", error.message);
+            showNotification(error.message, "error");
+            setPromotions([]);
+        } finally {
+            setIsLoadingPromotions(false);
+        }
+    };
 
 
     const handleDeleteHeldSale = (id: string) => {
@@ -351,8 +433,11 @@ export default function SalesPage() {
             setProducts(PRODUCTS.filter(p => p.category === type));
             return;
         }
-
         if (type === "Cash") {
+            if (items.length === 0) {
+                showNotification("Cart is empty! Add products before payment.", "error");
+                return;
+            }
             setCashGiven(data?.cashGiven || 0);
             setCashPaymentOpen(true);
             return;
@@ -374,7 +459,11 @@ export default function SalesPage() {
         }
 
         if (type === "Credit Card") {
-            showNotification("Terminal is not connected", "error");
+            if (items.length === 0) {
+                showNotification("Cart is empty! Add products before payment.", "error");
+                return;
+            }
+            setCardPaymentOpen(true);
             return;
         }
 
@@ -402,13 +491,15 @@ export default function SalesPage() {
         }
 
         if (type === "Buy N Get N") {
-            showNotification("Under development", "success");
+            setPromotionFilterType('buynget');
+            setViewMode('promotions');
             setModalOpen(false);
             return;
         }
 
         if (type === "Promotions") {
-            showNotification("Under development", "success");
+            setPromotionFilterType('all');
+            setViewMode('promotions');
             setModalOpen(false);
             return
         }
@@ -571,34 +662,92 @@ export default function SalesPage() {
         }, 300);
     };
 
-    const handleProcessAndPrint = () => {
+    const handleProcessAndPrint = async (paymentType: string) => {
+        if (items.length === 0) {
+            showNotification("Cart is empty! Add products before payment.", "error");
+            return;
+        }
+
         setIsBasketOnlyPrint(false);
-        setReprintOrder(null); // Clear reprint order if processing new sale
+        setReprintOrder(null);
 
-        // Add to history
-        const newOrder: Order = {
-            id: `ORD-${uuidv4()}`,
-            date: new Date().toISOString(),
-            customer: customer?.name || "Guest",
-            items: [...items],
-            subtotal,
-            tax: taxAmount,
-            discount: discountAmount,
-            total,
-            paymentMethod: "Cash", // Mock payment method
-            cashGiven,
-            change: cashGiven - total
-        };
-        dispatch(addToHistory(newOrder));
+        try {
+            if (paymentType === "Cash") {
+                // Add to history
+                const newOrder: Order = {
+                    id: `ORD-${uuidv4()}`,
+                    date: new Date().toISOString(),
+                    customer: customer?.name || "Guest",
+                    items: [...items],
+                    subtotal,
+                    tax: taxAmount,
+                    discount: discountAmount,
+                    total,
+                    paymentMethod: paymentType,
+                    cashGiven,
+                    change: cashGiven - total
+                };
+                dispatch(addToHistory(newOrder));
+            }
+            if (paymentType === "Card") {
+                try {
+                    setIsProcessingPayment(true);
+                    showNotification("Processing card payment... Please wait (5-10 seconds)", "success");
 
-        setPrintRequested(true);
-        setTimeout(() => {
-            window.print();
-            setCashPaymentOpen(false);
-            dispatch(cancelSale());
-            setKeypadResetKey(prev => prev + 1);
-            setPrintRequested(false);
-        }, 300);
+                    // Call fake card payment API
+                    const token = localStorage.getItem("token") || "123456";
+                    const terminalId = 1;
+                    const orderId = `ORD-${uuidv4()}`;
+
+                    const paymentResponse = await processCardPayment(
+                        {
+                            amount: total,
+                            terminal_id: terminalId,
+                            order_id: orderId,
+                        },
+                        { token }
+                    );
+
+                    // If payment succeeds, add to history
+                    const newOrder: Order = {
+                        id: orderId,
+                        date: new Date().toISOString(),
+                        customer: customer?.name || "Guest",
+                        items: [...items],
+                        subtotal,
+                        tax: taxAmount,
+                        discount: discountAmount,
+                        total,
+                        paymentMethod: paymentType,
+                        cashGiven: 0,
+                        change: 0,
+                    };
+                    dispatch(addToHistory(newOrder));
+                    showNotification("Card payment processed successfully!", "success");
+                    setIsProcessingPayment(false);
+                } catch (error: any) {
+                    showNotification(
+                        `${error.message || "Card payment failed. Please try again."}`,
+                        "error"
+                    );
+                    setIsProcessingPayment(false);
+                    return; // Don't proceed to print if payment failed
+                }
+            }
+
+            setPrintRequested(true);
+            setTimeout(() => {
+                window.print();
+                setCashPaymentOpen(false);
+                setCardPaymentOpen(false);
+                dispatch(cancelSale());
+                setKeypadResetKey(prev => prev + 1);
+                setPrintRequested(false);
+            }, 300);
+        } catch (error: any) {
+            console.error("Payment processing error:", error);
+            showNotification("Payment processing error. Please try again.", "error");
+        }
     };
 
     //TODO: Add to cart logic
@@ -690,25 +839,22 @@ export default function SalesPage() {
         return <ShoppingCart className="size-8 text-gray-400" />;
     };
 
+    const getPromotionIcon = (promotionType: string) => {
+        if (promotionType === "Buy N Get") {
+            return <Box className="size-8 text-blue-500" />;
+        } else if (promotionType === "Bundle") {
+            return <Gift className="size-8 text-blue-500" />;
+        }
+        return <Box className="size-8 text-gray-400" />;
+    };
+
 
     return (
         <>
             <BarcodeScanner onScan={handleBarcodeScan} />
 
             {/* Global Notification Area */}
-            {notification && (
-                <div className="fixed top-4 right-4 z-9999 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className={`px-6 py-3 rounded-xl shadow-2xl border-2 flex items-center gap-3 ${notification.type === 'success'
-                        ? 'bg-green-500 border-green-400 text-white'
-                        : 'bg-red-500 border-red-400 text-white'
-                        }`}>
-                        <div className="bg-white/20 p-1 rounded-full">
-                            {notification.type === 'success' ? <CirclePlus className="size-5" /> : <X className="size-5" />}
-                        </div>
-                        <p className="font-bold text-lg">{notification.message}</p>
-                    </div>
-                </div>
-            )}
+            {notification && <Notification message={notification.message} type={notification.type} />}
 
             <div className="w-full h-[calc(100vh-80px)] overflow-hidden p-2">
                 <div className="w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-1 overflow-hidden">
@@ -770,20 +916,6 @@ export default function SalesPage() {
                                                 <span className="font-medium">Contact:</span>{" "}
                                                 {customer?.contact || "No Customer Selected"}
                                             </p>
-
-                                            {/* <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                                            <p>
-                                                <span className="font-medium text-white">Membership:</span>{" "}
-                                                <span className="px-2 py-1 text-xs sm:text-sm bg-yellow-100 text-yellow-700 rounded-md">
-                                                    {customer?.membership || "N/A"}
-                                                </span>
-                                            </p>
-
-                                            <p>
-                                                <span className="font-medium text-white">Points:</span>{" "}
-                                                <span className="font-semibold text-white">{customer?.points || 0}</span>
-                                            </p>
-                                        </div> */}
                                         </div>
 
                                     </div>)
@@ -883,56 +1015,122 @@ export default function SalesPage() {
 
                                 <div className="flex-1 overflow-auto custom-scrollbar">
                                     {!(selectedCategory || searchQuery) ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 xl:mt-2 gap-4">
-                                            {isLoadingCategories ? (
-                                                // Loading skeletons
-                                                <>
-                                                    {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                                                        <div key={i} className="animate-pulse">
-                                                            <div className="flex items-center p-4 bg-gray-200 rounded-2xl h-32"></div>
-                                                        </div>
-                                                    ))}
-                                                </>
-                                            ) : categories.length > 0 ? (
-                                                // Display categories from API
-                                                categories.map((cat) => (
-                                                    <div
-                                                        key={cat.id}
-                                                        onClick={() => handleAction(cat.name)}
-                                                        className="flex items-center p-4 bg-black/80 rounded-2xl hover:bg-gray-900 transition-all cursor-pointer shadow-lg group border border-gray-800"
+                                        <>
+                                            {/* Toggle Buttons */}
+                                            <div className="flex gap-2 mb-3 sticky top-0 bg-white z-10 pb-2 px-1">
+                                                {viewMode === 'promotions' && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 sm:h-10 flex items-center gap-2 hover:bg-gray-100 px-2 sm:px-3"
+                                                        onClick={() => {
+                                                            setViewMode('categories');
+                                                        }}
                                                     >
-                                                        <div className="bg-white rounded-xl p-4 flex items-center justify-center shrink-0 mr-4 transition-transform group-hover:scale-105">
-                                                            {cat.icon ? (
-                                                                cat.icon
-                                                            ) : (
-                                                                <span className="text-black font-bold text-sm">
-                                                                    {cat.name?.slice(0, 2).toUpperCase()}
-                                                                </span>
-                                                            )}
+                                                        <ArrowLeft className="size-5" />
+                                                        <span className="text-sm font-semibold">Back</span>
+                                                    </Button>
+                                                )}
+                                            </div>
+
+                                            {/* Categories View */}
+                                            {viewMode === 'categories' && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 xl:mt-2 gap-4">
+                                                    {isLoadingCategories ? (
+                                                        <>
+                                                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+                                                                <div key={i} className="animate-pulse">
+                                                                    <div className="flex items-center p-4 bg-gray-200 rounded-2xl h-32"></div>
+                                                                </div>
+                                                            ))}
+                                                        </>
+                                                    ) : categories.length > 0 ? (
+                                                        categories.map((cat) => (
+                                                            <div
+                                                                key={cat.id}
+                                                                onClick={() => handleAction(cat.name)}
+                                                                className="flex items-center p-4 bg-black/80 rounded-2xl hover:bg-gray-900 transition-all cursor-pointer shadow-lg group border border-gray-800"
+                                                            >
+                                                                <div className="bg-white rounded-xl p-4 flex items-center justify-center shrink-0 mr-4 transition-transform group-hover:scale-105">
+                                                                    {cat.icon ? (
+                                                                        cat.icon
+                                                                    ) : (
+                                                                        <span className="text-black font-bold text-sm">
+                                                                            {cat.name?.slice(0, 2).toUpperCase()}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <span className="text-lg xl:text-xl font-bold text-white leading-tight break-words">
+                                                                        {cat.name}
+                                                                    </span>
+                                                                    <span className="text-[12px] xl:text-[13px] font-medium text-gray-400 mt-1 uppercase tracking-wide">
+                                                                        {cat.count} In Stock
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="col-span-full text-center py-10">
+                                                            <p className="text-gray-500">No categories available</p>
+                                                            <button
+                                                                onClick={fetchCategories}
+                                                                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
+                                                            >
+                                                                Retry
+                                                            </button>
                                                         </div>
-                                                        <div className="flex flex-col min-w-0">
-                                                            <span className="text-lg xl:text-xl font-bold text-white leading-tight break-words">
-                                                                {cat.name}
-                                                            </span>
-                                                            <span className="text-[12px] xl:text-[13px] font-medium text-gray-400 mt-1 uppercase tracking-wide">
-                                                                {cat.count} In Stock
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                // No categories found
-                                                <div className="col-span-full text-center py-10">
-                                                    <p className="text-gray-500">No categories available</p>
-                                                    <button
-                                                        onClick={fetchCategories}
-                                                        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
-                                                    >
-                                                        Retry
-                                                    </button>
+                                                    )}
                                                 </div>
                                             )}
-                                        </div>
+
+                                            {/* Promotions View */}
+                                            {viewMode === 'promotions' && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 xl:mt-2 gap-4">
+                                                    {isLoadingPromotions ? (
+                                                        <>
+                                                            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                                                                <div key={i} className="animate-pulse">
+                                                                    <div className="flex items-center p-4 bg-gray-200 rounded-2xl h-32"></div>
+                                                                </div>
+                                                            ))}
+                                                        </>
+                                                    ) : promotions.filter(p => promotionFilterType === 'all' || p.type === 'Buy N Get').length > 0 ? (
+                                                        promotions.filter(p => promotionFilterType === 'all' || p.type === 'Buy N Get').map((promo) => (
+                                                            <div
+                                                                key={promo.id}
+                                                                onClick={() => {
+                                                                    showNotification(`Applied promotion: ${promo.name}`, "success");
+                                                                }}
+                                                                className="flex items-center p-4 bg-black/80 rounded-2xl hover:bg-gray-900 transition-all cursor-pointer shadow-lg group border border-gray-800"
+                                                            >
+                                                                <div className="bg-white rounded-xl p-4 flex items-center justify-center shrink-0 mr-4 transition-transform group-hover:scale-105">
+                                                                    {getPromotionIcon(promo.type)}
+                                                                </div>
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <span className="text-lg xl:text-xl font-bold text-white leading-tight break-words">
+                                                                        {promo.name}
+                                                                    </span>
+                                                                    <span className="text-[12px] xl:text-[13px] font-medium text-white/80 mt-1 uppercase tracking-wide">
+                                                                        {promo.discount}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="col-span-full text-center py-10">
+                                                            <p className="text-gray-500">No promotions available</p>
+                                                            <button
+                                                                onClick={fetchPromotions}
+                                                                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
+                                                            >
+                                                                Retry
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
                                     ) : (
                                         <div>
                                             <div className="flex items-center justify-between mb-1 sm:mb-2 -mt-1 sticky top-0 bg-white z-10 py-0.5 sm:py-1">
@@ -1011,9 +1209,9 @@ export default function SalesPage() {
                                             aria-label="Customer"
                                             onClick={() => handleAction('Customer')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <User className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Customer</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <User className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Customer</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1023,29 +1221,11 @@ export default function SalesPage() {
                                             aria-label="Membership Card Lookup"
                                             onClick={() => handleAction('Membership Card Lookup')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <IdCard className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Membership</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <IdCard className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Membership</p>
                                             </div>
                                         </Button>
-                                        {/* <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="w-full h-full border border-black"
-                                            aria-label="Loyalty Card Lookup"
-                                            onClick={() => handleAction('Loyalty Card Lookup')}
-                                        >
-                                            <HandCoins className="size-14 xl:size-20" />
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="w-full h-full border border-black"
-                                            aria-label="Gift"
-                                            onClick={() => handleAction('Find Gift Card')}
-                                        >
-                                            <Gift className="size-14 xl:size-20" />
-                                        </Button> */}
                                         <Button
                                             variant="outline"
                                             size="icon"
@@ -1053,9 +1233,9 @@ export default function SalesPage() {
                                             aria-label="Calculator"
                                             onClick={() => handleAction('Calculator')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Calculator className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Calculator</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Calculator className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Calculator</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1065,9 +1245,9 @@ export default function SalesPage() {
                                             aria-label="CashIn"
                                             onClick={() => handleAction('CashIn')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Download className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Cash In</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Download className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Cash In</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1077,9 +1257,9 @@ export default function SalesPage() {
                                             aria-label="CashOut"
                                             onClick={() => handleAction('CashOut')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Upload className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Cash Out</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Upload className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Cash Out</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1089,9 +1269,9 @@ export default function SalesPage() {
                                             aria-label="History"
                                             onClick={() => handleAction('History')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <History className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">History</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <History className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">History</p>
                                             </div>
                                         </Button>
                                         {/* <Button
@@ -1103,7 +1283,7 @@ export default function SalesPage() {
                                         >
                                             <div className="flex flex-col justify-center items-center">
                                                 <BanknoteX className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Tax Free</p>
+                                                <p className="text-md">Tax Free</p>
                                             </div>
                                         </Button> */}
                                         <Button
@@ -1113,9 +1293,9 @@ export default function SalesPage() {
                                             aria-label="Print Basket"
                                             onClick={() => handleAction('Print Basket')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Printer className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Print Basket</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Printer className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Print Basket</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1125,9 +1305,9 @@ export default function SalesPage() {
                                             aria-label="Buy N Get N"
                                             onClick={() => handleAction('Buy N Get N')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Box className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Buy N Get N</p>
+                                            <div className="flex flex-col justify p-4-center items-center">
+                                                <Box className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Buy N Get N</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1137,9 +1317,9 @@ export default function SalesPage() {
                                             aria-label="Promotions"
                                             onClick={() => handleAction('Promotions')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Gift className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Promotions</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Gift className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Promotions</p>
                                             </div>
                                         </Button>
                                     </div>
@@ -1148,7 +1328,7 @@ export default function SalesPage() {
                                         <Popover>
                                             <PopoverTrigger asChild>
                                                 <div className="flex items-center space-x-2 md:space-x-3 cursor-pointer hover:bg-white/10 p-1 rounded-lg transition-colors">
-                                                    <Avatar className="border-2 border-amber-300 size-10 md:size-12 xl:size-16">
+                                                    <Avatar className="border-2 border-amber-300 size-6 md:size-8 xl:size-10">
                                                         <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
                                                         <AvatarFallback>CN</AvatarFallback>
                                                     </Avatar>
@@ -1182,7 +1362,7 @@ export default function SalesPage() {
                                             <Button
                                                 variant="outline"
                                                 size="icon"
-                                                className="size-10 md:size-12 xl:size-16 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
+                                                className="size-6 md:size-8 xl:size-10 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
                                                 aria-label="Clock In"
                                                 onClick={() => handleAction('Clock In')}
                                             >
@@ -1191,7 +1371,7 @@ export default function SalesPage() {
                                             <Button
                                                 variant="outline"
                                                 size="icon"
-                                                className="size-10 md:size-12 xl:size-16 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
+                                                className="size-6 md:size-8 xl:size-10 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
                                                 aria-label="Take Break"
                                                 onClick={() => handleAction('Take Break')}
                                             >
@@ -1200,7 +1380,7 @@ export default function SalesPage() {
                                             <Button
                                                 variant="outline"
                                                 size="icon"
-                                                className="size-10 md:size-12 xl:size-16 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
+                                                className="size-6 md:size-8 xl:size-10 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
                                                 aria-label="Meal Break"
                                                 onClick={() => handleAction('Meal Break')}
                                             >
@@ -1232,22 +1412,31 @@ export default function SalesPage() {
 
             {/* Cash Payment Modal */}
             <CashPaymentModal
-                open={cashPaymentOpen}
+                open={items.length > 0 ? cashPaymentOpen : false}
                 onOpenChange={setCashPaymentOpen}
                 items={items}
-                reprintOrder={reprintOrder?.discount || 0}
                 total={total}
                 cashGiven={cashGiven}
                 discountAmount={reprintOrder?.discount || discountAmount}
-                onProcess={handleProcessAndPrint} />
+                onProcess={() => handleProcessAndPrint("Cash")} />
+            <CardPaymentModal
+                open={items.length > 0 ? cardPaymentOpen : false}
+                onOpenChange={setCardPaymentOpen}
+                items={items}
+                discountAmount={reprintOrder?.discount || discountAmount}
+                total={total}
+                cashGiven={cashGiven}
+                onProcess={() => handleProcessAndPrint("Card")}
+                isLoading={isProcessingPayment}
+            />
 
             <SalesActionsDialog
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 title={modalTitle}
-                showFooter={modalTitle !== "Recent Holds" && modalTitle !== "History" && modalTitle !== "Item Pricing" && modalTitle !== "Working Hours" && modalTitle !== "Attendance" && modalTitle !== "Other Payments" && modalTitle !== "Refund Transaction"}
+                showFooter={modalTitle !== "Recent Holds" && modalTitle !== "History" && modalTitle !== "Item Pricing" && modalTitle !== "Working Hours" && modalTitle !== "Attendance" && modalTitle !== "Other Payments" && modalTitle !== "Refund Transaction" && modalTitle !== "Promotions" && modalTitle !== "All Promotions"}
                 showHeader={modalTitle !== "History" && modalTitle !== "Item Pricing" && modalTitle !== "Working Hours" && modalTitle !== "Attendance" && modalTitle !== "Other Payments" && modalTitle !== "Refund Transaction"}
-                className={modalTitle === "History" || modalTitle === "Working Hours" || modalTitle === "Other Payments" || modalTitle === "Refund Transaction" || modalTitle === "Attendance" ? "w-[90%] sm:w-[60%] max-w-[90%] sm:max-w-[60%] h-[90%] sm:h-[80%] max-h-[90%] sm:max-h-[80%] p-0 overflow-hidden" : ""}
+                className={modalTitle === "History" || modalTitle === "Working Hours" || modalTitle === "Other Payments" || modalTitle === "Refund Transaction" || modalTitle === "Attendance" || modalTitle === "Promotions" || modalTitle === "All Promotions" ? "w-[90%] sm:w-[70%] max-w-[90%] sm:max-w-[70%] h-[90%] sm:h-[80%] max-h-[90%] sm:max-h-[80%] p-0 overflow-hidden" : ""}
                 onSubmit={(e) => {
                     e.preventDefault();
                     setModalOpen(false);

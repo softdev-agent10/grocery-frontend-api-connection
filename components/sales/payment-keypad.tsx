@@ -157,7 +157,7 @@ export default function PaymentKeypad({
                             <Button
                                 key={amt}
                                 variant="outline"
-                                className="h-full text-xl xl:text-3xl font-bold bg-[#22c55e] text-white border-2 border-black hover:bg-[#16a34a] px-0.5"
+                                className="h-full text-xl xl:text-2xl font-bold bg-[#22c55e] text-white border-2 border-black hover:bg-[#16a34a] px-0.5"
                                 onClick={() => addQuickAmount(amt)}
                             >
                                 {amt}
@@ -169,7 +169,7 @@ export default function PaymentKeypad({
                             <Button
                                 key={k}
                                 variant="outline"
-                                className="h-full text-sm sm:text-xl xl:text-3xl font-extrabold border-2 border-black bg-white text-black hover:bg-gray-100 p-0"
+                                className="h-full text-sm sm:text-xl xl:text-2xl font-extrabold border-2 border-black bg-white text-black hover:bg-gray-100 p-0"
                                 onClick={() => {
                                     if (k === "000") addTripleZero();
                                     else if (k === "00") addDoubleZero();
@@ -183,37 +183,37 @@ export default function PaymentKeypad({
                     <div className="grid grid-rows-4 gap-1 h-full">
                         <Button
                             variant="outline"
-                            className="h-full text-[10px] sm:text-xs xl:text-xl font-bold bg-[#eab308] text-white border-2 border-black hover:bg-[#ca8a04] px-0.5"
+                            className="h-full text-md font-bold bg-[#eab308] text-white border-2 border-black hover:bg-[#ca8a04] px-0.5"
                             onClick={() => onAction('Refund')}
                         >
                             Refund
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-full text-[10px] sm:text-xs xl:text-xl font-bold bg-[#eab308] text-white border-2 border-black hover:bg-[#ca8a04] px-0.5"
+                            className="h-full text-md font-bold bg-[#eab308] text-white border-2 border-black hover:bg-[#ca8a04] px-0.5"
                             onClick={() => onAction('Discount')}
                         >
                             Discount
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-full text-[10px] sm:text-xs xl:text-xl font-bold bg-[#eab308] text-white border-2 border-black hover:bg-[#ca8a04] px-0.5"
+                            className="h-full text-md font-bold bg-[#eab308] text-white border-2 border-black hover:bg-[#ca8a04] px-0.5"
                             onClick={() => onAction('Other')}
                         >
                             Other
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-full text-[10px] sm:text-xs xl:text-xl font-bold bg-[#eab308] text-white border-2 border-black hover:bg-[#ca8a04] px-0.5"
+                            className="h-full text-md font-bold bg-[#eab308] text-white border-2 border-black hover:bg-[#ca8a04] px-0.5"
                             onClick={() => onAction('Credit Card')}
                         >
                             Card
                         </Button>
                     </div>
                 </div>
-                <div className="h-9 sm:h-11 xl:h-16 shrink-0">
+                <div className="">
                     <Button
-                        className="w-full h-full text-sm sm:text-lg xl:text-3xl font-bold bg-[#22c55e] text-white border-2 border-black hover:bg-[#16a34a] rounded-lg p-1"
+                        className="w-full h-full text-sm sm:text-lg xl:text-3xl font-bold bg-[#22c55e] text-white border-2 border-black hover:bg-[#16a34a] rounded-lg py-2 px-2"
                         onClick={handleCashPayment}
                     >
                         Cash Payment
