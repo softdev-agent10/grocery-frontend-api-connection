@@ -25,7 +25,7 @@ interface PaginationParams {
 class ApiClient {
     private baseUrl: string;
     private merchantId: string = "1"; // Default
-    private branchId: string = '1234567890';
+    private branchId: string = "511020165504577";
     private token: string = 'your-default-token'; // Replace with actual token management
 
     constructor(baseUrl?: string) {
@@ -89,11 +89,34 @@ class ApiClient {
             });
 
             if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                throw new Error(error?.message || `HTTP ${response.status}: ${response.statusText}`);
+                // Try to get error message, but handle empty response
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const text = await response.text();
+                    if (text) {
+                        const error = JSON.parse(text);
+                        errorMessage = error?.message || errorMessage;
+                    }
+                } catch (e) {
+                    // If no response body, just use status text
+                    console.warn('No error body received');
+                }
+                throw new Error(errorMessage);
             }
 
-            return response.json();
+            // Handle empty responses
+            const text = await response.text();
+            if (!text) {
+                // Return empty object for empty responses
+                return {} as T;
+            }
+            
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error('Failed to parse JSON:', text);
+                throw new Error('Invalid JSON response from server');
+            }
         } catch (error) {
             console.error(`API Error [${method} ${endpoint}]:`, error);
             throw error;
@@ -173,11 +196,25 @@ class ApiClient {
             });
 
             if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                throw new Error(error?.message || `HTTP ${response.status}: ${response.statusText}`);
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const text = await response.text();
+                    if (text) {
+                        const error = JSON.parse(text);
+                        errorMessage = error?.message || errorMessage;
+                    }
+                } catch (e) {
+                    console.warn('No error body received');
+                }
+                throw new Error(errorMessage);
             }
 
-            return response.json();
+            const text = await response.text();
+            if (!text) {
+                return {} as T;
+            }
+            
+            return JSON.parse(text);
         } catch (error) {
             console.error(`API Error [POST ${endpoint}]:`, error);
             throw error;

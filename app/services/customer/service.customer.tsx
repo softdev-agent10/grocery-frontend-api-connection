@@ -1,69 +1,50 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
+import { apiClient } from '@/lib/apiClient';
 
-// /api/v1/tools/customer
-export const getCustomers = async ({ branchId, token }: any) => {
-  const merchant_id = 9;
+// Types
+export interface Customer {
+    id: number | string;
+    name: string;
+    phone_number?: string;
+    email?: string;
+    address?: string;
+}
 
-  const res = await fetch(
-    `${BASE_URL}/tools/customer?merchant_id=${merchant_id}&branch_id=${branchId}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    }
-  );
+export interface CustomerFormData {
+    name: string;
+    contact: string;
+    email: string;
+    address: string;
+}
 
-  const text = await res.text(); 
-
-  console.log("STATUS:", res.status);
-  console.log("RAW RESPONSE:", text);
-
-  if (!text) {
-    console.warn("Empty response from API");
-    return null;
-  }
-
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch (err) {
-    console.error("Invalid JSON:", err);
-    throw new Error("Invalid JSON response");
-  }
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Failed to fetch customers");
-  }
-
-  return data;
+// API Functions - Using the correct endpoint from your original code
+export const getCustomers = (filters?: { page?: number; limit?: number; search?: string }) => {
+    // Use 'customer' endpoint as in your original working code
+    return apiClient.get<{ status: string; data: { items: Customer[] } }>('/tools/customer', filters);
 };
 
-// create new 
-export const createCustomer = async ({branchId, data, token }: any) => {
-  const merchant_id = 9;
-  const res = await fetch(
-  `${BASE_URL}/tools/customer?merchant_id=${merchant_id}&branch_id=${branchId}`,
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
-  }
-);
+export const createCustomer = (data: Partial<Customer>) => {
+    // Use 'customer' endpoint as in your original working code
+    return apiClient.post<{ status: string; data: Customer }>('/tools/customer', data);
+};
 
-  const text = await res.text();
-
-  console.log("STATUS:", res.status);
-  console.log("RESPONSE:", text);
-
-  if (!res.ok) {
-    throw new Error(text);
-  }
-
-  return JSON.parse(text);
+// Helper Functions
+export const validateCustomer = (formData: CustomerFormData): string | null => {
+    if (!formData.name.trim() || formData.name.trim().length < 2) {
+        return "Name must be at least 2 characters";
+    }
+    
+    if (!formData.contact.trim()) {
+        return "Contact number is required";
+    }
+    
+    const phoneRegex = /^01[3-9]\d{8}$/;
+    if (!phoneRegex.test(formData.contact)) {
+        return "Enter a valid Bangladeshi phone number (01XXXXXXXXX)";
+    }
+    
+    if (formData.email && !/^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/.test(formData.email)) {
+        return "Invalid email address";
+    }
+    
+    return null;
 };

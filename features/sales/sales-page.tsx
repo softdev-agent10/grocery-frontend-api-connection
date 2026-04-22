@@ -322,21 +322,16 @@ export default function SalesPage() {
         }
     };
 
-
     // Fetch all promotions (BOGO and Bundles)
     const fetchPromotions = async () => {
         setIsLoadingPromotions(true);
         try {
             const [bundlesResponse, bogoResponse] = await Promise.all([
                 getBundles({
-                    branchId: "1234567890",
-                    token: "123456",
                     page: 1,
                     perPage: 50,
                 }),
                 getBuyNGet({
-                    branchId: "1234567890",
-                    token: "123456",
                     page: 1,
                     perPage: 50,
                 }),
