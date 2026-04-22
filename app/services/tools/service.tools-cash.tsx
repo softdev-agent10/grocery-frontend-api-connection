@@ -1,61 +1,33 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
+import { apiClient } from '@/lib/apiClient';
 
-// /api/v1/tools/cashin
-export const createCashIn = async ({ data, branchId, token }: any) => {
-  const merchantId = 9;
+// Types
+export interface CashInPayload {
+    amount: number;
+    note?: string;
+    quantity: number;
+    device_id: string;
+}
 
-  const res = await fetch(
-    `${BASE_URL}/tools/cashin?merchant_id=${merchantId}&branch_id=${branchId}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(data),
-    }
-  );
+export interface CashInResponse {
+    status: string;
+    data: any;
+    message?: string;
+}
 
-  const text = await res.text();
-
-  console.log("STATUS:", res.status);
-  console.log("RESPONSE:", text);
-
-  if (!res.ok) {
-    throw new Error(text);
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+// API Functions
+export const createCashIn = (data: CashInPayload) => {
+    return apiClient.post<CashInResponse>('/tools/cashin', data);
 };
 
-
-export const createCashOut = async ({ data, branchId, token }: any) => {
-  const res = await fetch(
-    `${BASE_URL}/tools/cashout?branch_id=${branchId}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(data),
+// Helper Functions
+export const validateCashIn = (amount: number): string | null => {
+    if (!amount || amount <= 0) {
+        return "Amount must be greater than 0";
     }
-  );
-
-  const text = await res.text();
-
-  console.log("STATUS:", res.status);
-  console.log("RESPONSE:", text);
-
-  if (!res.ok) {
-    throw new Error(text);
-  }
-
-  return JSON.parse(text);
+    
+    if (amount < 0.01) {
+        return "Minimum amount is 0.01";
+    }
+    
+    return null;
 };
-
-

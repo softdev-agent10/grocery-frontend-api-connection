@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Field, FieldGroup } from '../ui/field';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { SearchInput } from './search-input';
-import { Button } from '../ui/button';
-import { SalesActionsDialog } from './sales-actions-modal';
-import { DateOfBirthInput } from '../date-of-birth-input';
-import { Textarea } from '../ui/textarea';
+import { Field, FieldGroup } from '../../ui/field';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
+import { SearchInput } from '../search-input';
+import { Button } from '../../ui/button';
+import { SalesActionsDialog } from '../sales-actions-modal';
+import { DateOfBirthInput } from '../../date-of-birth-input';
+import { Textarea } from '../../ui/textarea';
 import { getCustomers, createCustomer, validateCustomer } from '@/app/services/customer/service.customer';
 import { apiClient } from '@/lib/apiClient';
 
@@ -15,7 +15,7 @@ interface CustomerModalProps {
     setCustomer: (customer: { name: string; contact: string; id?: string }) => void;
 }
 
-export default function CustomerModal({ customer, setCustomer }: CustomerModalProps) {
+export default function CustomerModal({ setCustomer }: CustomerModalProps) {
     const [customers, setCustomers] = useState<{ id: string; name: string; contact: string }[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export default function CustomerModal({ customer, setCustomer }: CustomerModalPr
                 console.log("API Response:", res); // Debug: See what the API returns
                 
                 // Handle different response structures
-                let items = [];
+                let items: any[] = [];
                 if (res?.data?.items) {
                     items = res.data.items;
                 } else if (res?.data && Array.isArray(res.data)) {
@@ -77,8 +77,8 @@ export default function CustomerModal({ customer, setCustomer }: CustomerModalPr
             const res = await createCustomer({
                 name: formData.name.trim(),
                 phone_number: formData.contact.trim(),
-                email: formData.email.trim() || null,
-                address: formData.address.trim() || null,
+                email: formData.email.trim() ?? null,
+                address: formData.address.trim() ?? null,
             });
 
             console.log("Create response:", res); // Debug: See what the API returns

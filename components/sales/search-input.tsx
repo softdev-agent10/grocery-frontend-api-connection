@@ -20,11 +20,13 @@ export function SearchInput<T extends Items>({
     onSelect,
     placeholder = "Search items...",
     inputClassName,
+    isLoading = false,
 }: {
     items: T[]
     onSelect: (item: T) => void
     placeholder?: string
     inputClassName?: string
+    isLoading?: boolean
 }) {
     const [inputValue, setInputValue] = useState<string>("")
 

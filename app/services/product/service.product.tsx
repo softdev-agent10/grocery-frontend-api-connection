@@ -118,9 +118,12 @@ export const deleteProduct = (productId: number) =>
 /**
  * Get products by category ID
  */
+// export const getProductsByCategory = (categoryId: number, filters?: ProductFilter) =>
+//   apiClient.get<PaginatedResponse<ProductData>>(`/inventory/products/category/${categoryId}`, filters);
 export const getProductsByCategory = (categoryId: number, filters?: ProductFilter) =>
-  apiClient.get<PaginatedResponse<ProductData>>(`/inventory/products/category/${categoryId}`, filters);
-
+  apiClient.get<PaginatedResponse<ProductData>>('/inventory/products', {...filters,
+    category_id: categoryId,
+  });
 
 /**
  * Helper function to transform API response to form data

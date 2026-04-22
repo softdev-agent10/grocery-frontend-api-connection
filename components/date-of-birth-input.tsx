@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-export function DateOfBirthInput({ className, onChange }: { className?: string; onChange?: (date: string) => void }) {
+export function DateOfBirthInput({ className, onChange, disabled }: { className?: string; onChange?: (date: string) => void; disabled?: boolean }) {
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date | undefined>(undefined)
 
@@ -31,6 +31,7 @@ export function DateOfBirthInput({ className, onChange }: { className?: string; 
             variant="outline"
             id="date"
             className="w-full justify-start font-normal md:h-12"
+            disabled={disabled}
           >
             {date ? date.toLocaleDateString() : "Select DOB"}
           </Button>
