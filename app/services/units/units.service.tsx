@@ -1,86 +1,49 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
+import { apiClient } from '@/lib/apiClient';
+import { Unit, PaginatedResponse, SingleResponse } from '@/lib/types/api.types';
 
-export const getUnits = async ({ branchId, token }: any) => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/units?branch_id=${branchId}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error("Failed to fetch units");
-  }
-
-  return res.json();
-};
-
-
-
-export const createUnits = async ({ branchId, token, name, short_name }: any) => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/units?branch_id=${branchId}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-      body: JSON.stringify({
-        name,
-        short_name, // ✅ FIXED
-      }),
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error("Failed to create units");
-  }
-
-  return res.json();
-};
-
-export const updateUnits = async ({
-  brandId,
-  branchId,
-  token,
-  name,
-  short_name,
-}: {
-  brandId: string;
-  branchId: number;
-  token: string;
+/**
+ * Unit payload for create/update operations
+ */
+export interface UnitPayload {
   name: string;
   short_name: string;
-}) => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/units/${brandId}?branch_id=${branchId}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        accept: "application/json",
-      },
-      body: JSON.stringify({
-        name,
-        short_name, // ✅ correct key
-      }),
-    }
-  );
+}
 
-  if (!res.ok) {
-    throw new Error("Failed to update unit");
-  }
+/**
+ * Unit filter options
+ */
+export interface UnitFilter {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
 
-  return res.json();
-};
+/**
+ * Fetch all units with pagination
+ */
+export const getUnits = (filters?: UnitFilter) =>
+  apiClient.get<PaginatedResponse<Unit>>('/inventory/units', filters);
 
+/**
+ * Get single unit by ID
+ */
+export const getUnitById = (id: number) =>
+  apiClient.get<SingleResponse<Unit>>(`/inventory/units/${id}`);
 
-// http://192.168.0.109:8000/api/v1/inventory/units
+/**
+ * Create a new unit
+ */
+export const createUnits = (data: UnitPayload) =>
+  apiClient.post<SingleResponse<Unit>>('/inventory/units', data);
+
+/**
+ * Update an existing unit
+ */
+export const updateUnits = (id: number, data: Partial<UnitPayload>) =>
+  apiClient.patch<SingleResponse<Unit>>(`/inventory/units/${id}`, data);
+
+/**
+ * Delete a unit
+ */
+export const deleteUnits = (id: number) =>
+  apiClient.delete<{ status: string }>(`/inventory/units/${id}`);

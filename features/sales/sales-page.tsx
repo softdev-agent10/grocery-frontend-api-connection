@@ -3,6 +3,8 @@
 import { useState, ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks";
+import { useNotification } from "@/hooks/useNotification";
+import { Notification } from "@/components/Notification";
 import {
     addItem,
     updateItemQty,
@@ -56,12 +58,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useRouter } from "next/navigation";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { cn } from "@/lib/utils";
-import { getCategories, getProductsByCategory } from "@/app/services/categories/service.categories";
-import { getBundles, getBuyNGet } from "@/app/services/tools/serive.tools";
+import { getCategories, } from "@/app/services/categories/service.categories";
+import { getBuyNGet } from "@/app/services/tools/serive.buynget";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import CardPaymentModal from "@/components/sales/card-payment-modal";
 import { ca } from "date-fns/locale";
 import { set } from "date-fns";
+import { i, li, p } from "framer-motion/client";
+import page from "@/app/sales/page";
+import { getProductsByCategory } from "@/app/services/product/service.product";
+import { getBundles } from "@/app/services/tools/service.bundle";
 
 interface Product {
     id: string;
@@ -73,6 +79,18 @@ interface Product {
     icon?: ReactNode;
     image?: string;
     promotion?: string;
+}
+
+interface Category {
+    id: number;
+    name: string;
+    description: string;
+    count: string;
+    product_count: number;
+    is_active: boolean;
+    taxes: any[];
+    fees: any[];
+    icon?: ReactNode;
 }
 
 const CATEGORIES = [
@@ -135,10 +153,10 @@ export default function SalesPage() {
     }, [items.length]);
 
 
-    const [categories, setCategories] = useState([]);        // Store categories from API
+    const [categories, setCategories] = useState<Category[]>([]);        // Store categories from API
     const [isLoadingCategories, setIsLoadingCategories] = useState(false);  // Loading state
     const [modalOpen, setModalOpen] = useState(false);
-    const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const { notification, showNotification } = useNotification();
     const [cashPaymentOpen, setCashPaymentOpen] = useState(false);
     const [cardPaymentOpen, setCardPaymentOpen] = useState(false);
     const [cashGiven, setCashGiven] = useState(0);
@@ -156,11 +174,6 @@ export default function SalesPage() {
     const [isLoadingPromotions, setIsLoadingPromotions] = useState(false);
     const [viewMode, setViewMode] = useState<'categories' | 'promotions'>('categories');
     const [promotionFilterType, setPromotionFilterType] = useState<'all' | 'buynget'>('all');
-
-    const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-        setNotification({ message, type });
-        setTimeout(() => setNotification(null), 3000);
-    };
 
     const subtotal = items.reduce((sum, item) => {
         const itemSubtotal = item.price * item.qty;
@@ -219,15 +232,16 @@ export default function SalesPage() {
         try {
 
             const response = await getCategories({
-                branchId: "1234567890",
-                token: "123456"
+                limit: 15,
+                page: 1,
             });
 
             // console.log("API Response:", response);
 
             //  Validate API structure
+            // ...existing code...
             if (response?.status !== "success") {
-                throw new Error(response?.error?.message || "Invalid API response");
+                throw new Error(response?.status || "Invalid API response");
             }
 
             const items = response?.data?.items || [];
@@ -270,16 +284,15 @@ export default function SalesPage() {
     const fetchProductsByCategory = async (categoryId: number) => {
         setIsLoadingProducts(true);
         try {
-            const response = await getProductsByCategory({
-                branchId: 1234567890,
-                categoryId: categoryId,
-                token: "123456",
+            const response = await getProductsByCategory(categoryId, {
+                page: 1,
+                limit: 50,
             });
 
             // console.log("Products API Response:", response);
 
             if (response?.status !== "success") {
-                throw new Error(response?.error?.message || "Invalid API response");
+                throw new Error(response?.status || "Invalid API response");
             }
 
             const items = response?.data?.items || [];
@@ -841,19 +854,7 @@ export default function SalesPage() {
             <BarcodeScanner onScan={handleBarcodeScan} />
 
             {/* Global Notification Area */}
-            {notification && (
-                <div className="fixed top-4 right-4 z-9999 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className={`px-6 py-3 rounded-xl shadow-2xl border-2 flex items-center gap-3 ${notification.type === 'success'
-                        ? 'bg-green-500 border-green-400 text-white'
-                        : 'bg-red-500 border-red-400 text-white'
-                        }`}>
-                        <div className="bg-white/20 p-1 rounded-full">
-                            {notification.type === 'success' ? <CirclePlus className="size-5" /> : <X className="size-5" />}
-                        </div>
-                        <p className="font-bold text-lg">{notification.message}</p>
-                    </div>
-                </div>
-            )}
+            {notification && <Notification message={notification.message} type={notification.type} />}
 
             <div className="w-full h-[calc(100vh-80px)] overflow-hidden p-2">
                 <div className="w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-1 overflow-hidden">
@@ -1037,7 +1038,7 @@ export default function SalesPage() {
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 xl:mt-2 gap-4">
                                                     {isLoadingCategories ? (
                                                         <>
-                                                            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                                                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
                                                                 <div key={i} className="animate-pulse">
                                                                     <div className="flex items-center p-4 bg-gray-200 rounded-2xl h-32"></div>
                                                                 </div>
@@ -1208,9 +1209,9 @@ export default function SalesPage() {
                                             aria-label="Customer"
                                             onClick={() => handleAction('Customer')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <User className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Customer</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <User className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Customer</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1220,9 +1221,9 @@ export default function SalesPage() {
                                             aria-label="Membership Card Lookup"
                                             onClick={() => handleAction('Membership Card Lookup')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <IdCard className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Membership</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <IdCard className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Membership</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1232,9 +1233,9 @@ export default function SalesPage() {
                                             aria-label="Calculator"
                                             onClick={() => handleAction('Calculator')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Calculator className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Calculator</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Calculator className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Calculator</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1244,9 +1245,9 @@ export default function SalesPage() {
                                             aria-label="CashIn"
                                             onClick={() => handleAction('CashIn')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Download className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Cash In</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Download className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Cash In</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1256,9 +1257,9 @@ export default function SalesPage() {
                                             aria-label="CashOut"
                                             onClick={() => handleAction('CashOut')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Upload className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Cash Out</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Upload className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Cash Out</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1268,9 +1269,9 @@ export default function SalesPage() {
                                             aria-label="History"
                                             onClick={() => handleAction('History')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <History className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">History</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <History className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">History</p>
                                             </div>
                                         </Button>
                                         {/* <Button
@@ -1282,7 +1283,7 @@ export default function SalesPage() {
                                         >
                                             <div className="flex flex-col justify-center items-center">
                                                 <BanknoteX className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Tax Free</p>
+                                                <p className="text-md">Tax Free</p>
                                             </div>
                                         </Button> */}
                                         <Button
@@ -1292,9 +1293,9 @@ export default function SalesPage() {
                                             aria-label="Print Basket"
                                             onClick={() => handleAction('Print Basket')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Printer className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Print Basket</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Printer className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Print Basket</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1304,9 +1305,9 @@ export default function SalesPage() {
                                             aria-label="Buy N Get N"
                                             onClick={() => handleAction('Buy N Get N')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Box className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Buy N Get N</p>
+                                            <div className="flex flex-col justify p-4-center items-center">
+                                                <Box className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Buy N Get N</p>
                                             </div>
                                         </Button>
                                         <Button
@@ -1316,9 +1317,9 @@ export default function SalesPage() {
                                             aria-label="Promotions"
                                             onClick={() => handleAction('Promotions')}
                                         >
-                                            <div className="flex flex-col justify-center items-center">
-                                                <Gift className="size-14 xl:size-20" />
-                                                <p className="text-md xl:text-xl">Promotions</p>
+                                            <div className="flex flex-col justify-center p-4 items-center">
+                                                <Gift className="size-6 md:size-8 xl:size-10" />
+                                                <p className="text-md">Promotions</p>
                                             </div>
                                         </Button>
                                     </div>
@@ -1327,7 +1328,7 @@ export default function SalesPage() {
                                         <Popover>
                                             <PopoverTrigger asChild>
                                                 <div className="flex items-center space-x-2 md:space-x-3 cursor-pointer hover:bg-white/10 p-1 rounded-lg transition-colors">
-                                                    <Avatar className="border-2 border-amber-300 size-10 md:size-12 xl:size-16">
+                                                    <Avatar className="border-2 border-amber-300 size-6 md:size-8 xl:size-10">
                                                         <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
                                                         <AvatarFallback>CN</AvatarFallback>
                                                     </Avatar>
@@ -1361,7 +1362,7 @@ export default function SalesPage() {
                                             <Button
                                                 variant="outline"
                                                 size="icon"
-                                                className="size-10 md:size-12 xl:size-16 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
+                                                className="size-6 md:size-8 xl:size-10 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
                                                 aria-label="Clock In"
                                                 onClick={() => handleAction('Clock In')}
                                             >
@@ -1370,7 +1371,7 @@ export default function SalesPage() {
                                             <Button
                                                 variant="outline"
                                                 size="icon"
-                                                className="size-10 md:size-12 xl:size-16 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
+                                                className="size-6 md:size-8 xl:size-10 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
                                                 aria-label="Take Break"
                                                 onClick={() => handleAction('Take Break')}
                                             >
@@ -1379,7 +1380,7 @@ export default function SalesPage() {
                                             <Button
                                                 variant="outline"
                                                 size="icon"
-                                                className="size-10 md:size-12 xl:size-16 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
+                                                className="size-6 md:size-8 xl:size-10 flex items-center justify-center rounded-full border-2 border-amber-300 p-0"
                                                 aria-label="Meal Break"
                                                 onClick={() => handleAction('Meal Break')}
                                             >

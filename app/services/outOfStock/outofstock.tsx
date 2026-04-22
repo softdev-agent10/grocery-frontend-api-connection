@@ -1,45 +1,21 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
+import { apiClient } from '@/lib/apiClient';
+import { LowStockProduct, PaginatedResponse } from '@/lib/types/api.types';
 
-type OutOfStockParams = {
-    branchId: string;
-    token: string;
+/**
+ * Out of stock filter options
+ */
+export interface OutOfStockFilter {
     page?: number;
     limit?: number;
-    sortBy?: string;
-    sortOrder?: "asc" | "desc";
-};
+    category_name?: string;
+    brand_name?: string;
+    search?: string;
+    sort_by?: 'name' | 'selling_price' | 'category'; // Default: 'name'
+    sort_order?: 'asc' | 'desc'; // Default: 'asc'
+}
 
-export const getOutOfStockItems = async ({
-    branchId,
-    token,
-    page = 1,
-    limit = 15,
-    sortBy = "name",
-    sortOrder = "asc",
-}: OutOfStockParams) => {
-    const query = new URLSearchParams({
-        branch_id: branchId,
-        page: String(page),
-        limit: String(limit),
-        sort_by: sortBy,
-        sort_order: sortOrder,
-    });
-
-    const res = await fetch(
-        `${BASE_URL}/inventory/out-of-stock?${query.toString()}`,
-        {
-            method: "GET",
-            headers: {
-                accept: "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-        }
-    );
-
-    if (!res.ok) {
-        throw new Error("Failed to fetch out-of-stock items");
-    }
-
-    return res.json();
-};
+/**
+ * Get out of stock products with filters
+ */
+export const getOutOfStocks = (filters?: OutOfStockFilter) =>
+    apiClient.get<PaginatedResponse<LowStockProduct>>('/inventory/out-of-stock', filters);

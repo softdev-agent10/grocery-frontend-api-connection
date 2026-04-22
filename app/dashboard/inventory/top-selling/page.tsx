@@ -26,19 +26,13 @@ import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
 import { getTopSellings } from "@/app/services/topSell/topSell";
 import { tr } from "date-fns/locale";
 import SkeletonTable from "@/components/dashboard/SkeletonTable/SkeletonTable";
+import { current } from "@reduxjs/toolkit";
+import { useNotification } from "@/hooks/useNotification";
+import { useApiContext } from "@/hooks/useApiContext";
+import { Notification } from "@/components/Notification";
 
 
-// "product": {
-//  "id": 0,
-//  "name": "string",
-//  "upc_code": "string",
-//  "plu_code": "string",
-//  "category": "string",
-//  "brand": "string",
-//  "unit": "string",
-//  "selling_price": "string"
-// },
-// "total_quantity_sold": "string"
+
 
 interface TopSellingProduct {
   product: {
@@ -55,19 +49,11 @@ interface TopSellingProduct {
   total_quantity_sold: string;
 }
 
-// const mockTopSelling: TopSellingProduct[] = [
-//   { id: 1, name: "test product", upc_code: "819584499442", plu_code: "PLU001", category: "test 01", brand: "test", price: "$100.00", selling_price: "113.00", unit: "tes" },
-//   { id: 2, name: "Beef - Diced", upc_code: "952877402750", plu_code: "PLU002", category: "test 01", brand: "test", price: "$8888.88", selling_price: "31.00", unit: "tes" },
-//   { id: 3, name: "Chicken Breast", upc_code: "952877402751", plu_code: "PLU003", category: "test 01", brand: "test", price: "$180.00", selling_price: "8.00", unit: "tes" },
-//   { id: 4, name: "Artichoke - Hearts, Canned", upc_code: "744889933567", plu_code: "PLU004", category: "test 01", brand: "test", price: "$3.00", selling_price: "6.00", unit: "tes" },
-//   { id: 5, name: "Shrimp Medium", upc_code: "952877402756", plu_code: "PLU005", category: "test 01", brand: "test", price: "$300.00", selling_price: "5.00", unit: "tes" },
-//   { id: 6, name: "Milk 1 Liter", upc_code: "952877402758", plu_code: "PLU006", category: "test 01", brand: "test", price: "$90.00", selling_price: "5.00", unit: "tes" },
-//   { id: 7, name: "Tilapia Whole", upc_code: "952877402755", plu_code: "PLU007", category: "test 01", brand: "test", price: "$220.00", unit: "tes", selling_price: "0.00" }
-// ];
 
 type ModalType = "download" | "filter" | "edit" | null;
 
 interface TableViewColumns {
+  length: number;
   productName: boolean;
   upc: boolean;
   category: boolean;
@@ -87,10 +73,15 @@ const defaultColumns: TableViewColumns = {
   unit: true,
   qtySold: true,
   viewProduct: false,
+  length: 0
 };
 
 export default function TopSellingPage() {
+  // Set API context once (merchant_id, branch_id, token)
+  useApiContext('9', '1234567890');
+
   const [products, setProducts] = useState<TopSellingProduct[]>([]);
+  const { notification, showNotification } = useNotification();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [editingProduct, setEditingProduct] = useState<TopSellingProduct | null>(null);
@@ -104,7 +95,7 @@ export default function TopSellingPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [tempColumns, setTempColumns] = useState<TableViewColumns>(defaultColumns);
   const [tempItemsPerPage, setTempItemsPerPage] = useState(10);
-  const [isLoadingTopSelling, setIsLoadingTopSelling] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const filteredProducts = useMemo(() => {
     let result = products.filter(p =>
@@ -160,17 +151,19 @@ export default function TopSellingPage() {
   };
 
   const loadTopSellingProducts = async () => {
-    setIsLoadingTopSelling(true);
+    setIsLoading(true);
     try {
-      const data = await getTopSellings({ branchId: "123456789", token: "your_token_here" });
+      const data = await getTopSellings({
+        page: 1,
+        limit: 100
+      });
       console.log("Fetched top selling products:", data.data.items);
-      setIsLoadingTopSelling(false);
-      // setProducts(data.data.items);
-
+      setProducts(data.data.items);
     } catch (error) {
       console.error("Failed to load top selling products:", error);
+      showNotification("Failed to load top selling products", 'error');
     } finally {
-      setIsLoadingTopSelling(false);
+      setIsLoading(false);
     }
   };
 
@@ -195,31 +188,39 @@ export default function TopSellingPage() {
       }
     }
 
+    // Load top-selling products on mount
     loadTopSellingProducts();
   }, []);
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
-    const dataToExport = scope === 'current' ? filteredProducts.slice(0, 10) : filteredProducts;
-    const columns = ['Product Name', 'UPC', 'Category', 'Brand', 'Price', 'Unit', 'QTY Sold'];
-    const rows = dataToExport.map(p => [p.product.name, p.product.upc_code, p.product.category, p.product.brand, p.product.price, p.product.unit, p.total_quantity_sold]);
+    try {
+      const dataToExport = scope === 'current' ? filteredProducts.slice(0, 10) : filteredProducts;
+      const columns = ['Product Name', 'UPC', 'Category', 'Brand', 'Price', 'Unit', 'QTY Sold'];
+      const rows = dataToExport.map(p => [p.product.name, p.product.upc_code, p.product.category, p.product.brand, p.product.price, p.product.unit, p.total_quantity_sold]);
 
-    if (format === 'csv') {
-      generateCSV(columns, rows, `top-selling_${scope}_${new Date().getTime()}.csv`);
-    } else if (format === 'pdf') {
-      generatePDFWithLogo({
-        title: `Top Selling Products Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
-        columns,
-        rows,
-        fileName: `top-selling_${scope}_${new Date().getTime()}.pdf`,
-        scope
-      });
+      if (format === 'csv') {
+        generateCSV(columns, rows, `top-selling_${scope}_${new Date().getTime()}.csv`);
+      } else if (format === 'pdf') {
+        generatePDFWithLogo({
+          title: `Top Selling Products Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+          columns,
+          rows,
+          fileName: `top-selling_${scope}_${new Date().getTime()}.pdf`,
+          scope
+        });
+      }
+
+      showNotification(`${format.toUpperCase()} file downloaded successfully!`, 'success');
+      setActiveModal(null);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      showNotification("Failed to download file", 'error');
     }
-
-    setActiveModal(null);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
+      {notification && <Notification message={notification.message} type={notification.type} />}
       {/* Header Section */}
       <header className="bg-blue-600 px-6 py-10 flex justify-between items-center shadow-lg rounded-2xl">
         <h1 className="text-4xl font-bold text-white tracking-tight uppercase">
@@ -282,10 +283,10 @@ export default function TopSellingPage() {
               </tr>
             </thead>
             <tbody>
-              {isLoadingTopSelling ? (
+              {isLoading ? (
                 // Show 5 skeleton rows while loading
                 Array.from({ length: 5 }).map((_, index) => (
-                  <SkeletonTable key={index} />
+                  <SkeletonTable key={index} rows={5} columns={Object.values(visibleColumns).filter(v => v).length} />
                 ))
               ) : filteredProducts.slice(0, itemsPerPage).length > 0 ? (
                 filteredProducts.slice(0, itemsPerPage).map((product) => (

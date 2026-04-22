@@ -36,7 +36,7 @@ export const fetchInventory = async (
     });
 
     const res = await fetch(
-        `${BASE_URL}/inventory/${endpoint}?${query.toString()}`,
+        `${BASE_URL}/inventory/${endpoint}?merchant_id=9&${query.toString()}`,
         {
             method: "GET",
             headers: {

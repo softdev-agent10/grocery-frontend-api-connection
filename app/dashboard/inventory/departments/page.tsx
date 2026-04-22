@@ -32,24 +32,48 @@ import {
   Image as ImageIcon,
   Filter
 } from "lucide-react";
-import { createCategories, getCategories, updateCategory } from "@/app/services/categories/service.categories";
+import {
+  createCategory,
+  getCategories,
+  updateCategory,
+  deleteCategory
+} from "@/app/services/categories/service.categories";
+import { getTaxes } from "@/app/services/taxes/service.taxes";
+import { getFees } from "@/app/services/fees/service.fees";
 import { fr, is } from "date-fns/locale";
 import { EmailButton } from "@/components/toolbar-buttons/EmailButton";
-import { Bounce, toast, ToastContainer } from "react-toastify/unstyled";
+import { useNotification } from "@/hooks/useNotification";
+import { useApiContext } from "@/hooks/useApiContext";
+import { Notification } from "@/components/Notification";
 
 
 // --- Types ---
 
+interface Tax {
+  id: number;
+  name: string;
+  rate: number;
+  is_active: boolean;
+}
+
+interface Fee {
+  id: number;
+  name: string;
+  amount: number;
+  is_percentage: boolean;
+  is_active: boolean;
+}
+
 interface Category {
   id: number,
   name: string,
-  description: string,
-  taxes: number,
-  fees: number,
+  description?: string,
+  taxes?: number,
+  fees?: number,
   is_active: boolean,
   created_at: string,
   updated_at: string,
-  product_count: number
+  product_count?: number
 }
 
 interface HistoryItem {
@@ -76,7 +100,13 @@ type ModalType = "add" | "edit" | "download" | "filter" | "history" | "success" 
 // --- Main Component ---
 
 export default function App() {
+  // Set API context once (merchant_id, branch_id, token)
+  useApiContext('9', '1234567890');
+
   const [categories, setCategories] = useState<Category[]>([]);
+  const [taxes, setTaxes] = useState<Tax[]>([]);
+  const [fees, setFees] = useState<Fee[]>([]);
+  const { notification, showNotification } = useNotification();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -121,8 +151,8 @@ export default function App() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    taxes: 0,
-    fees: 0,
+    tax_id: 0,
+    fee_id: 0,
     is_active: true,
   });
 
@@ -134,7 +164,7 @@ export default function App() {
   const filteredCategories = useMemo(() => {
     let result = categories.filter(c =>
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.description.toLowerCase().includes(searchQuery.toLowerCase())
+      c.description?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     if (sortBy === "Name (A-Z)") {
@@ -164,20 +194,45 @@ export default function App() {
   const paginatedCategories = filteredCategories.slice(startIndex, startIndex + itemsPerPage);
 
   // Stats for current page
-  const currentPageProductCount = paginatedCategories.reduce((sum, c) => sum + c.product_count, 0);
+  const currentPageProductCount = paginatedCategories.reduce((sum, c) => sum + (c.product_count ?? 0), 0);
 
   const getCategorie = async () => {
     try {
-      const res = await getCategories({ branchId: 1234567890, token: "your_token_here" });
-      setCategories(res.data.items);
-      console.log("Fetched categories:", res.data.items);
+      const data = await getCategories({ page: 1, limit: 100 });
+      setCategories(data.data.items);
+      console.log("Fetched categories:", data.data.items);
     } catch (error) {
       console.error("Error fetching categories:", error);
+      showNotification("Failed to load departments", 'error');
+    }
+  };
+
+  const loadTaxes = async () => {
+    try {
+      const data = await getTaxes({ page: 1, limit: 100 });
+      setTaxes(data.data.items);
+      console.log("Fetched taxes:", data.data.items);
+    } catch (error) {
+      console.error("Error fetching taxes:", error);
+      showNotification("Failed to load taxes", 'error');
+    }
+  };
+
+  const loadFees = async () => {
+    try {
+      const data = await getFees({ page: 1, limit: 100 });
+      setFees(data.data.items);
+      console.log("Fetched fees:", data.data.items);
+    } catch (error) {
+      console.error("Error fetching fees:", error);
+      showNotification("Failed to load fees", 'error');
     }
   };
 
   useEffect(() => {
     getCategorie();
+    loadTaxes();
+    loadFees();
   }, []);
 
   useEffect(() => {
@@ -206,8 +261,12 @@ export default function App() {
     if (confirm("Are you sure you want to delete this category?")) {
       const deletedCategory = categories.find(c => c.id === id);
       setCategories(categories.filter(c => c.id !== id));
+      deleteCategory(id).catch(error => {
+        console.error("Failed to delete category:", error);
+        showNotification("Failed to delete department", 'error');
+      });
       addHistory("Delete", `Deleted category: ${deletedCategory?.name || 'Unknown'}`);
-      showSuccess("Category deleted successfully!");
+      showNotification("Department deleted successfully!", 'success');
     }
   };
 
@@ -218,7 +277,7 @@ export default function App() {
       setCategories(categories.filter(c => !selectedIds.has(c.id)));
       setSelectedIds(new Set());
       addHistory("Bulk Delete", `Deleted ${deletedCount} categories`);
-      showSuccess(`${deletedCount} categories deleted successfully!`);
+      showNotification(`${deletedCount} departments deleted successfully!`, 'success');
     }
   };
 
@@ -228,46 +287,35 @@ export default function App() {
       setFormData({
         name: category.name,
         description: category.description ?? "",
-        taxes: category.taxes,
-        fees: category.fees,
+        tax_id: category.taxes ?? 0,
+        fee_id: category.fees ?? 0,
         is_active: category.is_active,
       });
     } else if (type === "add") {
       setEditingCategory(null);
-      setFormData({ name: "", description: "", taxes: 0, fees: 0, is_active: true });
+      setFormData({ name: "", description: "", tax_id: 0, fee_id: 0, is_active: true });
     }
     setActiveModal(type);
   };
 
-  const createCategory = async (
-    data: Omit<Category, "id" | "created_at" | "updated_at" | "product_count">
-  ): Promise<Category | null> => {
-    try {
-      const res = await createCategories({
-        branchId: 1234567890,
-        token: "your_token_here",
-        data
-      });
-
-      console.log("API FULL RESPONSE:", res);
-
-      // adjust this based on actual response
-      const item = res?.data?.item || res?.data?.items?.[0];
-
-      return item || null;
-    } catch (error) {
-      console.error("Error creating category:", error);
-      return null;
-    }
-  };
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       if (editingCategory) {
+        await updateCategory(editingCategory.id, {
+          name: formData.name,
+          description: formData.description,
+          tax_id: formData.tax_id,
+          fee_id: formData.fee_id,
+        });
+
         const updatedCategory = {
           ...editingCategory,
-          ...formData,
+          name: formData.name,
+          description: formData.description,
+          taxes: formData.tax_id,
+          fees: formData.fee_id,
         };
 
         setCategories((prev) =>
@@ -277,59 +325,32 @@ export default function App() {
         );
 
         addHistory("Edit", `Updated category: ${formData.name}`);
-
-        const updated = await updateCategory({
-          branchId: 1234567890,
-          token: "your_token_here",
-          data: {
-            id: editingCategory.id,
-            name: formData.name,
-            description: formData.description,
-            taxes: formData.taxes,
-            fees: formData.fees,
-            is_active: formData.is_active
-          }
-        });
-
-        console.log("Updated category from API:", updated);
-
-
-        toast.success("Saved!", {
-          style: {
-            background: "#2563eb",
-            color: "#fff",
-            borderRadius: "10px",
-          },
-        });
+        console.log("Category updated successfully");
+        showNotification(`Department "${formData.name}" updated successfully!`, 'success');
       } else {
         const payload = {
           name: formData.name,
           description: formData.description,
-          taxes: formData.taxes,
-          fees: formData.fees,
-          is_active: formData.is_active
+          tax_id: formData.tax_id,
+          fee_id: formData.fee_id,
         };
 
-        const created = await createCategory(payload);
+        console.log("Creating category with payload:", payload);
+        await createCategory(payload);
 
-        console.log("Created category from API:", created);
+        console.log("Category created successfully");
 
         addHistory("Add", `Created new department: ${formData.name}`);
+        showNotification(`Department "${formData.name}" created successfully!`, 'success');
 
-        toast.success("Saved!", {
-          style: {
-            background: "#2563eb",
-            color: "#fff",
-            borderRadius: "10px",
-          },
-        });
+        // Reload categories to get the new one
+        getCategorie();
       }
 
       setActiveModal(null);
     } catch (error) {
       console.error(error);
-
-      toast.error("Something went wrong!");
+      showNotification("Failed to save department", 'error');
     }
   };
 
@@ -418,6 +439,16 @@ export default function App() {
   };
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
+    const getTaxName = (taxId?: number) => {
+      if (!taxId) return 'No tax';
+      return taxes.find(t => t.id === taxId)?.name || 'Unknown';
+    };
+
+    const getFeeName = (feeId?: number) => {
+      if (!feeId) return 'No fee';
+      return fees.find(f => f.id === feeId)?.name || 'Unknown';
+    };
+
     const dataToExport = scope === 'current' ? paginatedCategories : filteredCategories;
 
     if (format === 'csv') {
@@ -447,24 +478,25 @@ export default function App() {
       });
     }
 
-    showSuccess(`${format.toUpperCase()} file for ${scope} page(s) downloaded!`);
+    showNotification(`${format.toUpperCase()} file downloaded successfully!`, 'success');
     setActiveModal(null);
   };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 pb-20">
+      {notification && <Notification message={notification.message} type={notification.type} />}
       {/* Header Section */}
-      <header className="bg-indigo-600 px-6 py-10 flex justify-between items-center shadow-xl relative overflow-hidden rounded-2xl">
+      <header className="bg-blue-600 px-6 py-10 flex justify-between items-center shadow-xl relative overflow-hidden rounded-2xl">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
           <div className="absolute -top-24 -left-24 w-96 h-96 bg-white rounded-full blur-3xl" />
-          <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-indigo-400 rounded-full blur-3xl" />
+          <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-blue-400 rounded-full blur-3xl" />
         </div>
 
         <div className="relative z-10">
           <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">
             Departments
           </h1>
-          <p className="text-indigo-100 mt-2 font-medium tracking-wide">Manage your product hierarchy with precision</p>
+          <p className="text-blue-100 mt-2 font-medium tracking-wide">Manage your product hierarchy with precision</p>
         </div>
 
         <div className="relative z-10 bg-white/20 p-4 rounded-2xl backdrop-blur-md border border-white/30 shadow-2xl">
@@ -493,7 +525,7 @@ export default function App() {
             count={selectedIds.size}
           />
 
-          <div className="flex-grow max-w-md ml-auto relative">
+          <div className="grow max-w-md ml-auto relative">
             <input
               type="text"
               placeholder="Search by name or description..."
@@ -611,13 +643,13 @@ export default function App() {
                       </td>
                       {/* <td className="p-5 text-slate-600 text-sm max-w-xs truncate">{category.description}</td> */}
                       <td className="p-5">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${category.taxes === 0 ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>
-                          {category.taxes === 0 ? 'No taxes' : `${category.taxes}%`}
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${!category.taxes ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>
+                          {!category.taxes ? 'No tax' : taxes.find(t => t.id === category.taxes)?.name || 'Unknown'}
                         </span>
                       </td>
                       <td className="p-5">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${category.fees === 0 ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>
-                          {category.fees === 0 ? 'No fees' : `${category.fees}%`}
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${!category.fees ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>
+                          {!category.fees ? 'No fee' : fees.find(f => f.id === category.fees)?.name || 'Unknown'}
                         </span>
                       </td>
                       <td className="p-5">
@@ -751,8 +783,6 @@ export default function App() {
               exit={{ opacity: 0 }}
               onClick={() => {
                 setActiveModal(null)
-                console.log(successMessage)
-                showSuccess("Action completed successfully!")
               }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
             />
@@ -815,41 +845,51 @@ export default function App() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Applicable Taxes</label>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Tax*</label>
                       <select
+                        required
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700 appearance-none"
-                        value={formData.taxes}
-                        onChange={(e) => setFormData({ ...formData, taxes: Number(e.target.value) })}
+                        value={formData.tax_id}
+                        onChange={(e) => setFormData({ ...formData, tax_id: Number(e.target.value) })}
                       >
-                        <option value={0}>No taxes</option>
-                        <option value={10}>Standard Tax (15%)</option>
-                        <option value={15}>Reduced Tax (5%)</option>
-                        <option value={20}>No taxes</option>
+                        <option value={0}>Select a tax</option>
+                        {taxes.map(tax => (
+                          <option key={tax.id} value={tax.id}>
+                            {tax.name} ({tax.rate}%)
+                          </option>
+                        ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Fees</label>
-                      <input
-                        type="number"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700"
-                        value={formData.fees}
-                        onChange={(e) => setFormData({ ...formData, fees: Number(e.target.value) })}
-                      />
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Fee*</label>
+                      <select
+                        required
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-700 appearance-none"
+                        value={formData.fee_id}
+                        onChange={(e) => setFormData({ ...formData, fee_id: Number(e.target.value) })}
+                      >
+                        <option value={0}>Select a fee</option>
+                        {fees.map(fee => (
+                          <option key={fee.id} value={fee.id}>
+                            {fee.name} ({fee.amount}{fee.is_percentage ? '%' : ''})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
                   <div className="pt-4 flex gap-4">
                     <button
                       type="button"
-                      onClick={() => setFormData({ name: "", description: "", taxes: 0, fees: 0, is_active: true })}
+                      onClick={() => setFormData({ name: "", description: "", tax_id: 0, fee_id: 0, is_active: true })}
                       className="flex-1 px-6 py-4 border border-slate-200 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 flex items-center justify-center gap-2 transition-all"
                     >
                       <RotateCcw size={20} /> Reset
                     </button>
                     <button
                       type="submit"
-                      className="flex-[2] px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-95"
+                      className="flex-1 px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-95"
                     >
                       {activeModal === "edit" ? "Update Department" : "Create Department"}
                     </button>
@@ -921,7 +961,10 @@ export default function App() {
                     </div>
                   </div>
                   <button
-                    onClick={() => setActiveModal(null)}
+                    onClick={() => {
+                      setActiveModal(null);
+                      showNotification('Sort order updated successfully!', 'success');
+                    }}
                     className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all mt-4 active:scale-95"
                   >
                     Apply Changes
@@ -1028,24 +1071,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick={false}
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="dark"
-        transition={Bounce}
-      />
-
     </div>
   );
-}
-function showError(arg0: string) {
-  throw new Error("Function not implemented.");
 }
 

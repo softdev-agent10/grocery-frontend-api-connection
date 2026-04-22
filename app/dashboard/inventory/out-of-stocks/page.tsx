@@ -13,50 +13,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { DownloadButton, FilterButton, EditButton } from "@/components/toolbar-buttons";
 import DownloadModal from "@/components/download-modal";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
-import { fetchInventory } from "@/app/services/comon/service.fetchInventory";
-
-// interface OutOfStock {
-//   id: number;
-//   name: string;
-//   category: string;
-//   lastRestocked: string;
-//   supplier: string;
-// }
-
-interface OutOfStock {
-  id: number,
-  name: string,
-  upc_code: string,
-  plu_code: string,
-  category: {
-    id: number,
-    name: string
-  },
-  brand: {
-    id: 3,
-    name: string
-  },
-  unit: {
-    id: 5,
-    name: string
-  },
-  selling_price: number,
-  buying_price: number,
-  quantity: number,
-  quantity_alert: number,
-  stock_status: string,
-  percentage_of_alert: number,
-  image_url: string,
-  last_updated: string
-}
-
-// const mockOutOfStock: OutOfStock[] = [
-//   { id: 1, name: "Product A", category: "test 01", lastRestocked: "2026-02-15", supplier: "Supplier 1" },
-//   { id: 2, name: "Product B", category: "test 01", lastRestocked: "2026-02-20", supplier: "Supplier 2" },
-//   { id: 3, name: "Product C", category: "test 01", lastRestocked: "2026-01-10", supplier: "Supplier 1" },
-// ];
-
-type ModalType = "download" | "filter" | "edit" | null;
+import { getOutOfStocks } from "@/app/services/outOfStock/outofstock";
+import { LowStockProduct } from "@/lib/types/api.types";
+import { useNotification } from "@/hooks/useNotification";
+import { useApiContext } from "@/hooks/useApiContext";
+import { Notification } from "@/components/Notification";
 
 interface TableViewColumns {
   name: boolean;
@@ -71,6 +32,8 @@ interface TableViewColumns {
   stock_status: boolean;
   last_updated: boolean;
 }
+
+type ModalType = "download" | "filter" | "edit" | null;
 
 const defaultColumns: TableViewColumns = {
   name: true,
@@ -88,9 +51,13 @@ const defaultColumns: TableViewColumns = {
 };
 
 export default function OutOfStocks() {
-  const [products, setProducts] = useState<OutOfStock[]>([]);
+  // Set API context once (merchant_id, branch_id, token)
+  useApiContext('9', '1234567890');
+
+  const [products, setProducts] = useState<LowStockProduct[]>([]);
+  const { notification, showNotification } = useNotification();
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState("Recently Restocked");
+  const [sortBy, setSortBy] = useState("Name");
   const [dateFilter, setDateFilter] = useState("All Time");
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
@@ -108,12 +75,12 @@ export default function OutOfStocks() {
     );
 
     // Apply sorting
-    if (sortBy === "Recently Restocked") {
-      result.sort((a, b) => new Date(b.last_updated).getTime() - new Date(a.last_updated).getTime());
-    } else if (sortBy === "Oldest Restocked") {
-      result.sort((a, b) => new Date(a.last_updated).getTime() - new Date(b.last_updated).getTime());
-    } else if (sortBy === "Name (A-Z)") {
+    if (sortBy === "Name") {
       result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "Selling Price") {
+      result.sort((a, b) => a.selling_price - b.selling_price);
+    } else if (sortBy === "Category") {
+      result.sort((a, b) => a.category.name.localeCompare(b.category.name));
     }
 
     return result;
@@ -171,18 +138,21 @@ export default function OutOfStocks() {
       }
     }
 
-    // Simulate fetching data from an API
+    // Fetch out of stock products
     const fetchData = async () => {
-      const data = await fetchInventory("out-of-stock", {
-        branchId: "1234567890",
-        token: "your-auth-token",
-        page: 1,
-        limit: 100,
-        sortBy: "name",
-        sortOrder: "asc",
-      });
-      console.log("Fetched data:", data.data.items);
-      setProducts(data.data.items);
+      try {
+        const data = await getOutOfStocks({
+          page: 1,
+          limit: 100,
+          sort_by: 'name',
+          sort_order: 'asc',
+        });
+        console.log("Fetched data:", data.data.items);
+        setProducts(data.data.items);
+      } catch (error) {
+        console.error("Error fetching out of stock products:", error);
+        showNotification("Failed to load out of stock products", 'error');
+      }
     };
 
     fetchData();
@@ -191,26 +161,45 @@ export default function OutOfStocks() {
   }, []);
 
   const handleDownload = (scope: 'current' | 'all', format: 'pdf' | 'csv') => {
-    const dataToExport = scope === 'current' ? filteredProducts.slice(0, 15) : filteredProducts;
-    const columns = ['Product Name', 'Category', 'Last Updated', 'Brand'];
-    const rows = dataToExport.map(p => [p.name, p.category, p.last_updated, p.brand]);
+    try {
+      const dataToExport = scope === 'current' ? filteredProducts.slice(0, itemsPerPage) : filteredProducts;
+      const columns = ['Product Name', 'Category', 'Brand', 'Last Updated', 'Stock Status'];
+      const rows = dataToExport.map(p => [
+        p.name,
+        p.category.name,
+        p.brand.name,
+        p.last_updated,
+        p.stock_status
+      ]);
 
-    if (format === 'csv') {
-      generateCSV(columns, rows, `out-of-stocks_${scope}_${new Date().getTime()}.csv`);
-    } else if (format === 'pdf') {
-      generatePDFWithLogo({
-        title: `Out of Stock Products Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
-        columns,
-        rows,
-        fileName: `out-of-stocks_${scope}_${new Date().getTime()}.pdf`,
-        scope
-      });
+      if (format === 'csv') {
+        generateCSV(columns, rows, `out-of-stocks_${scope}_${new Date().getTime()}.csv`);
+      } else if (format === 'pdf') {
+        generatePDFWithLogo({
+          title: `Out of Stock Products Report (${scope === 'current' ? 'Current Page' : 'All Pages'})`,
+          columns,
+          rows,
+          fileName: `out-of-stocks_${scope}_${new Date().getTime()}.pdf`,
+          scope
+        });
+      }
+
+      showNotification(`${format.toUpperCase()} file downloaded successfully!`, 'success');
+      setIsDownloadModalOpen(false);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      showNotification("Failed to download file", 'error');
     }
-
-    setIsDownloadModalOpen(false);
   };
+
+
+  const handleEmailClick = () => {
+    showNotification("Email feature coming soon!", 'info');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
+      {notification && <Notification message={notification.message} type={notification.type} />}
       {/* Header Section */}
       <header className="bg-blue-600 px-6 py-10 flex justify-between items-center shadow-lg rounded-2xl">
         <div>
@@ -242,7 +231,7 @@ export default function OutOfStocks() {
             <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500" />
           </div>
 
-          <button className="flex items-center gap-2 bg-gray-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-700 transition-all shadow-sm">
+          <button onClick={handleEmailClick} className="flex items-center gap-2 bg-gray-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-700 transition-all shadow-sm">
             <MdEmail className="w-5 h-5" /> Email
           </button>
 
@@ -348,7 +337,7 @@ export default function OutOfStocks() {
                     <ArrowUpDown size={16} /> SORT BY
                   </h3>
                   <div className="grid grid-cols-1 gap-2">
-                    {["Recently Updated", "Oldest Updated", "Name (A-Z)"].map(opt => (
+                    {["Name", "Selling Price", "Category"].map(opt => (
                       <button
                         key={opt}
                         onClick={() => setSortBy(opt)}

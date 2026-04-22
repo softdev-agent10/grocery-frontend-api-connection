@@ -34,8 +34,10 @@ import {
   HistoryButton
 } from "@/components/toolbar-buttons";
 import { generatePDFWithLogo, generateCSV } from "@/lib/pdf-export";
-import { createBrands, getBrands, updateBrands } from "@/app/services/brand/brand.service";
+import { createBrand, getBrands, updateBrand, } from "@/app/services/brand/brand.service";
 import { fetchInventory } from "@/app/services/comon/service.fetchInventory";
+import { useNotification } from "@/hooks/useNotification";
+import { Notification } from "@/components/Notification";
 
 // Extend jsPDF with autotable types
 declare module "jspdf" {
@@ -62,110 +64,9 @@ interface HistoryItem {
   timestamp: string;
 }
 
-// const mockBrands: Brand[] = [
-//   { id: 1, name: "Apple", slug: "apple", products: 120, status: "Active", price: 999, quantity: 50, upc: "UPC001", createdOn: "2023-10-01" },
-//   { id: 2, name: "Samsung", slug: "samsung", products: 85, status: "Active", price: 799, quantity: 30, upc: "UPC002", createdOn: "2023-10-05" },
-//   { id: 3, name: "Sony", slug: "sony", products: 45, status: "Inactive", price: 599, quantity: 15, upc: "UPC003", createdOn: "2023-10-10" },
-//   { id: 4, name: "Microsoft", slug: "microsoft", products: 60, status: "Active", price: 1200, quantity: 20, upc: "UPC004", createdOn: "2023-11-01" },
-//   { id: 5, name: "Google", slug: "google", products: 30, status: "Active", price: 899, quantity: 10, upc: "UPC005", createdOn: "2023-11-15" },
-//   { id: 6, name: "Amazon", slug: "amazon", products: 200, status: "Active", price: 49, quantity: 500, upc: "UPC006", createdOn: "2023-12-01" },
-//   { id: 7, name: "Tesla", slug: "tesla", products: 10, status: "Inactive", price: 45000, quantity: 5, upc: "UPC007", createdOn: "2024-01-10" },
-//   { id: 8, name: "Nike", slug: "nike", products: 150, status: "Active", price: 120, quantity: 100, upc: "UPC008", createdOn: "2024-01-15" },
-//   { id: 9, name: "Adidas", slug: "adidas", products: 130, status: "Active", price: 110, quantity: 80, upc: "UPC009", createdOn: "2024-02-01" },
-//   { id: 10, name: "Puma", slug: "puma", products: 90, status: "Inactive", price: 80, quantity: 60, upc: "UPC010", createdOn: "2024-02-10" },
-//   { id: 11, name: "Intel", slug: "intel", products: 40, status: "Active", price: 300, quantity: 25, upc: "UPC011", createdOn: "2024-02-15" },
-//   { id: 12, name: "AMD", slug: "amd", products: 35, status: "Active", price: 280, quantity: 22, upc: "UPC012", createdOn: "2024-03-01" },
-// ];
-
-// const mockBrands: Brand[] = [
-//   {
-//     id: 1, name: "Apple", branch_id: "branch1", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 2, name: "Samsung", branch_id: "branch2", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 3, name: "Sony", branch_id: "branch3", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 4, name: "Microsoft", branch_id: "branch4", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 5, name: "Google", branch_id: "branch5", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 6, name: "Amazon", branch_id: "branch6", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 7, name: "Tesla", branch_id: "branch7", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 8, name: "Nike", branch_id: "branch8", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 9, name: "Adidas", branch_id: "branch9", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 10, name: "Puma", branch_id: "branch10", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 11, name: "Intel", branch_id: "branch11", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-//   {
-//     id: 12, name: "AMD", branch_id: "branch12", brand_image: "images/apple.jpg",
-//     created_at: new Date(),
-//     updated_at: new Date(),
-//     created_by: "",
-//     product_count: 0
-//   },
-// ];
-
 export default function App() {
   const [brands, setBrands] = useState<Brand[]>([]);
+  const { notification, showNotification } = useNotification();
   const [searchTerm, setSearchTerm] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -205,22 +106,14 @@ export default function App() {
   useEffect(() => {
     async function fetchBrands() {
       try {
-        // const data = await getBrands({
-        //   branchId: 1234567890,
-        //   token: "1234",
-        // });
-        const data = await fetchInventory("brands", {
-          branchId: "1234567890",
-          token: "1234",
-          page: 1,
-          limit: 100,
-        });
+        const data = await getBrands();
 
         console.log("Fetched brands data:", data.data.items); // Log the fetched data
 
-        setBrands(data.data.items);
+        setBrands(data.data.items || []);
       } catch (error) {
         console.error("Error fetching brands:", error);
+        showNotification("Failed to load brands", 'error');
       }
     }
     fetchBrands();
@@ -286,18 +179,20 @@ export default function App() {
       product_count: 0
     };
     // TODO: Call API to save new brand to backend
-    const createBrand = async (p0: { branchId: number; token: string; name: string; image: string; }) => {
+    const createBrandD = async (p0: { name: string; image: string; }) => {
       try {
-        const data = await createBrands({
-          branchId: 1234567890, token: "1234", name: newBrand.name, image: ""
+        const data = await createBrand({
+          name: newBrand.name, brand_image: ""
         });
         console.log("Created brand response:", data);
+        showNotification(`Brand "${newBrand.name}" created successfully!`, 'success');
       } catch (error) {
         console.error("Error creating brand:", error);
+        showNotification("Failed to create brand", 'error');
       }
     };
 
-    createBrand({ branchId: 1234567890, token: "1234", name: newBrand.name, image: newBrand.brand_image });
+    createBrandD({ name: newBrand.name, image: newBrand.brand_image });
 
     setBrands([newBrand, ...brands]);
     addHistory(`Added brand: ${newBrand.name}`);
@@ -306,27 +201,23 @@ export default function App() {
 
   };
 
-  const updateBrand = async ({
+  const updateBrandD = async ({
     brandId,
-    branchId,
-    token,
     name,
     brand_image,
   }: {
     brandId: number;
-    branchId: number;
-    token: string;
     name: string;
     brand_image: string;
   }) => {
     try {
-      const data = await updateBrands({
+      const data = await updateBrand(
         brandId,
-        branchId,
-        token,
-        name,
-        brand_image,
-      });
+        {
+          name,
+          brand_image,
+        }
+      );
 
       console.log("Updated brand response:", data);
       return data;
@@ -341,36 +232,34 @@ export default function App() {
     if (!editingBrand) return;
 
     try {
-      await updateBrand({
+      const response = await updateBrandD({
         brandId: editingBrand.id,
-        branchId: 1234567890,
-        token: "1234",
         name: formData.name,
         brand_image: "images/apple.jpg", // Replace with actual image handling
       });
 
-      // ✅ Update UI AFTER success
-      const updatedBrands = brands.map((b) =>
-        b.id === editingBrand.id
-          ? {
-            ...b,
-            ...formData,
-            slug: formData.name.toLowerCase().replace(/\s+/g, "-"),
-          }
-          : b
+      const updatedItem = response.data;
+
+      setBrands((prev) =>
+        prev.map((b) =>
+          b.id === updatedItem.id ? updatedItem : b
+        )
       );
 
-      setBrands(updatedBrands);
       addHistory(`Updated brand: ${formData.name}`);
+      showNotification(
+        `Brand "${formData.name}" updated successfully!`,
+        "success"
+      );
 
-      // ✅ Cleanup
+      // Cleanup
       setIsEditModalOpen(false);
       setEditingBrand(null);
       setFormData({ name: "", brand_image: "" });
 
     } catch (error) {
       console.error("Update failed:", error);
-      // Optional: show toast/snackbar here
+      showNotification("Failed to update brand", "error");
     }
   };
 
@@ -390,10 +279,15 @@ export default function App() {
 
   const handleDelete = (id: number) => {
     const brandToDelete = brands.find(b => b.id === id);
-    if (brandToDelete && window.confirm(`Are you sure you want to delete "${brandToDelete.name}"?`)) {
-      setBrands(brands.filter(b => b.id !== id));
-      setSelectedBrands(selectedBrands.filter(sid => sid !== id));
-      addHistory(`Deleted brand: ${brandToDelete.name}`);
+    if (brandToDelete) {
+      // Show confirmation with two notifications
+      const confirmDelete = window.confirm(`Are you sure you want to delete "${brandToDelete.name}"?`);
+      if (confirmDelete) {
+        setBrands(brands.filter(b => b.id !== id));
+        setSelectedBrands(selectedBrands.filter(sid => sid !== id));
+        addHistory(`Deleted brand: ${brandToDelete.name}`);
+        showNotification(`Brand "${brandToDelete.name}" deleted successfully!`, 'success');
+      }
     }
   };
 
@@ -415,13 +309,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50  font-sans text-gray-900">
+      {notification && <Notification message={notification.message} type={notification.type} />}
       <div className=" mx-auto space-y-6">
 
         {/* Header Section */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 1, y: 0 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-linear-to-br from-indigo-600 via-blue-600 to-blue-700 p-8 text-white shadow-xl overflow-hidden relative"
+          className="rounded-2xl bg-blue-600 p-8 text-white shadow-xl overflow-hidden relative"
         >
           <div className="relative z-10">
             <h1 className="text-4xl font-bold tracking-tight">Brands Dashboard</h1>
@@ -429,7 +324,7 @@ export default function App() {
           </div>
           {/* Decorative background circle */}
           <div className="absolute -right-20 -top-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-          <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl"></div>
+          <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl"></div>
         </motion.div>
 
         {/* Toolbar Section */}
@@ -486,8 +381,8 @@ export default function App() {
                   >
                     <div className="p-3 bg-gray-50 text-[10px] uppercase tracking-wider font-bold text-gray-500 px-4">SORT BY</div>
                     <div className="max-h-64 overflow-y-auto">
-                      <button onClick={() => handleSort('name', 'asc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">Name (A-Z)</button>
-                      <button onClick={() => handleSort('name', 'desc')} className="w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 transition-colors">Name (Z-A)</button>
+                      <button onClick={() => handleSort('name', 'asc')} className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 transition-colors">Name (A-Z)</button>
+                      <button onClick={() => handleSort('name', 'desc')} className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 transition-colors">Name (Z-A)</button>
                     </div>
                     <button onClick={() => { setSortConfig(null); setShowFilterMenu(false); }} className="w-full text-left px-4 py-3 text-sm font-semibold text-red-600 border-t hover:bg-red-50 transition-colors">Reset Filters</button>
                   </motion.div>
@@ -517,7 +412,7 @@ export default function App() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="bg-indigo-600 text-white">
+              <thead className="bg-blue-600 text-white">
                 <tr>
                   <th className="p-4 w-12">
                     <input
@@ -543,7 +438,7 @@ export default function App() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       key={brand.id + (Math.random() * 1000).toString()} // Use a more stable key in production
-                      className={`hover:bg-indigo-50/30 transition-colors ${selectedBrands.includes(brand.id) ? 'bg-indigo-50/50' : ''}`}
+                      className={`hover:bg-blue-50/30 transition-colors ${selectedBrands.includes(brand.id) ? 'bg-blue-50/50' : ''}`}
                     >
                       <td className="p-4">
                         <input
@@ -571,25 +466,15 @@ export default function App() {
                       </td>
                       <td className="p-4 text-gray-600 font-medium">{new Date(brand.created_at).toLocaleDateString()}</td>
                       <td className="p-4">
-                        <span className="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-xs font-bold ring-1 ring-indigo-200">
+                        <span className="bg-blue-100 text-indigo-700 px-2.5 py-1 rounded-full text-xs font-bold ring-1 ring-indigo-200">
                           {brand.product_count}
                         </span>
                       </td>
                       <td className="p-4">
-                        <span className="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-xs font-bold ring-1 ring-indigo-200">
+                        <span className="bg-blue-100 text-indigo-700 px-2.5 py-1 rounded-full text-xs font-bold ring-1 ring-indigo-200">
                           {brand.created_by || "Unknown"}
                         </span>
                       </td>
-                      {/* <td className="p-4">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                          brand.status === 'Active' 
-                            ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' 
-                            : 'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
-                        }`}>
-                          {brand.status === 'Active' ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                          {brand.status}
-                        </span>
-                      </td> */}
                       <td className="p-4 text-right">
                         <div className="flex justify-end gap-1">
                           <motion.button
@@ -665,7 +550,7 @@ export default function App() {
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setCurrentPage(page)}
                     className={`w-9 h-9 rounded-lg text-xs font-bold transition-all ${currentPage === page
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                      ? 'bg-blue-600 text-white shadow-md shadow-indigo-200'
                       : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                       }`}
                   >
@@ -710,9 +595,9 @@ export default function App() {
             whileTap={{ scale: 0.98 }}
             onClick={() => {
               addHistory("Applied changes manually");
-              alert('Changes applied successfully!');
+              showNotification('Changes applied successfully!', 'success');
             }}
-            className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200"
+            className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-all shadow-md shadow-indigo-200"
           >
             Apply Changes
           </motion.button>
@@ -729,7 +614,7 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.9 }}
               className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
             >
-              <div className="bg-indigo-600 p-6 text-white">
+              <div className="bg-blue-600 p-6 text-white">
                 <h2 className="text-xl font-bold">{isAddModalOpen ? 'Add New Brand' : 'Edit Brand'}</h2>
                 <p className="text-indigo-100 text-sm mt-1">Fill in the details below.</p>
               </div>
@@ -774,7 +659,7 @@ export default function App() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200"
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-all shadow-md shadow-indigo-200"
                   >
                     {isAddModalOpen ? 'Create Brand' : 'Save Changes'}
                   </button>

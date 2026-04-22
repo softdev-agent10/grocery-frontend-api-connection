@@ -26,7 +26,7 @@ export default function ProductModalOverView({
         setLoading(true);
 
         const res = await getProductById({
-          branchId: 1234567890,
+          branchId: "1234567890",
           token: "your_token",
           productId: product.id,
         });

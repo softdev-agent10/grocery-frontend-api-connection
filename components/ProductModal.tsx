@@ -22,9 +22,9 @@ interface ProductModalProps {
 export interface ProductFormData {
   id?: number;
   name: string;
-  category_id: number;
-  brand_id: number;
-  unit_id: number;
+  category_name: string;
+  brand_name: string;
+  unit_name: string;
   upc_code: string;
   plu_code: string;
   description: string;
@@ -54,9 +54,9 @@ export interface ProductFormData {
 const defaultFormData: ProductFormData = {
   id: 0,
   name: '',
-  category_id: 0,
-  brand_id: 0,
-  unit_id: 0,
+  category_name: '',
+  brand_name: '',
+  unit_name: '',
   upc_code: '',
   plu_code: '',
   description: '',
@@ -143,14 +143,14 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
 
   const getCategorie = async () => {
     // Fetch categories from API and update state
-    const categories = await getCategories({ branchId: 1234567890, token: 'your_token_here' });
+    const categories = await getCategories({ branchId: "1234567890", token: 'your_token_here' });
     // console.log(categories.data.items);
     setCategories(categories.data.items);
   };
 
   const getBrand = async () => {
     // Fetch brands from API and update state
-    const brands = await getBrands({ branchId: 1234567890, token: 'your_token_here' });
+    const brands = await getBrands({ branchId: "1234567890", token: 'your_token_here' });
     setBrands(brands.data.items);
     console.log(brands.data.items);
 
@@ -158,7 +158,7 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
 
   const getUnit = async () => {
     // Fetch units from API and update state
-    const units = await getUnits({ branchId: 1234567890, token: 'your_token_here' });
+    const units = await getUnits({ branchId: "1234567890", token: 'your_token_here' });
     setUnits(units.data.items);
     console.log(units.data.items);
   };
@@ -200,16 +200,16 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
         errors.name = 'Product name is required';
       }
 
-      if (formData.category_id === 0) {
-        errors.category_id = 'Category is required';
+      if (formData.category_name === '') {
+        errors.category_name = 'Category is required';
       }
 
-      if (formData.brand_id === 0) {
-        errors.brand_id = 'Brand is required';
+      if (formData.brand_name === '') {
+        errors.brand_name = 'Brand is required';
       }
 
-      if (formData.unit_id === 0) {
-        errors.unit_id = 'Unit is required';
+      if (formData.unit_name === '') {
+        errors.unit_name = 'Unit is required';
       }
 
       if (!formData.upc_code?.trim()) {
@@ -244,7 +244,7 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
       // Show success message
       setSaveSuccess(true);
       setValidationErrors({});
-      
+
       // Close modal after brief delay for success message visibility
       setTimeout(() => {
         onClose();
@@ -258,12 +258,12 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
       // Parse API error response and display to user
       try {
         const errorMessage = error.message || '';
-        
+
         // Handle duplicate UPC error
         if (errorMessage.includes('DUPLICATE_RESOURCE') || errorMessage.includes('UPC code already exists')) {
           const match = errorMessage.match(/existing_product_id["\']?\s*:?\s*(\d+)/);
           const existingId = match ? match[1] : 'unknown';
-          
+
           setValidationErrors({
             upc_code: `⚠️ UPC code already exists (Product ID: ${existingId}). Please use a different UPC or edit the existing product.`
           });
@@ -283,7 +283,7 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
           submit: '❌ An unexpected error occurred. Please try again.'
         });
       }
-      
+
       setIsSaving(false);
     }
   }
@@ -455,7 +455,7 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                                       className="w-full flex justify-between items-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500/20"
                                     >
                                       <span>
-                                        {categories.find(u => u.id === formData.category_id)?.name || 'Choose Department'}
+                                        {categories.find(u => u.id === formData.category_name)?.name || 'Choose Department'}
                                       </span>
                                       <ChevronDown size={16} />
                                     </button>
@@ -467,10 +467,10 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                                             <div
                                               key={`cat-list-item-${category.id || index}`}
                                               onClick={() => {
-                                                handleInputChange('category_id', category.id);
+                                                handleInputChange('category_name', category.name);
                                                 setExpandedSection2(null);
                                               }}
-                                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.category_id === category.id ? 'bg-blue-100 font-medium' : ''
+                                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.category_name === category.name ? 'bg-blue-100 font-medium' : ''
                                                 }`}
                                             >
                                               {category.name}
@@ -509,7 +509,7 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                                       className="w-full flex justify-between items-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500/20"
                                     >
                                       <span>
-                                        {brands.find(b => b.id === formData.brand_id)?.name || 'Choose Brand'}
+                                        {brands.find(b => b.id === formData.brand_name)?.name || 'Choose Brand'}
                                       </span>
                                       <ChevronDown size={16} />
                                     </button>
@@ -521,10 +521,10 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                                             <div
                                               key={`brand-list-item-${brand.id || index}`}
                                               onClick={() => {
-                                                handleInputChange('brand_id', brand.id);
+                                                handleInputChange('brand_name', brand.name);
                                                 setExpandedSection2(null);
                                               }}
-                                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.brand_id === brand.id ? 'bg-blue-100 font-medium' : ''}`}
+                                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.brand_name === brand.name ? 'bg-blue-100 font-medium' : ''}`}
                                             >
                                               {brand.name}
                                             </div>
@@ -564,7 +564,7 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                                       className="w-full flex justify-between items-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500/20"
                                     >
                                       <span>
-                                        {units.find(u => u.id === formData.unit_id)?.name || 'Choose Unit'}
+                                        {units.find(u => u.id === formData.unit_name)?.name || 'Choose Unit'}
                                       </span>
                                       <ChevronDown size={16} />
                                     </button>
@@ -576,10 +576,10 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                                             <div
                                               key={`unit-list-item-${unit.id || index}`}
                                               onClick={() => {
-                                                handleInputChange('unit_id', unit.id);
+                                                handleInputChange('unit_name', unit.name);
                                                 setExpandedSection2(null);
                                               }}
-                                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.unit_id === unit.id ? 'bg-blue-100 font-medium' : ''
+                                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.unit_name === unit.name ? 'bg-blue-100 font-medium' : ''
                                                 }`}
                                             >
                                               {unit.name}
@@ -1170,11 +1170,10 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                             whileHover={!isSaving ? { scale: 1.02 } : {}}
                             whileTap={!isSaving ? { scale: 0.98 } : {}}
                             onClick={onClose}
-                            className={`flex-1 rounded-lg border-2 px-3 sm:px-4 py-2 sm:py-2.5 font-bold transition-colors text-sm sm:text-base ${
-                              isSaving
-                                ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                                : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                            }`}
+                            className={`flex-1 rounded-lg border-2 px-3 sm:px-4 py-2 sm:py-2.5 font-bold transition-colors text-sm sm:text-base ${isSaving
+                              ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                              : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                              }`}
                           >
                             Close
                           </motion.button>
@@ -1187,11 +1186,10 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                               handleSaveNewProduct();
                               setAddNewModal({ ...addNewModal, isOpen: false, type: null, name: '', description: '', taxes: '', fees: '' });
                             }}
-                            className={`flex-1 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 font-bold text-white transition-colors flex items-center justify-center gap-1 text-sm sm:text-base ${
-                              isSaving 
-                                ? 'bg-gray-400 cursor-not-allowed' 
-                                : 'bg-blue-600 hover:bg-blue-700'
-                            }`}
+                            className={`flex-1 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 font-bold text-white transition-colors flex items-center justify-center gap-1 text-sm sm:text-base ${isSaving
+                              ? 'bg-gray-400 cursor-not-allowed'
+                              : 'bg-blue-600 hover:bg-blue-700'
+                              }`}
                           >
                             {isSaving ? (
                               <>

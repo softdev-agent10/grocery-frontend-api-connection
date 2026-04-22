@@ -1,21 +1,34 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
+import { apiClient } from '@/lib/apiClient';
+import { PaginatedResponse, SingleResponse } from '@/lib/types/api.types';
 
-type ProductCategory = {
+/**
+ * Product category type
+ */
+export type ProductCategory = {
   id: number;
   name: string;
 };
 
-type ProductBrand = {
+/**
+ * Product brand type
+ */
+export type ProductBrand = {
   id: number;
   name: string;
 };
 
-type ProductUnit = {
+/**
+ * Product unit type
+ */
+export type ProductUnit = {
   id: number;
   name: string;
 };
 
-type ProductData = {
+/**
+ * Product data type
+ */
+export type ProductData = {
   id: number;
   name: string;
   selling_price: string | number;
@@ -44,203 +57,70 @@ type ProductData = {
   updated_at?: string;
 };
 
-type ProductsResponse = {
-  status: string;
-  data: {
-    items: ProductData[];
-    pagination?: {
-      current_page: number;
-      per_page: number;
-      total_items: number;
-      total_pages: number;
-    };
-  };
-  metadata?: any;
-};
+/**
+ * Filter options for product list
+ */
+export interface ProductFilter {
+  page?: number;
+  limit?: number;
+  category_id?: number;
+  min_price?: number | string;
+  max_price?: number | string;
+  search?: string;
+  sort_by?: 'name' | 'selling_price' | 'quantity' | 'created_at';
+  sort_order?: 'asc' | 'desc';
+}
 
-type ProductResponse = {
-  status: string;
-  data: ProductData;
-  metadata?: any;
-};
+/**
+ * Product create/update payload
+ */
+export interface ProductPayload extends Partial<ProductData> {
+  name: string;
+  category_id: number;
+  brand_id: number;
+  unit_id: number;
+  selling_price: number | string;
+  buying_price?: number | string;
+  quantity?: number;
+  quantity_alert?: number;
+}
 
-export const getProducts = async ({
-  branchId,
-  token,
-  page = 1,
-  limit = 15,
-  category_id,
-  min_price,
-  max_price,
-  search,
-  sort_by = 'name',
-  sort_order = 'asc'
-}: any): Promise<ProductsResponse> => {
-  // Build query parameters dynamically
-  const params = new URLSearchParams();
-  params.append('branch_id', branchId);
-  params.append('page', page.toString());
-  params.append('limit', Math.min(limit, 100).toString()); // Max 100
+/**
+ * Get all products with optional filters
+ */
+export const getProducts = (filters?: ProductFilter) =>
+  apiClient.get<PaginatedResponse<ProductData>>('/inventory/products', filters);
 
-  // Add optional parameters if provided
-  if (category_id) params.append('category_id', category_id.toString());
-  if (min_price !== undefined && min_price !== null) params.append('min_price', min_price.toString());
-  if (max_price !== undefined && max_price !== null) params.append('max_price', max_price.toString());
-  if (search) params.append('search', search);
-  if (sort_by) params.append('sort_by', sort_by);
-  if (sort_order) params.append('sort_order', sort_order);
+/**
+ * Get single product by ID
+ */
+export const getProductById = (productId: number) =>
+  apiClient.get<SingleResponse<ProductData>>(`/inventory/products/${productId}`);
 
-  const res = await fetch(
-    `${BASE_URL}/inventory/products?${params.toString()}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    }
-  );
+/**
+ * Create a new product
+ */
+export const createProduct = (data: ProductPayload) =>
+  apiClient.post<SingleResponse<ProductData>>('/inventory/products', data);
 
-  if (!res.ok) {
-    throw new Error("Failed to fetch products");
-  }
+/**
+ * Update an existing product
+ */
+export const updateProduct = (productId: number, data: Partial<ProductPayload>) =>
+  apiClient.patch<SingleResponse<ProductData>>(`/inventory/products/${productId}`, data);
 
-  return res.json();
-};
+/**
+ * Delete a product
+ */
+export const deleteProduct = (productId: number) =>
+  apiClient.delete<SingleResponse<ProductData>>(`/inventory/products/${productId}`);
 
-export const getProductById = async ({ branchId, token, productId }: any): Promise<ProductResponse> => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/products/${productId}?branch_id=${branchId}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    }
-  );
+/**
+ * Get products by category ID
+ */
+export const getProductsByCategory = (categoryId: number, filters?: ProductFilter) =>
+  apiClient.get<PaginatedResponse<ProductData>>(`/inventory/products/category/${categoryId}`, filters);
 
-  if (!res.ok) {
-    throw new Error("Failed to fetch product details");
-  }
-
-  return res.json();
-};
-
-export const createProduct = async ({
-  branchId,
-  token,
-  data
-}: {
-  branchId: string;
-  token: string;
-  data: Partial<ProductData>;
-}): Promise<ProductResponse> => {
-  try {
-    const response = await fetch(
-      `${BASE_URL}/inventory/products/?branch_id=${branchId}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          branch_id: branchId,
-        },
-        body: JSON.stringify(data),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("API Error Response:", errorData);
-      console.error("Status:", response.status);
-      throw new Error(`Failed to create product: ${response.status} - ${errorData}`);
-    }
-
-    console.log("Response from createProduct:", response);
-
-    return await response.json();
-  } catch (error) {
-    console.error("Create product error:", error);
-    throw error;
-  }
-};
-
-export const updateProduct = async ({
-  branchId,
-  token,
-  productId,
-  data
-}: {
-  branchId: string;
-  token: string;
-  productId: number;
-  data: Partial<ProductData>;
-}): Promise<ProductResponse> => {
-  try {
-    const response = await fetch(
-      `${BASE_URL}/inventory/products/${productId}?branch_id=${branchId}`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          branch_id: branchId,
-        },
-        body: JSON.stringify(data),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("API Error Response:", errorData);
-      console.error("Status:", response.status);
-      throw new Error(`Failed to update product: ${response.status} - ${errorData}`);
-    }
-
-    console.log("Response from updateProduct:", response);
-
-    return await response.json();
-  } catch (error) {
-    console.error("Update product error:", error);
-    throw error;
-  }
-};
-
-export const deleteProduct = async ({
-  branchId,
-  token,
-  productId
-}: {
-  branchId: string;
-  token: string;
-  productId: number;
-}): Promise<ProductResponse> => {
-  try {
-    const response = await fetch(
-      `${BASE_URL}/inventory/products/${productId}?branch_id=${branchId}`,
-      {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          branch_id: branchId,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error("Failed to delete product");
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error("Delete product error:", error);
-    throw error;
-  }
-};
 
 /**
  * Helper function to transform API response to form data
@@ -273,6 +153,3 @@ export const transformProductToFormData = (product: ProductData): any => {
     is_available: product.is_available,
   };
 };
-
-// Export types for use in other files
-export type { ProductData, ProductCategory, ProductBrand, ProductUnit, ProductsResponse, ProductResponse };

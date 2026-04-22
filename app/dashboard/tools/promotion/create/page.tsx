@@ -22,11 +22,12 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { createBundle, createBuyNGet, BundleProduct, updateBundle, updateBuyNGet } from "@/app/services/tools/serive.tools";
+import { createBuyNGet, updateBuyNGet, getBuyNGetById } from "@/app/services/tools/serive.buynget";
 import { getProducts, type ProductData } from "@/app/services/product/service.product";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify/unstyled";
-import { getBundleDetails, getBuyNGetDetails } from "@/app/services/tools/serive.tools";
+import { useNotification } from "@/hooks/useNotification";
+import { getBundle, getBundles, createBundle, updateBundle } from "@/app/services/tools/service.bundle";
 
 enum PromotionType {
   BOGO = "BOGO",
@@ -56,6 +57,12 @@ interface BundleItem {
   originalPrice: number;
   newPrice: number;
   isCustomPrice: boolean;
+}
+
+interface BundleProduct {
+  product_id: number;
+  quantity: number;
+  price: number;
 }
 
 interface PromotionFormData {
@@ -186,6 +193,7 @@ export default function CreatePromotionPage() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isLoadingPromotion, setIsLoadingPromotion] = useState(isEditMode);
   const [products, setProducts] = useState<Product[]>([]);
+  const { notification, showNotification } = useNotification();
 
   const [formData, setFormData] = useState<PromotionFormData>({
     type: PromotionType.BOGO,
@@ -214,8 +222,6 @@ export default function CreatePromotionPage() {
       try {
         setIsLoadingProducts(true);
         const response = await getProducts({
-          branchId: "1234567890", // TODO: Get from user context
-          token: token,
           limit: 100,
         });
 
@@ -223,9 +229,11 @@ export default function CreatePromotionPage() {
         if (response.data?.items) {
           setProducts(response.data.items);
         }
+        showNotification("Products loaded successfully", "success");
       } catch (error) {
         console.error("Failed to fetch products:", error);
         setSubmitError("Failed to load products. Please try again.");
+        showNotification("Failed to load products", "error");
       } finally {
         setIsLoadingProducts(false);
       }
@@ -245,11 +253,7 @@ export default function CreatePromotionPage() {
 
         if (promotionType === "bundle") {
           const bundleIdNum = parseInt(promotionId.replace("bundle_", ""));
-          const response = await getBundleDetails({
-            bundleId: bundleIdNum,
-            branchId: "1234567890",
-            token: "your_token_here",
-          });
+          const response = await getBundle(bundleIdNum);
 
           if (response.data) {
             const bundle = response.data;
@@ -260,27 +264,24 @@ export default function CreatePromotionPage() {
               buyQuantity: 1,
               getProductId: null,
               getQuantity: 1,
-              bundleItems: bundle.products.map((p) => ({
+              bundleItems: bundle.items.map((p) => ({
                 productId: p.product_id,
                 quantity: p.quantity,
                 originalPrice: typeof p.price === "string" ? parseFloat(p.price) : p.price,
                 newPrice: typeof p.price === "string" ? parseFloat(p.price) : p.price,
                 isCustomPrice: false,
               })),
-              bundleDiscountPrice: typeof bundle.flat_discount === "string" ? parseFloat(bundle.flat_discount) : bundle.flat_discount,
+              bundleDiscountPrice: bundle.flat_discount ? (typeof bundle.flat_discount === "string" ? parseFloat(bundle.flat_discount) : bundle.flat_discount) : 0,
               bundleDiscountType: (bundle.discount_type as "flat" | "percent") || "flat",
               startDate: bundle.start_date,
               endDate: bundle.end_date,
               status: PromotionStatus.Active,
             });
           }
+          showNotification("Promotion details loaded successfully", "success");
         } else {
           const offerIdNum = parseInt(promotionId.replace("buynget_", ""));
-          const response = await getBuyNGetDetails({
-            bundleId: offerIdNum,
-            branchId: "1234567890",
-            token: "your_token_here",
-          });
+          const response = await getBuyNGetById(offerIdNum);
 
           if (response.data) {
             const offer = response.data;
@@ -299,10 +300,12 @@ export default function CreatePromotionPage() {
               status: offer.is_active ? PromotionStatus.Active : PromotionStatus.Inactive,
             });
           }
+          showNotification("Promotion details loaded successfully", "success");
         }
       } catch (error) {
         console.error("Failed to fetch promotion details:", error);
         setSubmitError("Failed to load promotion details. Please try again.");
+        showNotification("Failed to load promotion details", "error");
       } finally {
         setIsLoadingPromotion(false);
       }
@@ -369,7 +372,8 @@ export default function CreatePromotionPage() {
           offer_limit: 999,
           is_active: formData.status === PromotionStatus.Active,
         };
-        const buyNGetResponse = await createBuyNGet(payload);
+        await createBuyNGet(payload);
+        showNotification("Promotion created successfully", "success");
 
       } else {
         // Create Bundle
@@ -389,9 +393,7 @@ export default function CreatePromotionPage() {
         const flatDiscount = formData.bundleDiscountType === "flat" ? formData.bundleDiscountPrice : null;
         const percentDiscount = formData.bundleDiscountType === "percent" ? formData.bundleDiscountPrice : null;
 
-        const bundlePayload: Parameters<typeof createBundle>[0] = {
-          branchId: "1234567890", // TODO: Get from user context
-          token: "your-auth-token", // TODO: Get from auth context
+        const bundlePayload = {
           name: formData.title,
           description: `Bundle with ${formData.bundleItems.length} items`,
           type: "special",
@@ -407,11 +409,11 @@ export default function CreatePromotionPage() {
           end_date: formData.endDate,
           products: bundleProducts,
         };
-        const bundleResponse = await createBundle(bundlePayload);
+        await createBundle(bundlePayload);
       }
 
       // Success
-      toast.success(`Promotion ${isEditMode ? "updated" : "created"} successfully!`);
+      showNotification(`Promotion ${isEditMode ? "updated" : "created"} successfully!`, "success");
 
       router.push("/dashboard/tools/promotion");
     } catch (err) {
@@ -419,6 +421,7 @@ export default function CreatePromotionPage() {
       setSubmitError(
         err instanceof Error ? err.message : "Failed to create promotion"
       );
+      showNotification("Failed to create promotion", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -457,9 +460,8 @@ export default function CreatePromotionPage() {
       setSubmitError(null);
 
       if (formData.type === PromotionType.BOGO) {
-        const offerId = parseInt(promotionId.replace("buynget_", ""));
+        const buyOfferIdNum = parseInt(promotionId.replace("buynget_", ""));
         const payload = {
-          offerId,
           branchId: "1234567890",
           token: "your-auth-token",
           name: formData.title,
@@ -488,7 +490,7 @@ export default function CreatePromotionPage() {
           offer_limit: 999,
           is_active: formData.status === PromotionStatus.Active,
         };
-        await updateBuyNGet(payload);
+        await updateBuyNGet(buyOfferIdNum, payload);
       } else {
         const bundleIdNum = parseInt(promotionId.replace("bundle_", ""));
         const bundleProducts: BundleProduct[] = formData.bundleItems.map((item) => ({
@@ -504,10 +506,7 @@ export default function CreatePromotionPage() {
         const flatDiscount = formData.bundleDiscountType === "flat" ? formData.bundleDiscountPrice : null;
         const percentDiscount = formData.bundleDiscountType === "percent" ? formData.bundleDiscountPrice : null;
 
-        const bundlePayload: Parameters<typeof updateBundle>[0] = {
-          bundleId: bundleIdNum,
-          branchId: "1234567890",
-          token: "your-auth-token",
+        const bundlePayload = {
           name: formData.title,
           description: `Bundle with ${formData.bundleItems.length} items`,
           type: "special",
@@ -523,16 +522,17 @@ export default function CreatePromotionPage() {
           end_date: formData.endDate,
           products: bundleProducts,
         };
-        await updateBundle(bundlePayload);
+        await updateBundle(bundleIdNum, bundlePayload);
       }
 
-      toast.success("Promotion updated successfully!");
+      showNotification("Promotion updated successfully!", "success");
       router.push("/dashboard/tools/promotion");
     } catch (err) {
       console.error("Error updating promotion:", err);
       setSubmitError(
         err instanceof Error ? err.message : "Failed to update promotion"
       );
+      showNotification("Failed to update promotion", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -1042,7 +1042,7 @@ export default function CreatePromotionPage() {
                 whileTap={{ scale: 0.95 }}
                 disabled={isSubmitting || authLoading}
                 onClick={isEditMode ? handleUpdatePromotion : handleCreatePromotion}
-                className="w-full flex items-center justify-center gap-2 px-5 md:px-6 lg:px-8 py-2.5 md:py-3 lg:py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg md:rounded-lg lg:rounded-xl font-bold text-xs md:text-sm lg:text-base hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 px-5 md:px-6 lg:px-8 py-2.5 md:py-3 lg:py-4 bg-linear-to-r from-indigo-600 to-blue-600 text-white rounded-lg md:rounded-lg lg:rounded-xl font-bold text-xs md:text-sm lg:text-base hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus size={16} className="md:w-4 md:h-4 lg:w-5 lg:h-5" />
                 {isSubmitting ? "Saving..." : isEditMode ? "Update Promotion" : "Create Promotion"}

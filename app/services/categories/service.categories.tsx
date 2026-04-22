@@ -1,116 +1,47 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URI;
+import { apiClient } from '@/lib/apiClient';
+import { Category, PaginatedResponse, SingleResponse } from '@/lib/types/api.types';
 
-export const getCategories = async ({ branchId, token }: any) => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/categories?branch_id=${branchId}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    }
-  );
+/**
+ * Category filter options
+ */
+export interface CategoryFilter {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
 
-  // // Log the actual response
-  // console.log("Response status:", res.status);
-  // console.log("Response status text:", res.statusText);
+/**
+ * Category payload for create/update
+ */
+export interface CategoryPayload {
+  name: string;
+  description?: string;
+  tax_id?: number;
+  fee_id?: number;
+  category_image?: string;
+  is_active?: boolean;
+}
 
-  // Get the actual error message from API
-  // const responseText = await res.text();
-  // console.log("Response body:", responseText);
+/**
+ * Get all categories (departments)
+ */
+export const getCategories = (filters?: CategoryFilter) =>
+  apiClient.get<PaginatedResponse<Category>>('/inventory/departments', filters);
 
+/**
+ * Create a new category
+ */
+export const createCategory = (data: CategoryPayload) =>
+  apiClient.post<SingleResponse<Category>>('/inventory/departments', data);
 
-  if (!res.ok) {
-    throw new Error("Failed to fetch categories");
-  }
+/**
+ * Update an existing category
+ */
+export const updateCategory = (id: number, data: Partial<CategoryPayload>) =>
+  apiClient.patch<SingleResponse<Category>>(`/inventory/departments/${id}`, data);
 
-  return res.json();
-};
-
-//  GET PRODUCTS BY CATEGORY
-export const getProductsByCategory = async ({
-  branchId,
-  categoryId,
-  token,
-}: {
-  branchId: number;
-  categoryId: number;
-  token: string;
-}) => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/products?branch_id=${branchId}&category_id=${categoryId}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error("Failed to fetch products");
-  }
-
-  return res.json();
-};
-export const createCategories = async ({
-  branchId,
-  token,
-  data
-}: {
-  branchId: number;
-  token: string;
-  data: any;
-}) => {
-  const res = await fetch(
-    `${BASE_URL}/inventory/categories?branch_id=${branchId}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(data),
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error("Failed to create categories");
-  }
-
-  return res.json();
-};
-
-// updateCategory
-export const updateCategory = async ({
-  branchId,
-  token,
-  data
-}: {
-  branchId: number;
-  token: string;
-  data: any;
-}) => {
-  // /api/v1/inventory/categories/{category_id}
-  const res = await fetch(
-    `${BASE_URL}/inventory/categories/${data.id}?branch_id=${branchId}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(data),
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error("Failed to update category");
-  }
-
-  return res.json();
-};
+/**
+ * Delete a category
+ */
+export const deleteCategory = (id: number) =>
+  apiClient.delete<{ status: string }>(`/inventory/departments/${id}`);

@@ -41,10 +41,13 @@ import ProductModalOverView from "@/components/ProductModalOverView";
 import { getCategories } from "@/app/services/categories/service.categories";
 import { getBrands } from "@/app/services/brand/brand.service";
 import { getProducts, getProductById, createProduct, updateProduct } from "@/app/services/product/service.product";
+import { useApiContext } from "@/hooks/useApiContext";
 import SkeletonTable from "@/components/dashboard/SkeletonTable/SkeletonTable";
 import loading from "@/app/loading";
 import { se } from "date-fns/locale";
 import { s } from "framer-motion/client";
+import { useNotification } from "@/hooks/useNotification";
+import { Notification } from "@/components/Notification";
 
 type Product = {
   id: number;
@@ -61,12 +64,10 @@ type Product = {
 
 
 type Category = {
-  id: number;
   name: string;
 };
 
 type Brand = {
-  id: number;
   name: string;
 };
 
@@ -91,7 +92,11 @@ interface TableViewColumns {
 
 
 export default function App() {
+  // Set API context globally (merchant_id, branch_id, token)
+  useApiContext('9', '1234567890');
+
   const [products, setProducts] = useState<Product[]>([]);
+  const { notification, showNotification } = useNotification();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -147,9 +152,9 @@ export default function App() {
   // Form state
   const [formData, setFormData] = useState<Partial<ProductFormData>>({
     name: "",
-    category_id: 0,
-    brand_id: 0,
-    unit_id: 0,
+    category_name: '',
+    brand_name: '',
+    unit_name: '',
     upc_code: "",
     plu_code: "",
     description: "",
@@ -241,8 +246,6 @@ export default function App() {
     try {
       setLoading(true);
       const response = await getProducts({
-        branchId: "1234567890",
-        token: "your_token_here",
         page: currentPage,
         limit: itemsPerPage,
         search: searchTerm || undefined,
@@ -275,16 +278,22 @@ export default function App() {
       });
     } catch (error) {
       console.error("Error fetching products:", error);
+      showNotification("Failed to load products", 'error');
       setLoading(false);
     }
   };
 
   const fetchData = async () => {
-    const catRes = await getCategories({ branchId: 1234567890, token: 'your_token_here' });
-    const brandRes = await getBrands({ branchId: 1234567890, token: 'your_token_here' });
+    try {
+      const catRes = await getCategories({ page: 1, limit: 100 });
+      const brandRes = await getBrands({ page: 1, limit: 100 });
 
-    setCategories(catRes.data.items);
-    setBrands(brandRes.data.items);
+      setCategories(catRes.data.items);
+      setBrands(brandRes.data.items);
+    } catch (error) {
+      console.error("Error fetching categories/brands:", error);
+      showNotification("Failed to load categories or brands", 'error');
+    }
   };
 
 
@@ -399,14 +408,20 @@ export default function App() {
         message: `Are you sure you want to delete this product? This action cannot be undone.`,
         product: product,
         onConfirm: () => {
-          setProducts(prev => prev.filter(p => p.id !== id));
-          addHistory("Delete", `Deleted product: ${product.name}`);
-          setSelectedIds(prev => {
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-          });
-          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          try {
+            setProducts(prev => prev.filter(p => p.id !== id));
+            showNotification(`Product "${product.name}" deleted successfully!`, 'success');
+            addHistory("Delete", `Deleted product: ${product.name}`);
+            setSelectedIds(prev => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          } catch (error) {
+            console.error("Error deleting product:", error);
+            showNotification("Failed to delete product", 'error');
+          }
         }
       });
     }
@@ -419,11 +434,17 @@ export default function App() {
       title: "Bulk Delete",
       message: `Are you sure you want to delete ${selectedIds.size} selected products? This action cannot be undone.`,
       onConfirm: () => {
-        const deletedCount = selectedIds.size;
-        setProducts(prev => prev.filter(p => !selectedIds.has(p.id)));
-        addHistory("Bulk Delete", `Deleted ${deletedCount} products`);
-        setSelectedIds(new Set());
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        try {
+          const deletedCount = selectedIds.size;
+          setProducts(prev => prev.filter(p => !selectedIds.has(p.id)));
+          showNotification(`${deletedCount} product(s) deleted successfully!`, 'success');
+          addHistory("Bulk Delete", `Deleted ${deletedCount} products`);
+          setSelectedIds(new Set());
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        } catch (error) {
+          console.error("Error deleting products:", error);
+          showNotification("Failed to delete products", 'error');
+        }
       }
     });
   };
@@ -433,20 +454,18 @@ export default function App() {
       setEditingProduct(product);
       try {
         setLoading(true);
-        const branchId = "1234567890";
-        const token = "your_token_here";
 
         // Fetch full product details by ID
-        const response = await getProductById({ branchId, token, productId: product.id });
+        const response = await getProductById(product.id);
         const fullProduct = response.data;
 
         // Format the fetched product data into form structure
         const formattedData: ProductFormData = {
           id: fullProduct.id,
           name: fullProduct.name || '',
-          category_id: fullProduct.category?.id || 0,
-          brand_id: fullProduct.brand?.id || 0,
-          unit_id: fullProduct.unit?.id || 0,
+          category_name: fullProduct.category?.name || '',
+          brand_name: fullProduct.brand?.name || '',
+          unit_name: fullProduct.unit?.name || '',
           upc_code: fullProduct.upc || '',
           plu_code: fullProduct.plu || '',
           description: fullProduct.description || '',
@@ -477,9 +496,9 @@ export default function App() {
         setFormData({
           id: product.id,
           name: product.name,
-          category_id: product.category.id,
-          brand_id: product.brand.id,
-          unit_id: 0,
+          category_name: product.category.name || '',
+          brand_name: product.brand.name || '',
+          unit_name: '',
           upc_code: product.upc,
           plu_code: product.plu || '',
           description: '',
@@ -497,7 +516,7 @@ export default function App() {
           warranty_description: '',
           manufacturer_date: '',
           expiration_date: '',
-          image_url: undefined,
+          image_url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e",
           is_available: product.in_stock,
         });
       }
@@ -505,9 +524,9 @@ export default function App() {
       setEditingProduct(null);
       setFormData({
         name: "",
-        category_id: 0,
-        brand_id: 0,
-        unit_id: 0,
+        category_name: '',
+        brand_name: '',
+        unit_name: '',
         upc_code: "",
         plu_code: "",
         description: "",
@@ -525,7 +544,7 @@ export default function App() {
         warranty_description: "",
         manufacturer_date: "",
         expiration_date: "",
-        image_url: undefined,
+        image_url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e",
         is_available: true,
       });
     }
@@ -550,57 +569,70 @@ export default function App() {
   };
 
   const downloadCSV = (scope: 'current' | 'all') => {
-    // With server-side pagination, only current page data is available
-    const dataToExport = paginatedProducts;
-    const headers = ["ID", "Name", "UPC", "PLU", "Category", "Brand", "Buying Price", "Selling Price", "Quantity", "Status"];
-    const rows = dataToExport.map(p => [
-      p.id,
-      p.name,
-      p.upc as string,
-      p.plu as string || 'N/A',
-      p.category.name,
-      p.brand.name,
-      'N/A', // Buying price not available in list view
-      p.selling_price,
-      p.quantity,
-      p.in_stock ? "In Stock" : "Out of Stock"
-    ]);
+    try {
+      // With server-side pagination, only current page data is available
+      const dataToExport = paginatedProducts;
+      const headers = ["ID", "Name", "UPC", "PLU", "Category", "Brand", "Buying Price", "Selling Price", "Quantity", "Status"];
+      const rows = dataToExport.map(p => [
+        p.id,
+        p.name,
+        p.upc as string,
+        p.plu as string || 'N/A',
+        p.category.name,
+        p.brand.name,
+        'N/A', // Buying price not available in list view
+        p.selling_price,
+        p.quantity,
+        p.in_stock ? "In Stock" : "Out of Stock"
+      ]);
 
-    generateCSV(headers, rows, `products_page-${currentPage}_${new Date().getTime()}.csv`);
-    addHistory("Download", `Exported current page (page ${currentPage}) products as CSV`);
-    setIsDownloadModalOpen(false);
+      generateCSV(headers, rows, `products_page-${currentPage}_${new Date().getTime()}.csv`);
+      showNotification('CSV file downloaded successfully!', 'success');
+      addHistory("Download", `Exported current page (page ${currentPage}) products as CSV`);
+      setIsDownloadModalOpen(false);
+    } catch (error) {
+      console.error("Error downloading CSV:", error);
+      showNotification("Failed to download CSV file", 'error');
+    }
   };
 
   const downloadPDF = (scope: 'current' | 'all') => {
-    // With server-side pagination, only current page data is available
-    const dataToExport = paginatedProducts;
-    const columns = ["ID", "Name", "UPC", "PLU", "Category", "Brand", "Selling Price", "Quantity", "Status"];
-    const rows = dataToExport.map(p => [
-      p.id,
-      p.name,
-      p.upc as string,
-      p.plu || 'N/A',
-      p.category.name,
-      p.brand.name,
-      p.selling_price,
-      p.quantity,
-      p.in_stock ? "In Stock" : "Out of Stock"
-    ]);
+    try {
+      // With server-side pagination, only current page data is available
+      const dataToExport = paginatedProducts;
+      const columns = ["ID", "Name", "UPC", "PLU", "Category", "Brand", "Selling Price", "Quantity", "Status"];
+      const rows = dataToExport.map(p => [
+        p.id,
+        p.name,
+        p.upc as string,
+        p.plu || 'N/A',
+        p.category.name,
+        p.brand.name,
+        p.selling_price,
+        p.quantity,
+        p.in_stock ? "In Stock" : "Out of Stock"
+      ]);
 
-    generatePDFWithLogo({
-      title: `Product Inventory Report (Current Page)`,
-      columns,
-      rows,
-      fileName: `products_page-${currentPage}_${new Date().getTime()}.pdf`,
-      scope: 'current'
-    });
+      generatePDFWithLogo({
+        title: `Product Inventory Report (Current Page)`,
+        columns,
+        rows,
+        fileName: `products_page-${currentPage}_${new Date().getTime()}.pdf`,
+        scope: 'current'
+      });
 
-    addHistory("Download", `Exported current page products as PDF`);
-    setIsDownloadModalOpen(false);
+      showNotification('PDF file downloaded successfully!', 'success');
+      addHistory("Download", `Exported current page products as PDF`);
+      setIsDownloadModalOpen(false);
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      showNotification("Failed to download PDF file", 'error');
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
+      {notification && <Notification message={notification.message} type={notification.type} />}
       {/* Header Section */}
       <section className=" rounded-2xl border-b border-slate-200 bg-white  mt-0">
         <header className="bg-blue-600 rounded-2xl px-6 py-8 flex justify-between items-center shadow-lg relative overflow-hidden ">
@@ -1065,9 +1097,6 @@ export default function App() {
         }}
         onSave={async (data) => {
           try {
-            const branchId = "1234567890";
-            const token = "your_token_here";
-
             // Helper to format dates
             const formatDateToISO = (dateStr: string | Date): string => {
               if (!dateStr) return new Date().toISOString().split('T')[0];
@@ -1078,9 +1107,9 @@ export default function App() {
             // Construct payload (validation already done by ProductModal)
             const payload = {
               name: data.name?.trim() || '',
-              category_id: Number(data.category_id) || 0,
-              brand_id: Number(data.brand_id) || 0,
-              unit_id: Number(data.unit_id) || 0,
+              category_name: data.category_name?.trim() || '',
+              brand_name: data.brand_name?.trim() || '',
+              unit_name: data.unit_name?.trim() || '',
               upc_code: data.upc_code?.trim() || '',
               plu_code: data.plu_code?.trim() || '',
               description: data.description?.trim() || '',
@@ -1107,8 +1136,6 @@ export default function App() {
             if (editingProduct && data.id) {
               // Update existing product (PATCH)
               const response = await updateProduct({
-                branchId,
-                token,
                 productId: data.id,
                 data: payload,
               });
@@ -1125,14 +1152,10 @@ export default function App() {
                       upc: data.upc_code,
                       plu: data.plu_code || null,
                       category: {
-                        id: data.category_id,
-                        name:
-                          categories.find(c => c.id === data.category_id)?.name || '',
+                        name: data.category_name
                       },
                       brand: {
-                        id: data.brand_id,
-                        name:
-                          brands.find(b => b.id === data.brand_id)?.name || '',
+                        name: data.brand_name
                       },
                       selling_price: String(data.selling_price),
                       quantity: data.quantity,
@@ -1142,6 +1165,7 @@ export default function App() {
                 )
               );
 
+              showNotification(`Product "${data.name}" updated successfully!`, 'success');
               addHistory("Edit", `Updated product: ${data.name}`);
             } else {
               // Create new product (POST)
@@ -1160,14 +1184,10 @@ export default function App() {
                 upc: data.upc_code,
                 plu: data.plu_code || null,
                 category: {
-                  id: data.category_id,
-                  name:
-                    categories.find(c => c.id === data.category_id)?.name || '',
+                  name: data.category_name,
                 },
                 brand: {
-                  id: data.brand_id,
-                  name:
-                    brands.find(b => b.id === data.brand_id)?.name || '',
+                  name: data.brand_name,
                 },
                 selling_price: String(data.selling_price),
                 quantity: data.quantity,
@@ -1175,6 +1195,7 @@ export default function App() {
               };
 
               setProducts((prev) => [...prev, newProduct]);
+              showNotification(`Product "${data.name}" created successfully!`, 'success');
               addHistory("Add", `Created new product: ${data.name}`);
             }
 
@@ -1185,6 +1206,7 @@ export default function App() {
           } catch (error: any) {
             console.error("Product save error:", error.message);
             console.error("Full error:", error);
+            showNotification("Failed to save product", 'error');
 
             // Re-throw error so ProductModal can catch and display it
             throw error;
