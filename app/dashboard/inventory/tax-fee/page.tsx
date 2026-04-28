@@ -44,7 +44,8 @@ export default function App() {
   const [feeForm, setFeeForm] = useState({ name: "", type: "Flat" as "Flat" | "Percentage", amount: "", status: true });
 
   // Set API context once (merchant_id, branch_id, token)
-  useApiContext('9', '1234567890');
+  // useApiContext('9', '1234567890');
+  useApiContext();
 
   useEffect(() => {
     setIsClient(true);
@@ -70,8 +71,9 @@ export default function App() {
       setLoading(true);
       const response = await getTaxes({ page: 1, limit: 100 });
       setTaxes(response.data.items);
+      // console.log("Fetched taxes:", response.data.items);
     } catch (error) {
-      console.error("Error fetching taxes:", error);
+      // console.error("Error fetching taxes:", error);
       showNotification("Failed to load taxes", 'error');
     } finally {
       setLoading(false);
@@ -83,8 +85,9 @@ export default function App() {
       setLoading(true);
       const response = await getFees({ page: 1, limit: 100 });
       setFees(response.data.items);
+      // console.log("Fetched fees:", response.data.items);
     } catch (error) {
-      console.error("Error fetching fees:", error);
+      // console.error("Error fetching fees:", error);
       showNotification("Failed to load fees", 'error');
     } finally {
       setLoading(false);
@@ -101,13 +104,13 @@ export default function App() {
           rate: parseFloat(taxForm.rate),
           is_active: taxForm.status,
         });
-        console.log("Tax created successfully", taxForm);
+        // console.log("Tax created successfully", taxForm);
         showNotification(`Tax "${taxForm.name}" created successfully!`, 'success');
         setShowTaxModal(false);
         setTaxForm({ name: "", rate: "", status: true });
         await loadTaxes();
       } catch (error) {
-        console.error("Error creating tax:", error);
+        // console.error("Error creating tax:", error);
         showNotification("Failed to create tax", 'error');
       } finally {
         setLoading(false);
@@ -123,7 +126,7 @@ export default function App() {
         showNotification("Tax deleted successfully!", 'success');
         await loadTaxes();
       } catch (error) {
-        console.error("Error deleting tax:", error);
+        // console.error("Error deleting tax:", error);
         showNotification("Failed to delete tax", 'error');
       } finally {
         setLoading(false);
@@ -145,7 +148,7 @@ export default function App() {
         await loadTaxes();
       }
     } catch (error) {
-      console.error("Error updating tax status:", error);
+      // console.error("Error updating tax status:", error);
       showNotification("Failed to update tax status", 'error');
     } finally {
       setLoading(false);
@@ -163,14 +166,14 @@ export default function App() {
           is_percentage: feeForm.type === "Percentage",
           is_active: feeForm.status,
         });
+        // console.log("Fee created successfully", feeForm);
         showNotification(`Fee "${feeForm.name}" created successfully!`, 'success');
         setShowFeeModal(false);
         setFeeForm({ name: "", type: "Flat", amount: "", status: true });
-        console.log("Fee created successfully", feeForm);
         await loadFees();
 
       } catch (error) {
-        console.error("Error creating fee:", error);
+        // console.error("Error creating fee:", error);
         showNotification("Failed to create fee", 'error');
       } finally {
         setLoading(false);
@@ -186,7 +189,7 @@ export default function App() {
         showNotification("Fee deleted successfully!", 'success');
         await loadFees();
       } catch (error) {
-        console.error("Error deleting fee:", error);
+        // console.error("Error deleting fee:", error);
         showNotification("Failed to delete fee", 'error');
       } finally {
         setLoading(false);
@@ -209,7 +212,7 @@ export default function App() {
         await loadFees();
       }
     } catch (error) {
-      console.error("Error updating fee status:", error);
+      // console.error("Error updating fee status:", error);
       showNotification("Failed to update fee status", 'error');
     } finally {
       setLoading(false);
@@ -389,7 +392,7 @@ export default function App() {
                         >
                           <td className="p-3 md:p-4 2xl:p-6 pl-4 md:pl-6 2xl:pl-8 font-semibold text-slate-700 text-xs md:text-sm 2xl:text-base">{fee.name}</td>
                           <td className="p-3 md:p-4 2xl:p-6 text-slate-600 font-medium text-xs md:text-sm 2xl:text-base">
-                            {!fee.is_percentage && fee.amount > 0 ? `$${fee.amount.toFixed(2)}` : <span className="text-slate-300 print:text-slate-400">—</span>}
+                            {!fee.is_percentage && fee.amount > 0 ? `$${fee.amount}` : <span className="text-slate-300 print:text-slate-400">—</span>}
                           </td>
                           <td className="p-3 md:p-4 2xl:p-6">
                             {fee.is_percentage && fee.amount > 0 ? (

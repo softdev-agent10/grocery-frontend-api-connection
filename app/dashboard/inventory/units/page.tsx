@@ -83,7 +83,8 @@ interface HistoryItem {
 
 export default function App() {
   // Set API context once (merchant_id, branch_id, token)
-  useApiContext('9', '1234567890');
+  // useApiContext('9', '1234567890');
+  useApiContext();
 
   const [units, setUnits] = useState<Unit[]>([]);
   const { notification, showNotification } = useNotification();

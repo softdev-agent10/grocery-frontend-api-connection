@@ -24,8 +24,14 @@ export default function CustomerModal({ setCustomer }: CustomerModalProps) {
 
     // Initialize ApiClient with your merchant context
     useEffect(() => {
-        // Set your actual merchant context here
-        apiClient.setContext("1", "511020165504577", "your-token-here");
+        const token = sessionStorage.getItem("jwt");
+        if (!token) {
+            console.warn("No JWT found in sessionStorage. API calls will likely fail.");    
+        } else {
+            console.log("JWT found:", token);
+             apiClient.setContext("1", "511020165504577", token);
+        }
+
     }, []);
 
     // Fetch customers
@@ -34,8 +40,8 @@ export default function CustomerModal({ setCustomer }: CustomerModalProps) {
             try {
                 setIsLoading(true);
                 const res = await getCustomers({ limit: 50 });
-                console.log("API Response:", res); // Debug: See what the API returns
-                
+                // console.log("API Response:", res); // Debug: See what the API returns
+
                 // Handle different response structures
                 let items: any[] = [];
                 if (res?.data?.items) {
@@ -45,7 +51,7 @@ export default function CustomerModal({ setCustomer }: CustomerModalProps) {
                 } else if (Array.isArray(res)) {
                     items = res;
                 }
-                
+
                 const formatted = items.map((item: any) => ({
                     id: item.id?.toString() || "",
                     name: item.name || "",
@@ -81,8 +87,8 @@ export default function CustomerModal({ setCustomer }: CustomerModalProps) {
                 address: formData.address.trim() ?? null,
             });
 
-            console.log("Create response:", res); // Debug: See what the API returns
-            
+            // console.log("Create response:", res); // Debug: See what the API returns
+
             const newCustomer = res?.data;
             if (newCustomer) {
                 const formattedCustomer = {
@@ -90,7 +96,7 @@ export default function CustomerModal({ setCustomer }: CustomerModalProps) {
                     name: newCustomer.name,
                     contact: newCustomer.phone_number || "",
                 };
-                
+
                 setCustomers(prev => [formattedCustomer, ...prev]);
                 setCustomer(formattedCustomer);
                 setFormData({ name: "", contact: "", email: "", address: "" });

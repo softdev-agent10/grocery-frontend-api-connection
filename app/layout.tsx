@@ -1,11 +1,15 @@
 
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
-import 'react-toastify/dist/ReactToastify.css';
 
 import ReduxProvider from "@/components/providers/ReduxProvider";
 import { ToastContainer } from "react-toastify/unstyled";
+import { NotificationProvider } from "@/lib/context/NotificationContext";
+import "./globals.css";
+import 'react-toastify/dist/ReactToastify.css';
+
+import "./globals.css";
+import 'react-toastify/dist/ReactToastify.css';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,7 +27,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <ReduxProvider>
-          {children}
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
         </ReduxProvider>
         <ToastContainer
           position="top-right"

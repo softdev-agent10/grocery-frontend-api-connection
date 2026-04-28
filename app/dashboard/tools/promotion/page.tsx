@@ -77,6 +77,10 @@ export default function PromotionPage() {
           }),
         ]);
 
+        // console.log('Bundles Response:', bundlesResponse);
+        // console.log('Buy N Get Response:', buyNGetResponse);
+
+
         // Map and merge promotions
         const bundlePromotions: Promotion[] = [];
         const buyNGetPromotions: Promotion[] = [];

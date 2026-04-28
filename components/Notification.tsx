@@ -1,13 +1,16 @@
 'use client';
 
+// Notification.tsx
+
 import { CirclePlus, X, AlertCircle, Info } from 'lucide-react';
 
 interface NotificationProps {
     message: string;
     type: 'success' | 'error' | 'info' | 'warning';
+    onClose?: () => void;
 }
 
-export function Notification({ message, type }: NotificationProps) {
+export function Notification({ message, type, onClose }: NotificationProps) {
     const getStyles = () => {
         switch (type) {
             case 'success':
@@ -45,6 +48,11 @@ export function Notification({ message, type }: NotificationProps) {
                     {getIcon()}
                 </div>
                 <p className="font-bold text-lg">{message}</p>
+                {onClose && (
+                    <button onClick={onClose} className="ml-2 text-white hover:text-gray-200">
+                        <X className="size-5" />
+                    </button>
+                )}
             </div>
         </div>
     );

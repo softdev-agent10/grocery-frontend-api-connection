@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/apiClient';
 
 // Types
 export interface Customer {
+    is_active: unknown;
     id: number | string;
     name: string;
     phone_number?: string;

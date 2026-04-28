@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion ,Variants} from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface TableColumn {
@@ -68,14 +68,13 @@ export const DataTable: React.FC<DataTableProps> = ({
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className={`px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider ${
-                    column.width || ""
-                  }`}
+                  className={`px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider ${column.width || ""
+                    }`}
                 >
                   {column.label}
                 </th>
               ))}
-              {actionButton && <th className="px-6 py-4 text-center text-sm font-bold text-white">Actions</th>}
+              {actionButton && <th className="px-6 py-4 text-center text-sm font-bold text-white"></th>}
             </tr>
           </thead>
 
@@ -104,9 +103,8 @@ export const DataTable: React.FC<DataTableProps> = ({
                   initial="hidden"
                   animate="visible"
                   onClick={() => onRowClick?.(row)}
-                  className={`hover:bg-green-50 transition-colors duration-200 ${
-                    onRowClick ? "cursor-pointer" : ""
-                  }`}
+                  className={`hover:bg-green-50 transition-colors duration-200 ${onRowClick ? "cursor-pointer" : ""
+                    }`}
                 >
                   {columns.map((column) => (
                     <td
@@ -155,11 +153,10 @@ export const DataTable: React.FC<DataTableProps> = ({
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setCurrentPage(page)}
-                className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                  currentPage === page
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+                className={`px-3 py-1 rounded-lg font-medium transition-all ${currentPage === page
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
               >
                 {page}
               </motion.button>

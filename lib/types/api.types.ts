@@ -14,6 +14,8 @@ export interface Pagination {
 export interface PaginatedResponse<T> {
     status: string;
     data: {
+        data: any;
+        results: any;
         items: T[];
         pagination: Pagination;
     };
@@ -53,6 +55,8 @@ export interface Category extends BaseEntity {
     is_active: boolean;
     taxes?: number;
     fees?: number;
+    tax_id?: number;
+    fee_id?: number;
     product_count?: number;
 }
 
@@ -70,7 +74,7 @@ export interface Brand extends BaseEntity {
     updated_at: string;
     created_by: string;
     product_count: number;
-    
+
 
 }
 

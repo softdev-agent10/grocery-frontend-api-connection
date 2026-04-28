@@ -1,36 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { createCashIn, validateCashIn } from "@/app/services/tools/service.tools-cash";
 import { apiClient } from "@/lib/apiClient";
 import { Button, Input } from "@base-ui/react";
-import { Textarea } from "../ui/textarea";
+import { Textarea } from "../../ui/textarea";
+import { de } from "date-fns/locale";
 
-
-export default function CashInForm() {
+function CashInForm() {
     const [amount, setAmount] = useState<number | "">("");
     const [note, setNote] = useState("");
     const [quantity, setQuantity] = useState<number>(1);
-    const [deviceId] = useState("511020165504577");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
-    // Initialize ApiClient with your merchant context
-    useEffect(() => {
-        // Set your actual merchant context here
-        apiClient.setContext("1", "511020165504577", "your-token-here");
-    }, []);
+    // Read current context directly from apiClient
+    const context = useMemo(() => apiClient.getContext(), []);
+    const deviceId = context.branchId;
+    const merchantId = context.merchantId;
+    const branchId = context.branchId;
 
     const handleSubmit = async () => {
-        // Clear previous messages
         setError(null);
         setSuccess(null);
 
-        // Validate amount
         const validationError = validateCashIn(Number(amount));
         if (validationError) {
             setError(validationError);
+            return;
+        }
+
+        if (!merchantId || !branchId) {
+            setError("Merchant ID or Branch ID is missing in apiClient context");
+            return;
+        }
+
+        if (!deviceId) {
+            setError("Device ID is missing");
             return;
         }
 
@@ -40,24 +47,22 @@ export default function CashInForm() {
             const payload = {
                 amount: Number(amount),
                 note: note.trim() || undefined,
-                quantity: quantity,
+                quantity,
                 device_id: deviceId,
             };
-            console.log("Submitting Cash In:", payload);
-            
+
+
+
             const res = await createCashIn(payload);
-            
-            console.log("CashIn Success:", res);
+
+            // console.log("CashIn Success:", res);
             setSuccess("Cash in successful!");
-            
-            // Reset form on success
+
             setAmount("");
             setNote("");
             setQuantity(1);
-            
-            // Auto-clear success message after 3 seconds
+
             setTimeout(() => setSuccess(null), 3000);
-            
         } catch (err) {
             console.error("CashIn Error:", err);
             setError(err instanceof Error ? err.message : "Failed to process cash in");
@@ -69,13 +74,13 @@ export default function CashInForm() {
     return (
         <div className="flex flex-col mt-5">
             {error && (
-                <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+                <div className="mb-4 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-600">
                     {error}
                 </div>
             )}
-            
+
             {success && (
-                <div className="mb-4 p-2 bg-green-50 border border-green-200 rounded text-green-600 text-sm">
+                <div className="mb-4 rounded border border-green-200 bg-green-50 p-2 text-sm text-green-600">
                     {success}
                 </div>
             )}
@@ -86,7 +91,9 @@ export default function CashInForm() {
                 step="0.01"
                 className="mb-4 md:h-12"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                onChange={(e) =>
+                    setAmount(e.target.value === "" ? "" : Number(e.target.value))
+                }
                 disabled={isLoading}
             />
 
@@ -100,7 +107,7 @@ export default function CashInForm() {
 
             <Button
                 onClick={handleSubmit}
-                className="bg-black text-white py-2 rounded-md w-34"
+                className="w-34 rounded-md bg-black py-2 text-white"
                 disabled={isLoading}
             >
                 {isLoading ? "Processing..." : "Submit"}
@@ -108,3 +115,5 @@ export default function CashInForm() {
         </div>
     );
 }
+
+export default CashInForm;

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { CartItemType } from "@/components/sales/cart-items";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
-import { Order } from "./order-history";
+import { Order } from "./activity/order-history";
 import { Loader2 } from "lucide-react";
 
 interface CardPaymentModalProps {
@@ -14,9 +14,11 @@ interface CardPaymentModalProps {
     items: CartItemType[];
     discountAmount: number;
     total: number;
-    cashGiven: number;
+    customerName?: string | null;
     onProcess: () => void;
     isLoading?: boolean;
+    cashGiven?: number;
+
 }
 
 export default function CardPaymentModal({
@@ -25,14 +27,15 @@ export default function CardPaymentModal({
     items,
     discountAmount,
     total,
-    cashGiven,
+    customerName,
     onProcess,
     isLoading = false,
+    cashGiven
 }: CardPaymentModalProps) {
 
     return (
         <Dialog open={open} onOpenChange={(newOpen) => !isLoading && onOpenChange(newOpen)}>
-            <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none rounded-3xl">
+            <DialogContent className="sm:max-w-125 p-0 overflow-hidden border-none rounded-3xl">
                 <VisuallyHidden>
                     <DialogTitle>Card Payment</DialogTitle>
                 </VisuallyHidden>
@@ -54,8 +57,14 @@ export default function CardPaymentModal({
                         </div>
                     ) : (
                         <>
+                            <div className="mb-4 rounded-xl border p-3">
+                                <div className="text-sm text-gray-500">Customer</div>
+                                <div className="text-base font-semibold">
+                                    {customerName || "Walk-in Customer"}
+                                </div>
+                            </div>
                             {/* Items List */}
-                            <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                            <div className="space-y-2 max-h-50 overflow-y-auto pr-2 custom-scrollbar">
                                 {items.map((item) => (
                                     <div
                                         key={item.id}

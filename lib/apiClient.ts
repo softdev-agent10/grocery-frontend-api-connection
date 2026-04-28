@@ -1,13 +1,12 @@
-/**
- * Generic API Client for all services
- * Handles: merchant_id, branch_id, authentication, error handling
- */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { redirect } from "next/dist/server/api-utils";
 
 interface FetchOptions {
-    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     headers?: Record<string, string>;
     body?: any;
-    cache?: 'no-store' | 'default';
+    cache?: "no-store" | "default";
 }
 
 interface ApiResponse<T = any> {
@@ -24,22 +23,157 @@ interface PaginationParams {
 
 class ApiClient {
     private baseUrl: string;
-    private merchantId: string = "1"; // Default
-    private branchId: string = "511020165504577";
-    private token: string = 'your-default-token'; // Replace with actual token management
+    private merchantId: string;
+    private branchId: string;
+    private token: string;
+
+    private refreshPromise: Promise<string> | null = null;
 
     constructor(baseUrl?: string) {
-        this.baseUrl = baseUrl || process.env.NEXT_PUBLIC_API_URI || '';
+        this.baseUrl = baseUrl || process.env.NEXT_PUBLIC_API_URI || "";
+        this.merchantId = process.env.NEXT_PUBLIC_MERCHANT_ID || "";
+        this.branchId = process.env.NEXT_PUBLIC_BRANCH_ID || "";
+        this.token = process.env.NEXT_PUBLIC_API_TOKEN || "";
     }
 
-    // Set merchant/branch context
-    setContext(merchantId: string, branchId: string, token?: string) {
-        this.merchantId = merchantId;
-        this.branchId = branchId;
-        if (token) this.token = token;
+    setContext(merchantId?: string, branchId?: string, token?: string) {
+        if (merchantId) this.merchantId = merchantId;
+        if (branchId) this.branchId = branchId;
+
+        if (token) {
+            this.token = token;
+
+            if (typeof window !== "undefined") {
+                sessionStorage.setItem("jwt", token);
+            }
+        }
     }
 
-    // Build query string with merchant_id and branch_id
+    private getJwt(): string {
+        if (typeof window !== "undefined") {
+            return sessionStorage.getItem("jwt") || "";
+        }
+
+        return this.token || "";
+    }
+
+    private getRefreshToken(): string {
+        if (typeof window === "undefined") return "";
+        return sessionStorage.getItem("refresh_token") || "";
+    }
+
+    // private setTokens(jwt: string, refreshToken?: string) {
+    //     this.token = jwt;
+
+    //     if (typeof window === "undefined") return;
+
+    //     sessionStorage.setItem("jwt", jwt);
+
+    //     if (refreshToken) {
+    //         sessionStorage.setItem("refresh_token", refreshToken);
+    //     }
+    // }
+
+    private setTokens(jwt: string, refreshToken?: string) {
+        this.token = jwt;
+
+        if (typeof window === "undefined") return;
+
+        sessionStorage.setItem("jwt", jwt);
+
+        document.cookie = `jwt=${encodeURIComponent(
+            jwt
+        )}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`;
+
+        if (refreshToken) {
+            sessionStorage.setItem("refresh_token", refreshToken);
+        }
+    }
+
+    // private clearTokens() {
+    //     this.token = "";
+
+    //     if (typeof window === "undefined") return;
+
+    //     sessionStorage.removeItem("jwt");
+    //     sessionStorage.removeItem("refresh_token");
+    //     sessionStorage.removeItem("login_response");
+    // }
+    private clearTokens() {
+        this.token = "";
+
+        if (typeof window === "undefined") return;
+
+        sessionStorage.removeItem("jwt");
+        sessionStorage.removeItem("refresh_token");
+        sessionStorage.removeItem("login_response");
+        sessionStorage.removeItem("user");
+
+        document.cookie = "jwt=; path=/; max-age=0; SameSite=Lax";
+    }
+
+    private async getFreshToken(): Promise<string> {
+        if (!this.refreshPromise) {
+            this.refreshPromise = this.refreshAccessToken().finally(() => {
+                this.refreshPromise = null;
+            });
+        }
+
+        return this.refreshPromise;
+    }
+
+    public async refreshAccessToken(): Promise<string> {
+        const refreshToken = this.getRefreshToken();
+
+        if (!refreshToken) {
+            this.clearTokens();
+            throw new Error("No refresh token found");
+        }
+
+        const authBaseUrl = process.env.NEXT_PUBLIC_AUTH_API_URI || this.baseUrl;
+        const clientId = process.env.NEXT_PUBLIC_CLIENT_ID;
+
+        const response = await fetch(
+            `${authBaseUrl}/access-token?client_id=${clientId}`,
+            {
+                method: "GET",
+                headers: {
+                    Accept: "application/json",
+                    Authorization: `Bearer ${refreshToken}`,
+                },
+                cache: "no-store",
+            }
+        );
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                this.clearTokens();
+                throw new Error("Refresh token expired. Please login again.");
+            }
+
+            throw new Error(`Token refresh failed: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        const newJwt = data?.jwt || data?.data?.jwt || data?.access_token;
+
+        const newRefreshToken =
+            data?.refresh_token ||
+            data?.data?.refresh_token ||
+            data?.refreshToken ||
+            refreshToken;
+
+        if (!newJwt) {
+            this.clearTokens();
+            throw new Error("Invalid refresh response: JWT missing");
+        }
+
+        this.setTokens(newJwt, newRefreshToken);
+
+        return newJwt;
+    }
+
     private buildQueryString(params?: Record<string, any>): string {
         const searchParams = new URLSearchParams({
             merchant_id: this.merchantId.toString(),
@@ -48,7 +182,7 @@ class ApiClient {
 
         if (params) {
             Object.entries(params).forEach(([key, value]) => {
-                if (value !== undefined && value !== null && value !== '') {
+                if (value !== undefined && value !== null && value !== "") {
                     searchParams.append(key, String(value));
                 }
             });
@@ -57,171 +191,222 @@ class ApiClient {
         return searchParams.toString();
     }
 
-    // Generic fetch method
+    private async parseResponse<T>(response: Response): Promise<T> {
+        const text = await response.text();
+
+        if (!text) {
+            return {} as T;
+        }
+
+        try {
+            return JSON.parse(text);
+        } catch {
+            throw new Error("Invalid JSON response from server");
+        }
+    }
+
     private async request<T>(
         endpoint: string,
-        options: FetchOptions = {}
+        options: FetchOptions = {},
+        retry = true
     ): Promise<T> {
         const {
-            method = 'GET',
+            method = "GET",
             headers = {},
             body,
-            cache = 'no-store',
+            cache = "no-store",
         } = options;
 
         const url = `${this.baseUrl}${endpoint}`;
 
         const requestHeaders: Record<string, string> = {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             ...headers,
         };
 
-        if (this.token) {
-            requestHeaders['Authorization'] = `Bearer ${this.token}`;
+        const jwt = this.getJwt();
+
+        if (jwt) {
+            requestHeaders.Authorization = `Bearer ${jwt}`;
         }
 
+        let response: Response;
+
         try {
-            const response = await fetch(url, {
+            response = await fetch(url, {
                 method,
                 headers: requestHeaders,
                 cache,
-                ...(body && { body: JSON.stringify(body) }),
+                ...(body !== undefined && { body: JSON.stringify(body) }),
             });
-
-            if (!response.ok) {
-                // Try to get error message, but handle empty response
-                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-                try {
-                    const text = await response.text();
-                    if (text) {
-                        const error = JSON.parse(text);
-                        errorMessage = error?.message || errorMessage;
-                    }
-                } catch (e) {
-                    // If no response body, just use status text
-                    console.warn('No error body received');
-                }
-                throw new Error(errorMessage);
-            }
-
-            // Handle empty responses
-            const text = await response.text();
-            if (!text) {
-                // Return empty object for empty responses
-                return {} as T;
-            }
-            
-            try {
-                return JSON.parse(text);
-            } catch (e) {
-                console.error('Failed to parse JSON:', text);
-                throw new Error('Invalid JSON response from server');
-            }
-        } catch (error) {
-            console.error(`API Error [${method} ${endpoint}]:`, error);
-            throw error;
+        } catch {
+            window.location.href = "/login";
+            throw new Error("Network error. Please check your connection.");
         }
+
+        if (response.status === 401 && retry) {
+            try {
+                const newJwt = await this.getFreshToken();
+
+                requestHeaders.Authorization = `Bearer ${newJwt}`;
+
+                response = await fetch(url, {
+                    method,
+                    headers: requestHeaders,
+                    cache,
+                    ...(body !== undefined && { body: JSON.stringify(body) }),
+                });
+            } catch {
+                this.clearTokens();
+
+                throw new Error("Session expired. Please login again.");
+            }
+        }
+
+        if (!response.ok) {
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+            try {
+                const text = await response.text();
+
+                if (text) {
+                    const error = JSON.parse(text);
+                    errorMessage = error?.message || error?.detail || errorMessage;
+                }
+            } catch {
+                // Ignore error body parse issue
+            }
+
+            throw new Error(errorMessage);
+        }
+
+        return this.parseResponse<T>(response);
     }
 
-    // GET with pagination
     async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
         const queryString = this.buildQueryString(params);
         const url = `${endpoint}?${queryString}`;
-        return this.request<T>(url, { method: 'GET' });
+
+        return this.request<T>(url, { method: "GET" });
     }
 
-    // POST
-    async post<T>(endpoint: string, data?: any, params?: Record<string, any>): Promise<T> {
+    async post<T>(
+        endpoint: string,
+        data?: any,
+        params?: Record<string, any>
+    ): Promise<T> {
         const queryString = this.buildQueryString(params);
         const url = `${endpoint}?${queryString}`;
+
         return this.request<T>(url, {
-            method: 'POST',
+            method: "POST",
             body: data,
         });
     }
 
-    // PUT
-    async put<T>(endpoint: string, data?: any, params?: Record<string, any>): Promise<T> {
+    async put<T>(
+        endpoint: string,
+        data?: any,
+        params?: Record<string, any>
+    ): Promise<T> {
         const queryString = this.buildQueryString(params);
         const url = `${endpoint}?${queryString}`;
+
         return this.request<T>(url, {
-            method: 'PUT',
+            method: "PUT",
             body: data,
         });
     }
 
-    // PATCH
-    async patch<T>(endpoint: string, data?: any, params?: Record<string, any>): Promise<T> {
+    async patch<T>(
+        endpoint: string,
+        data?: any,
+        params?: Record<string, any>
+    ): Promise<T> {
         const queryString = this.buildQueryString(params);
         const url = `${endpoint}?${queryString}`;
+
         return this.request<T>(url, {
-            method: 'PATCH',
+            method: "PATCH",
             body: data,
         });
     }
 
-    // DELETE
-    async delete<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+    async delete<T>(
+        endpoint: string,
+        params?: Record<string, any>
+    ): Promise<T> {
         const queryString = this.buildQueryString(params);
         const url = `${endpoint}?${queryString}`;
-        return this.request<T>(url, { method: 'DELETE' });
+
+        return this.request<T>(url, { method: "DELETE" });
     }
 
-    // Get current context (for advanced use cases)
     getContext() {
         return {
             merchantId: this.merchantId,
             branchId: this.branchId,
-            token: this.token,
+            token: this.getJwt(),
         };
     }
 
-    // POST with FormData (for file uploads)
-    async postFile<T>(endpoint: string, formData: FormData, params?: Record<string, any>): Promise<T> {
+    async postFile<T>(
+        endpoint: string,
+        formData: FormData,
+        params?: Record<string, any>
+    ): Promise<T> {
         const queryString = this.buildQueryString(params);
         const url = `${this.baseUrl}${endpoint}?${queryString}`;
 
         const requestHeaders: Record<string, string> = {};
 
-        if (this.token) {
-            requestHeaders['Authorization'] = `Bearer ${this.token}`;
+        const jwt = this.getJwt();
+
+        if (jwt) {
+            requestHeaders.Authorization = `Bearer ${jwt}`;
         }
 
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
+        let response = await fetch(url, {
+            method: "POST",
+            headers: requestHeaders,
+            body: formData,
+            cache: "no-store",
+        });
+
+        if (response.status === 401) {
+            const newJwt = await this.getFreshToken();
+
+            requestHeaders.Authorization = `Bearer ${newJwt}`;
+
+            response = await fetch(url, {
+                method: "POST",
                 headers: requestHeaders,
                 body: formData,
-                cache: 'no-store',
+                cache: "no-store",
             });
-
-            if (!response.ok) {
-                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-                try {
-                    const text = await response.text();
-                    if (text) {
-                        const error = JSON.parse(text);
-                        errorMessage = error?.message || errorMessage;
-                    }
-                } catch (e) {
-                    console.warn('No error body received');
-                }
-                throw new Error(errorMessage);
-            }
-
-            const text = await response.text();
-            if (!text) {
-                return {} as T;
-            }
-            
-            return JSON.parse(text);
-        } catch (error) {
-            console.error(`API Error [POST ${endpoint}]:`, error);
-            throw error;
         }
+
+        if (!response.ok) {
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+            try {
+                const text = await response.text();
+
+                if (text) {
+                    const error = JSON.parse(text);
+                    errorMessage = error?.message || error?.detail || errorMessage;
+                }
+            } catch {
+                // Ignore error body parse issue
+            }
+
+            throw new Error(errorMessage);
+        }
+
+        return this.parseResponse<T>(response);
     }
 }
 
-// Singleton instance
 export const apiClient = new ApiClient();
+
 export type { ApiResponse, PaginationParams };

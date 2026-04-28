@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { LogOut, UserCircle, User } from "lucide-react";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { useRouter } from "next/navigation";
+import { clearAuthStorage, logoutUser } from "@/app/services/logout/seervice.logout";
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -17,7 +17,6 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
 }) => {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -163,9 +162,15 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
         title="Confirm Logout"
         description="Are you sure you want to log out? You will need to sign in again to access the dashboard."
         confirmText="Logout"
-        onConfirm={() => {
-          localStorage.removeItem("token");
-          router.push("/login");
+        onConfirm={async () => {
+          try {
+            await logoutUser();
+          } catch (error) {
+            console.error("Logout API failed:", error);
+          } finally {
+            clearAuthStorage();
+            window.location.href = "/login";
+          }
         }}
       />
     </div>

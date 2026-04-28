@@ -155,11 +155,12 @@ export const useUploadDraft = (branchId: string) => {
     }, [branchId]);
 
     const save = useCallback(
-        async (draft: Omit<UploadDraft, 'id' | 'timestamp'>) => {
+        async (draft: Omit<UploadDraft, 'id' | 'timestamp' | 'branchId'>) => {
             try {
                 const completeDraft: UploadDraft = {
                     ...draft,
                     id: branchId,
+                    branchId: branchId,
                     timestamp: Date.now(),
                 };
                 await saveDraft(completeDraft);
@@ -173,7 +174,7 @@ export const useUploadDraft = (branchId: string) => {
         [branchId]
     );
 
-    const remove = useCallback(async () => {
+    const removeDraft = useCallback(async () => {
         try {
             await deleteDraft(branchId);
             setSavedDraft(null);
@@ -197,7 +198,7 @@ export const useUploadDraft = (branchId: string) => {
         savedDraft,
         isLoading,
         save,
-        remove,
+        removeDraft,
         clear,
     };
 };

@@ -75,20 +75,18 @@ export default function CashDrawerPage() {
   // Fetch cash-in and cash-out history data
   useEffect(() => {
     const fetchCashData = async () => {
-
-
       try {
         setIsLoading(true);
         setError(null);
 
         // Fetch both cash-in and cash-out data in parallel
         const [cashInResponse, cashOutResponse] = await Promise.all([
-          getCashIn({}),
-          getCashOut({}), // Uncomment when getCashOut is implemented
+          getCashIn(),
+          getCashOut(), // Uncomment when getCashOut is implemented
         ]);
 
-        console.log('Cash In Response:', cashInResponse);
-        console.log('Cash Out Response:', cashOutResponse);
+        // console.log('Cash In Response:', cashInResponse);
+        // console.log('Cash Out Response:', cashOutResponse);
 
         // Map and merge both responses
         const cashInTransactions: Transaction[] = [];
@@ -127,7 +125,7 @@ export default function CashDrawerPage() {
     };
 
     fetchCashData();
-  }, [user, token, authLoading]);
+  }, []);
 
   /**
    * Handle drawer opening action

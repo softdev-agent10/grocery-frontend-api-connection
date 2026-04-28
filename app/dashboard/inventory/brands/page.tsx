@@ -108,7 +108,7 @@ export default function App() {
       try {
         const data = await getBrands();
 
-        console.log("Fetched brands data:", data.data.items); // Log the fetched data
+        // console.log("Fetched brands data:", data.data.items); // Log the fetched data
 
         setBrands(data.data.items || []);
       } catch (error) {
@@ -184,7 +184,7 @@ export default function App() {
         const data = await createBrand({
           name: newBrand.name, brand_image: ""
         });
-        console.log("Created brand response:", data);
+        // console.log("Created brand response:", data);
         showNotification(`Brand "${newBrand.name}" created successfully!`, 'success');
       } catch (error) {
         console.error("Error creating brand:", error);
@@ -219,7 +219,7 @@ export default function App() {
         }
       );
 
-      console.log("Updated brand response:", data);
+      // console.log("Updated brand response:", data);
       return data;
     } catch (error) {
       console.error("Error updating brand:", error);
@@ -272,7 +272,7 @@ export default function App() {
       brand_image: brand.brand_image
     });
 
-    console.log("Opening edit modal for brand:", brand.id, brand.name); // Log the brand being edited
+    // console.log("Opening edit modal for brand:", brand.id, brand.name); // Log the brand being edited
 
     setIsEditModalOpen(true);
   };

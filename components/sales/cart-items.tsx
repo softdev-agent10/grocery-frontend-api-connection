@@ -203,7 +203,7 @@ export default function CartItem({ item, onDelete, onUpdate, onEdit }: Props) {
                         </div>
 
                         {/* Price and Delete */}
-                        <div className="flex items-center gap-2 xl:gap-4 shrink-0 min-w-[80px] xl:min-w-[140px] justify-end">
+                        <div className="flex items-center gap-2 xl:gap-4 shrink-0 min-w-20 xl:min-w-[140px] justify-end">
                             <div className="text-right flex flex-col items-end">
                                 {item.discountValue && item.discountValue > 0 ? (
                                     <>

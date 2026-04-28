@@ -62,7 +62,7 @@ interface BundleItem {
 interface BundleProduct {
   product_id: number;
   quantity: number;
-  price: number;
+  selling_price: number;
 }
 
 interface PromotionFormData {
@@ -216,103 +216,101 @@ export default function CreatePromotionPage() {
   const buyProduct = products.find((p) => p.id === formData.buyProductId);
   const getProduct = products.find((p) => p.id === formData.getProductId);
 
+
+  const fetchPromotionDetails = async () => {
+    if (!isEditMode || !promotionId) return;
+
+    try {
+      setIsLoadingPromotion(true);
+      const promotionType = promotionId.startsWith("bundle_") ? "bundle" : "buynget";
+
+      if (promotionType === "bundle") {
+        const bundleIdNum = parseInt(promotionId.replace("bundle_", ""));
+        const response = await getBundle(bundleIdNum);
+
+        if (response.data) {
+          const bundle = response.data;
+          setFormData({
+            type: PromotionType.BUNDLE,
+            title: bundle.name,
+            buyProductId: null,
+            buyQuantity: 1,
+            getProductId: null,
+            getQuantity: 1,
+            bundleItems: bundle.items.map((p) => ({
+              productId: p.product_id,
+              quantity: p.quantity,
+              originalPrice: typeof p.price === "string" ? parseFloat(p.price) : p.price,
+              newPrice: typeof p.price === "string" ? parseFloat(p.price) : p.price,
+              isCustomPrice: false,
+            })),
+            bundleDiscountPrice: bundle.flat_discount ? (typeof bundle.flat_discount === "string" ? parseFloat(bundle.flat_discount) : bundle.flat_discount) : 0,
+            bundleDiscountType: (bundle.discount_type as "flat" | "percent") || "flat",
+            startDate: bundle.start_date,
+            endDate: bundle.end_date,
+            status: PromotionStatus.Active,
+          });
+        }
+        showNotification("Promotion details loaded successfully", "success");
+      } else {
+        const offerIdNum = parseInt(promotionId.replace("buynget_", ""));
+        const response = await getBuyNGetById(offerIdNum);
+
+        if (response.data) {
+          const offer = response.data;
+          setFormData({
+            type: PromotionType.BOGO,
+            title: offer.name,
+            buyProductId: offer.buy_conditions[0]?.product_id || null,
+            buyQuantity: offer.buy_conditions[0]?.required_qty || 1,
+            getProductId: offer.reward_items[0]?.product_id || null,
+            getQuantity: offer.reward_items[0]?.reward_qty || 1,
+            bundleItems: [],
+            bundleDiscountPrice: 0,
+            bundleDiscountType: "flat",
+            startDate: offer.start_date,
+            endDate: offer.end_date,
+            status: offer.is_active ? PromotionStatus.Active : PromotionStatus.Inactive,
+          });
+        }
+        showNotification("Promotion details loaded successfully", "success");
+      }
+    } catch (error) {
+      console.error("Failed to fetch promotion details:", error);
+      setSubmitError("Failed to load promotion details. Please try again.");
+      showNotification("Failed to load promotion details", "error");
+    } finally {
+      setIsLoadingPromotion(false);
+    }
+  };
+
+
+  const fetchProducts = async () => {
+    try {
+      setIsLoadingProducts(true);
+      const response = await getProducts({
+        limit: 100,
+      });
+
+      // console.log(`Products fetched: ${response.data?.items?.length || 0} items`);  
+      if (response.data?.items) {
+        setProducts(response.data.items);
+      }
+      showNotification("Products loaded successfully", "success");
+    } catch (error) {
+      console.error("Failed to fetch products:", error);
+      setSubmitError("Failed to load products. Please try again.");
+      showNotification("Failed to load products", "error");
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
   // Fetch real products from API
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setIsLoadingProducts(true);
-        const response = await getProducts({
-          limit: 100,
-        });
-
-        console.log(`Products fetched: ${response.data?.items?.length || 0} items`);
-        if (response.data?.items) {
-          setProducts(response.data.items);
-        }
-        showNotification("Products loaded successfully", "success");
-      } catch (error) {
-        console.error("Failed to fetch products:", error);
-        setSubmitError("Failed to load products. Please try again.");
-        showNotification("Failed to load products", "error");
-      } finally {
-        setIsLoadingProducts(false);
-      }
-    };
-
-    fetchProducts();
-  }, [token]);
-
-  // Fetch promotion details if editing
-  useEffect(() => {
-    const fetchPromotionDetails = async () => {
-      if (!isEditMode || !promotionId) return;
-
-      try {
-        setIsLoadingPromotion(true);
-        const promotionType = promotionId.startsWith("bundle_") ? "bundle" : "buynget";
-
-        if (promotionType === "bundle") {
-          const bundleIdNum = parseInt(promotionId.replace("bundle_", ""));
-          const response = await getBundle(bundleIdNum);
-
-          if (response.data) {
-            const bundle = response.data;
-            setFormData({
-              type: PromotionType.BUNDLE,
-              title: bundle.name,
-              buyProductId: null,
-              buyQuantity: 1,
-              getProductId: null,
-              getQuantity: 1,
-              bundleItems: bundle.items.map((p) => ({
-                productId: p.product_id,
-                quantity: p.quantity,
-                originalPrice: typeof p.price === "string" ? parseFloat(p.price) : p.price,
-                newPrice: typeof p.price === "string" ? parseFloat(p.price) : p.price,
-                isCustomPrice: false,
-              })),
-              bundleDiscountPrice: bundle.flat_discount ? (typeof bundle.flat_discount === "string" ? parseFloat(bundle.flat_discount) : bundle.flat_discount) : 0,
-              bundleDiscountType: (bundle.discount_type as "flat" | "percent") || "flat",
-              startDate: bundle.start_date,
-              endDate: bundle.end_date,
-              status: PromotionStatus.Active,
-            });
-          }
-          showNotification("Promotion details loaded successfully", "success");
-        } else {
-          const offerIdNum = parseInt(promotionId.replace("buynget_", ""));
-          const response = await getBuyNGetById(offerIdNum);
-
-          if (response.data) {
-            const offer = response.data;
-            setFormData({
-              type: PromotionType.BOGO,
-              title: offer.name,
-              buyProductId: offer.buy_conditions[0]?.product_id || null,
-              buyQuantity: offer.buy_conditions[0]?.required_qty || 1,
-              getProductId: offer.reward_items[0]?.product_id || null,
-              getQuantity: offer.reward_items[0]?.reward_qty || 1,
-              bundleItems: [],
-              bundleDiscountPrice: 0,
-              bundleDiscountType: "flat",
-              startDate: offer.start_date,
-              endDate: offer.end_date,
-              status: offer.is_active ? PromotionStatus.Active : PromotionStatus.Inactive,
-            });
-          }
-          showNotification("Promotion details loaded successfully", "success");
-        }
-      } catch (error) {
-        console.error("Failed to fetch promotion details:", error);
-        setSubmitError("Failed to load promotion details. Please try again.");
-        showNotification("Failed to load promotion details", "error");
-      } finally {
-        setIsLoadingPromotion(false);
-      }
-    };
-
     fetchPromotionDetails();
-  }, [isEditMode, promotionId, token]);
+    fetchProducts();
+  }, []);
+
 
   const handleCreatePromotion = async (): Promise<void> => {
     // Validation
@@ -344,7 +342,7 @@ export default function CreatePromotionPage() {
       if (formData.type === PromotionType.BOGO) {
         // Create Buy N Get offer
         const payload = {
-          branchId: "1234567890", // TODO: Get from user context
+          // branchId: "1234567890", // TODO: Get from user context
           token: "your-auth-token", // TODO: Get from auth context
           name: formData.title,
           description: `Buy ${formData.buyQuantity} get ${formData.getQuantity}`,
@@ -372,26 +370,26 @@ export default function CreatePromotionPage() {
           offer_limit: 999,
           is_active: formData.status === PromotionStatus.Active,
         };
+
+        // console.log("Creating Buy N Get offer with payload:", payload);
         await createBuyNGet(payload);
         showNotification("Promotion created successfully", "success");
 
       } else {
-        // Create Bundle
-        const bundleProducts: BundleProduct[] = formData.bundleItems.map((item) => ({
-          product_id: item.productId!,
-          quantity: item.quantity,
-          price: item.newPrice,
-        }));
+
 
         // Get first product's PLU as bundle identifier (with safety check)
         const firstProductId = formData.bundleItems[0]?.productId;
         const firstProduct = firstProductId ? products.find(p => p.id === firstProductId) : null;
         // Generate 11-digit random PLU code if product doesn't have one
-        const bundlePluCode = firstProduct?.plu || Math.floor(10000000000 + Math.random() * 90000000000).toString();
 
         // Determine flat and percent discounts based on discount type
         const flatDiscount = formData.bundleDiscountType === "flat" ? formData.bundleDiscountPrice : null;
         const percentDiscount = formData.bundleDiscountType === "percent" ? formData.bundleDiscountPrice : null;
+
+
+        // Generate a random 11-digit PLU code (or use first product's PLU if desired)
+        const bundlePluCode = Math.floor(10000000000 + Math.random() * 90000000000).toString();
 
         const bundlePayload = {
           name: formData.title,
@@ -399,16 +397,19 @@ export default function CreatePromotionPage() {
           type: "special",
           subtype: "customer",
           discount_type: formData.bundleDiscountType,
-          flat_discount: flatDiscount as any,
-          percent_discount: percentDiscount as any,
-          offer_limit: 999,
+          flat_discount: formData.bundleDiscountType === "flat" ? formData.bundleDiscountPrice : null,
+          percent_discount: formData.bundleDiscountType === "percent" ? formData.bundleDiscountPrice : null,
+          offer_limit: 1,
           plu_code: bundlePluCode,
-          tax_id: 1,
-          fees_id: 1,
-          start_date: formData.startDate,
-          end_date: formData.endDate,
-          products: bundleProducts,
+          start_date: formData.startDate || new Date().toISOString().split('T')[0],
+          end_date: formData.endDate || new Date().toISOString().split('T')[0],
+          products: formData.bundleItems.map((item) => ({
+            product_id: item.productId,
+            quantity: item.quantity,
+            selling_price: item.newPrice ?? 0,
+          })),
         };
+        // console.log("Bundle created with payload:", bundlePluCode);
         await createBundle(bundlePayload);
       }
 
@@ -462,7 +463,7 @@ export default function CreatePromotionPage() {
       if (formData.type === PromotionType.BOGO) {
         const buyOfferIdNum = parseInt(promotionId.replace("buynget_", ""));
         const payload = {
-          branchId: "1234567890",
+          // branchId: "1234567890",
           token: "your-auth-token",
           name: formData.title,
           description: `Buy ${formData.buyQuantity} get ${formData.getQuantity}`,
@@ -493,11 +494,7 @@ export default function CreatePromotionPage() {
         await updateBuyNGet(buyOfferIdNum, payload);
       } else {
         const bundleIdNum = parseInt(promotionId.replace("bundle_", ""));
-        const bundleProducts: BundleProduct[] = formData.bundleItems.map((item) => ({
-          product_id: item.productId!,
-          quantity: item.quantity,
-          price: item.newPrice,
-        }));
+
 
         const firstProductId = formData.bundleItems[0]?.productId;
         const firstProduct = firstProductId ? products.find(p => p.id === firstProductId) : null;
@@ -512,15 +509,17 @@ export default function CreatePromotionPage() {
           type: "special",
           subtype: "customer",
           discount_type: formData.bundleDiscountType,
-          flat_discount: flatDiscount as any,
-          percent_discount: percentDiscount as any,
-          offer_limit: 999,
+          flat_discount: flatDiscount,
+          percent_discount: percentDiscount,
+          offer_limit: 1,
           plu_code: bundlePluCode,
-          tax_id: 1,
-          fees_id: 1,
-          start_date: formData.startDate,
-          end_date: formData.endDate,
-          products: bundleProducts,
+          start_date: formData.startDate || new Date().toISOString().split('T')[0],
+          end_date: formData.endDate || new Date().toISOString().split('T')[0],
+          products: formData.bundleItems.map((item) => ({
+            product_id: item.productId,
+            quantity: item.quantity,
+            selling_price: item.newPrice ?? 0,
+          })),
         };
         await updateBundle(bundleIdNum, bundlePayload);
       }

@@ -33,7 +33,7 @@ export default function EmployeePane({
     [employees, selectedEmployeeId]
   );
   return (
-    <div className="grid grid-cols-1 lg:[grid-template-columns:220px_1fr] gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
       <div className="lg:pr-4 flex flex-col">
         <UserQuickSelect
           label="Select Staff"

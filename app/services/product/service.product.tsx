@@ -36,7 +36,7 @@ export type ProductData = {
   category: ProductCategory;
   brand: ProductBrand;
   unit: ProductUnit;
-  plu: string | null;
+  plu: string;
   upc: string;
   description?: string;
   buying_price: string | number;
@@ -56,6 +56,33 @@ export type ProductData = {
   created_at?: string;
   updated_at?: string;
 };
+
+export interface ProductFormData {
+  id?: number;
+  name: string;
+  category_name: string;
+  brand_name: string;
+  unit_name: string;
+  upc_code: string;
+  plu_code: string;
+  description: string;
+  buying_price: number;
+  selling_price: number;
+  custom_price: number;
+  quantity: number;
+  quantity_alert: number;
+  discount: number;
+  age_verification: boolean;
+  ebt_eligible: boolean;
+  sold_by_weight: boolean;
+  is_refundable: boolean;
+  warranty_period: string;
+  warranty_description: string;
+  manufacturer_date: string;
+  expiration_date: string;
+  image_url: string | undefined;
+  is_available: boolean;
+}
 
 /**
  * Filter options for product list
@@ -100,13 +127,13 @@ export const getProductById = (productId: number) =>
 /**
  * Create a new product
  */
-export const createProduct = (data: ProductPayload) =>
+export const createProduct = (data: ProductFormData) =>
   apiClient.post<SingleResponse<ProductData>>('/inventory/products', data);
 
 /**
  * Update an existing product
  */
-export const updateProduct = (productId: number, data: Partial<ProductPayload>) =>
+export const updateProduct = (productId: number, data: Partial<ProductFormData>) =>
   apiClient.patch<SingleResponse<ProductData>>(`/inventory/products/${productId}`, data);
 
 /**
@@ -121,7 +148,8 @@ export const deleteProduct = (productId: number) =>
 // export const getProductsByCategory = (categoryId: number, filters?: ProductFilter) =>
 //   apiClient.get<PaginatedResponse<ProductData>>(`/inventory/products/category/${categoryId}`, filters);
 export const getProductsByCategory = (categoryId: number, filters?: ProductFilter) =>
-  apiClient.get<PaginatedResponse<ProductData>>('/inventory/products', {...filters,
+  apiClient.get<PaginatedResponse<ProductData>>('/inventory/products', {
+    ...filters,
     category_id: categoryId,
   });
 

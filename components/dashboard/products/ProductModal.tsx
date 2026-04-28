@@ -7,6 +7,9 @@ import { getCategories } from '@/app/services/categories/service.categories';
 import { getBrands } from '@/app/services/brand/brand.service';
 import { getUnits } from '@/app/services/units/units.service';
 import { formatDate, set } from 'date-fns';
+import { ProductData, ProductFormData } from '@/app/services/product/service.product';
+
+
 
 interface ProductModalProps {
   product?: ProductFormData;
@@ -16,42 +19,10 @@ interface ProductModalProps {
   isEditing?: boolean;
   title?: string;
   subtitle?: string;
+  isLoading?: boolean;
 }
 
-
-export interface ProductFormData {
-  id?: number;
-  name: string;
-  category_name: string;
-  brand_name: string;
-  unit_name: string;
-  upc_code: string;
-  plu_code: string;
-  description: string;
-
-  buying_price: number;
-  selling_price: number;
-  custom_price: number;
-
-  quantity: number;
-  quantity_alert: number;
-  discount: number;
-
-  age_verification: boolean;
-  ebt_eligible: boolean;
-  sold_by_weight: boolean;
-  is_refundable: boolean;
-
-  warranty_period: string;
-  warranty_description: string;
-
-  manufacturer_date: string;
-  expiration_date: string;
-
-  image_url: string | undefined;
-  is_available: boolean;
-}
-const defaultFormData: ProductFormData = {
+export const defaultFormData: ProductFormData = {
   id: 0,
   name: '',
   category_name: '',
@@ -86,7 +57,7 @@ const defaultFormData: ProductFormData = {
 
 type ExpandedSection = 'info' | 'pricing' | 'details' | 'unitDropdown' | null;
 
-export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Product", subtitle = "This is for added products", onSave, isEditing = false }: ProductModalProps) {
+export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Product", subtitle = "This is for added products", onSave, isEditing = false, isLoading }: ProductModalProps) {
 
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>('info');
   const [formData, setFormData] = useState<ProductFormData>(defaultFormData);
@@ -96,6 +67,7 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
 
   const [addNewModal, setAddNewModal] = useState<{
     isOpen: boolean;
@@ -113,6 +85,8 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
     fees: '',
   });
   const [expandedSection2, setExpandedSection2] = useState<string | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   const handleInputChange = (field: keyof ProductFormData, value: any) => {
     setFormData((prev) => ({
@@ -141,44 +115,81 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
     handleInputChange('plu_code', plu_code);
   };
 
-  const getCategorie = async () => {
-    // Fetch categories from API and update state
-    const categories = await getCategories({ branchId: "1234567890", token: 'your_token_here' });
-    // console.log(categories.data.items);
-    setCategories(categories.data.items);
+  // Fetch categories from API and update state
+  const fetchCategories = async () => {
+    try {
+      const response = await getCategories();
+      // console.log('Fetched categories:', response.data.items);
+      setCategories(response.data.items);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
   };
 
-  const getBrand = async () => {
-    // Fetch brands from API and update state
-    const brands = await getBrands({ branchId: "1234567890", token: 'your_token_here' });
-    setBrands(brands.data.items);
-    console.log(brands.data.items);
-
+  // Fetch brands from API and update state
+  const fetchBrands = async () => {
+    try {
+      const response = await getBrands();
+      setBrands(response.data.items);
+    } catch (error) {
+      console.error('Error fetching brands:', error);
+    }
   };
 
-  const getUnit = async () => {
-    // Fetch units from API and update state
-    const units = await getUnits({ branchId: "1234567890", token: 'your_token_here' });
-    setUnits(units.data.items);
-    console.log(units.data.items);
+  // Fetch units from API and update state
+  const fetchUnits = async () => {
+    try {
+      const response = await getUnits();
+      setUnits(response.data.items);
+    } catch (error) {
+      console.error('Error fetching units:', error);
+    }
+  };
+
+  // Load all dropdown data when modal opens
+  const loadDropdownData = async () => {
+    setIsLoadingData(true);
+    try {
+      await Promise.all([fetchCategories(), fetchBrands(), fetchUnits()]);
+      setDataLoaded(true);
+    } catch (error) {
+      console.error('Error loading dropdown data:', error);
+      setIsLoadingData(false);
+    }
+    finally {
+      setIsLoadingData(false);
+    }
   };
 
   useEffect(() => {
+    let isMounted = true;
 
-    if (!isOpen) {
-      setFormData(defaultFormData);
-      setExpandedSection('info');
-      setValidationErrors({});
-      setSaveSuccess(false);
-      setIsSaving(false);
+    if (isOpen) {
+      // Load data only when modal opens
+      if (!dataLoaded && !isLoadingData) {
+        loadDropdownData();
+      }
+      // Set form data when opening
+      const data = product ? { ...defaultFormData, ...product } : defaultFormData;
+      if (isMounted) {
+        setFormData(data);
+      }
+    } else {
+      // Reset when closing
+      if (isMounted) {
+        setFormData(defaultFormData);
+        setExpandedSection('info');
+        setValidationErrors({});
+        setSaveSuccess(false);
+        setIsSaving(false);
+        setDataLoaded(false); // Reset so data loads fresh on next open
+      }
     }
-    const data = product ? { ...defaultFormData, ...product } : defaultFormData;
-    setFormData(data);
-    getCategorie();
-    getBrand();
-    getUnit();
 
-  }, [isOpen]);
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, product]);
 
   const [codeType, setCodeType] = useState<'upc' | 'plu'>('upc');
 
@@ -236,9 +247,26 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
         return;
       }
 
+      // // Look up IDs from names before passing to parent
+      // const categoryName = formData.category_name?.trim();
+      // const brandName = formData.brand_name?.trim();
+      // const unitName = formData.unit_name?.trim();
+
+      // const categoryId = categories.find(c => c.name === categoryName)?.id || 1;
+      // const brandId = brands.find(b => b.name === brandName)?.id || 1;
+      // const unitId = units.find(u => u.name === unitName)?.id || 1;
+
+      // // Add IDs to form data for parent to use
+      // const dataWithIds = {
+      //   ...formData,
+      //   category_id: categoryId,
+      //   brand_id: brandId,
+      //   unit_id: unitId,
+      // };
+
       // Pass validated form data to parent component for API handling
       if (onSave) {
-        await onSave(formData);
+        await onSave(formData as any);
       }
 
       // Show success message
@@ -265,22 +293,22 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
           const existingId = match ? match[1] : 'unknown';
 
           setValidationErrors({
-            upc_code: `⚠️ UPC code already exists (Product ID: ${existingId}). Please use a different UPC or edit the existing product.`
+            upc_code: `UPC code already exists (Product ID: ${existingId}). Please use a different UPC or edit the existing product.`
           });
         } else if (errorMessage.includes('409')) {
           // Generic 409 conflict error
           setValidationErrors({
-            submit: '❌ Conflict: This product already exists. Please check the UPC code.'
+            submit: 'Conflict: This product already exists. Please check the UPC code.'
           });
         } else {
           // Generic API error
           setValidationErrors({
-            submit: `❌ Error: ${errorMessage.split('\n')[0] || 'Failed to save product'}`,
+            submit: `Error: ${errorMessage.split('\n')[0] || 'Failed to save product'}`,
           });
         }
       } catch (parseError) {
         setValidationErrors({
-          submit: '❌ An unexpected error occurred. Please try again.'
+          submit: 'An unexpected error occurred. Please try again.'
         });
       }
 
@@ -439,53 +467,43 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                             </div>
 
                             <div className="grid grid-cols-2 gap-6">
+                              {/* Departments */}
                               <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Departments
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Departments</label>
                                 <div className="flex gap-2">
                                   <div className="relative w-full">
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        setExpandedSection2(
-                                          expandedSection2 === 'categoriDropdown' ? null : 'categoriDropdown'
-                                        )
-                                      }
-                                      className="w-full flex justify-between items-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500/20"
+                                      onClick={() => setExpandedSection2(expandedSection2 === 'categoriDropdown' ? null : 'categoriDropdown')}
+                                      disabled={isLoadingData}
+                                      className="w-full flex justify-between items-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
                                     >
-                                      <span>
-                                        {categories.find(u => u.id === formData.category_name)?.name || 'Choose Department'}
-                                      </span>
+                                      <span>{isLoadingData ? 'Loading...' : (formData.category_name || 'Choose Department')}</span>
                                       <ChevronDown size={16} />
                                     </button>
 
                                     {expandedSection2 === 'categoriDropdown' && (
                                       <div className="absolute z-50 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto">
-                                        {categories.length > 0 ? (
-                                          categories.map((category, index) => (
-                                            <div
-                                              key={`cat-list-item-${category.id || index}`}
-                                              onClick={() => {
-                                                handleInputChange('category_name', category.name);
-                                                setExpandedSection2(null);
-                                              }}
-                                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.category_name === category.name ? 'bg-blue-100 font-medium' : ''
-                                                }`}
-                                            >
-                                              {category.name}
-                                            </div>
-                                          ))
-                                        ) : (
-                                          <div className="px-4 py-2 text-sm text-gray-500">Loading...</div>
-                                        )}
+                                        {categories.map((category) => (
+                                          <div
+                                            key={category.id}
+                                            onClick={() => {
+                                              handleInputChange('category_name', category.name);
+                                              setExpandedSection2(null);
+                                            }}
+                                            className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.category_name === category.name ? 'bg-blue-100 font-medium' : ''
+                                              }`}
+                                          >
+                                            {category.name}
+                                          </div>
+                                        ))}
                                       </div>
                                     )}
                                   </div>
                                   <button
                                     type="button"
                                     onClick={() => setAddNewModal({ ...addNewModal, isOpen: true, type: 'category' })}
-                                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-1 transition-colors"
+                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-1"
                                   >
                                     <Plus size={16} />
                                     <span className="hidden sm:inline">Add New</span>
@@ -493,52 +511,43 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                                 </div>
                               </div>
 
+                              {/* Brand */}
                               <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Brand
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Brand</label>
                                 <div className="flex gap-2">
                                   <div className="relative w-full">
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        setExpandedSection2(
-                                          expandedSection2 === 'brandDropdown' ? null : 'brandDropdown'
-                                        )
-                                      }
+                                      onClick={() => setExpandedSection2(expandedSection2 === 'brandDropdown' ? null : 'brandDropdown')}
+                                      disabled={isLoadingData}
                                       className="w-full flex justify-between items-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500/20"
                                     >
-                                      <span>
-                                        {brands.find(b => b.id === formData.brand_name)?.name || 'Choose Brand'}
-                                      </span>
+                                      <span>{isLoadingData ? 'Loading...' : (formData.brand_name || 'Choose Brand')}</span>
                                       <ChevronDown size={16} />
                                     </button>
 
                                     {expandedSection2 === 'brandDropdown' && (
                                       <div className="absolute z-50 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto">
-                                        {brands.length > 0 ? (
-                                          brands.map((brand, index) => (
-                                            <div
-                                              key={`brand-list-item-${brand.id || index}`}
-                                              onClick={() => {
-                                                handleInputChange('brand_name', brand.name);
-                                                setExpandedSection2(null);
-                                              }}
-                                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.brand_name === brand.name ? 'bg-blue-100 font-medium' : ''}`}
-                                            >
-                                              {brand.name}
-                                            </div>
-                                          ))
-                                        ) : (
-                                          <div className="px-4 py-2 text-sm text-gray-500">Loading...</div>
-                                        )}
+                                        {brands.map((brand) => (
+                                          <div
+                                            key={brand.id}
+                                            onClick={() => {
+                                              handleInputChange('brand_name', brand.name);
+                                              setExpandedSection2(null);
+                                            }}
+                                            className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.brand_name === brand.name ? 'bg-blue-100 font-medium' : ''
+                                              }`}
+                                          >
+                                            {brand.name}
+                                          </div>
+                                        ))}
                                       </div>
                                     )}
                                   </div>
                                   <button
                                     type="button"
                                     onClick={() => setAddNewModal({ ...addNewModal, isOpen: true, type: 'brand' })}
-                                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-1 transition-colors"
+                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-1"
                                   >
                                     <Plus size={16} />
                                     <span className="hidden sm:inline">Add New</span>
@@ -547,83 +556,70 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                               </div>
                             </div>
 
-                            <div className="flex justify-between items-center gap-4 ">
-                              <div className='flex-1'>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Units
-                                </label>
+                            <div className="flex justify-between items-center gap-4">
+                              {/* Units */}
+                              <div className="flex-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Units</label>
                                 <div className="flex gap-2">
                                   <div className="relative w-full">
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        setExpandedSection2(
-                                          expandedSection2 === 'unitDropdown' ? null : 'unitDropdown'
-                                        )
-                                      }
+                                      onClick={() => setExpandedSection2(expandedSection2 === 'unitDropdown' ? null : 'unitDropdown')}
+                                      disabled={isLoadingData}
                                       className="w-full flex justify-between items-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500/20"
                                     >
-                                      <span>
-                                        {units.find(u => u.id === formData.unit_name)?.name || 'Choose Unit'}
-                                      </span>
+                                      <span>{isLoadingData ? 'Loading...' : (formData.unit_name || 'Choose Unit')}</span>
                                       <ChevronDown size={16} />
                                     </button>
 
                                     {expandedSection2 === 'unitDropdown' && (
                                       <div className="absolute z-50 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-48 overflow-y-auto">
-                                        {units.length > 0 ? (
-                                          units.map((unit, index) => (
-                                            <div
-                                              key={`unit-list-item-${unit.id || index}`}
-                                              onClick={() => {
-                                                handleInputChange('unit_name', unit.name);
-                                                setExpandedSection2(null);
-                                              }}
-                                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.unit_name === unit.name ? 'bg-blue-100 font-medium' : ''
-                                                }`}
-                                            >
-                                              {unit.name}
-                                            </div>
-                                          ))
-                                        ) : (
-                                          <div className="px-4 py-2 text-sm text-gray-500">Loading...</div>
-                                        )}
+                                        {units.map((unit) => (
+                                          <div
+                                            key={unit.id}
+                                            onClick={() => {
+                                              handleInputChange('unit_name', unit.name);
+                                              setExpandedSection2(null);
+                                            }}
+                                            className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 ${formData.unit_name === unit.name ? 'bg-blue-100 font-medium' : ''
+                                              }`}
+                                          >
+                                            {unit.name}
+                                          </div>
+                                        ))}
                                       </div>
                                     )}
                                   </div>
                                   <button
                                     type="button"
                                     onClick={() => setAddNewModal({ ...addNewModal, isOpen: true, type: 'unit' })}
-                                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-1 transition-colors"
+                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-1"
                                   >
                                     <Plus size={16} />
                                     <span className="hidden sm:inline">Add New</span>
                                   </button>
                                 </div>
                               </div>
-                              <div className=" flex-1  flex justify-between items-center w-full gap-2">
-                                <div className="flex-1 flex flex-col bg-gray-100  rounded-lg">
-                                  {['upc', 'plu'].map((type, index) => (
+
+                              {/* UPC/PLU toggle and inputs (unchanged) */}
+                              <div className="flex-1 flex justify-between items-center w-full gap-2">
+                                <div className="flex-1 flex flex-col bg-gray-100 rounded-lg">
+                                  {['upc', 'plu'].map((type) => (
                                     <button
                                       key={`code-toggle-${type}`}
                                       type="button"
                                       onClick={() => setCodeType(type as 'upc' | 'plu')}
-                                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${codeType === type
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-100 text-gray-700'
+                                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${codeType === type ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
                                         }`}
                                     >
                                       {type.toUpperCase()}
                                     </button>
                                   ))}
                                 </div>
-
-                                {/* Input Field */}
-                                <div className='flex-1'>
+                                <div className="flex-1">
                                   <label className="block text-sm font-medium text-gray-700 mb-2">
                                     {codeType === 'upc' ? 'UPC Code' : 'PLU Code'}
                                   </label>
-
                                   <div className="flex gap-2">
                                     <input
                                       type="text"
@@ -640,12 +636,9 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                                       placeholder={`Enter ${codeType.toUpperCase()} code`}
                                       className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                                     />
-
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        codeType === 'upc' ? generateUPC() : generatePLU()
-                                      }
+                                      onClick={() => (codeType === 'upc' ? generateUPC() : generatePLU())}
                                       className="px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 whitespace-nowrap"
                                     >
                                       Generate
@@ -675,21 +668,6 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
                                 ))}
                               </div>
                             </div>
-
-                            {/* <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Warranty Description
-                              </label>
-                              <textarea
-                                value={formData.warranty_description}
-                                onChange={(e) =>
-                                  handleInputChange('warranty_description', e.target.value)
-                                }
-                                placeholder="Enter warranty description..."
-                                rows={4}
-                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
-                              />
-                            </div> */}
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -1223,3 +1201,5 @@ export function ProductModal({ product, isOpen, onClose, title = "Add/Edit Produ
     </div>
   );
 }
+
+export default ProductModal;

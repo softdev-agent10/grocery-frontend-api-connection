@@ -1,7 +1,7 @@
 "use client";
 
 import { CartItemType } from "@/components/sales/cart-items";
-import { OrderItem } from "@/components/sales/order-history";
+import { OrderItem } from "@/components/sales/activity/order-history";
 import Image from "next/image";
 import Barcode from "react-barcode";
 import { renderToStaticMarkup } from "react-dom/server";

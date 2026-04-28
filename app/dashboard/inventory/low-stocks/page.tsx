@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
@@ -43,7 +43,8 @@ interface TableViewColumns {
 
 export default function App() {
   // Set API context once (merchant_id, branch_id, token)
-  useApiContext('9', '1234567890');
+  // useApiContext('9', '1234567890');
+  useApiContext();
 
   const [products, setProducts] = useState<LowStockProduct[]>([]);
   const { notification, showNotification } = useNotification();
@@ -179,7 +180,7 @@ export default function App() {
         search: searchTerm || undefined,
       });
 
-      console.log("Fetched low stock products:", data.data.items);
+      // console.log("Fetched low stock products:", data.data.items);
       setProducts(data.data.items);
     } catch (error) {
       console.error("Error fetching low stock products:", error);

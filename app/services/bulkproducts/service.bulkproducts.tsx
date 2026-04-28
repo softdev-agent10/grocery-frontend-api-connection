@@ -197,8 +197,9 @@ export const getJobStatusDetailed = (jobId: string) =>
     apiClient.get<JobStatusDetailedResponse>(`/inventory/products/bulk-import/${jobId}/status`);
 
 /**
- * Poll job status using poll_url
+ * Poll job status using poll_url with rate limit detection
  * @param pollUrl - The URL to poll for job status (can be relative or absolute)
+ * @returns Response data or error with status code
  */
 export const pollJobStatus = async (pollUrl: string) => {
     try {
@@ -223,7 +224,10 @@ export const pollJobStatus = async (pollUrl: string) => {
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to poll job status: ${response.status}`);
+            const error: any = new Error(`Failed to poll job status: ${response.status}`);
+            error.status = response.status;
+            error.retryAfter = response.headers.get('retry-after');
+            throw error;
         }
 
         return await response.json();
@@ -234,13 +238,13 @@ export const pollJobStatus = async (pollUrl: string) => {
 };
 
 /**
- * Poll job until completion with progress callback
+ * Poll job until completion with exponential backoff for rate limits
  * @param jobId - Job ID returned from async upload
  * @param pollUrl - Poll URL returned from async upload (optional)
  * @param useDetailedStatus - Use detailed status endpoint instead of basic endpoint (default: false)
  * @param onProgress - Callback for progress updates
  * @param maxAttempts - Maximum polling attempts (default: 120)
- * @param pollInterval - Polling interval in milliseconds (default: 5000)
+ * @param pollInterval - Polling interval in milliseconds (default: 10000 = 10 seconds)
  */
 export const pollJobUntilCompletion = async ({
     jobId,
@@ -248,7 +252,7 @@ export const pollJobUntilCompletion = async ({
     useDetailedStatus = false,
     onProgress,
     maxAttempts = 120,
-    pollInterval = 5000,
+    pollInterval = 10000,
 }: {
     jobId: string;
     pollUrl?: string;
@@ -265,6 +269,7 @@ export const pollJobUntilCompletion = async ({
     pollInterval?: number;
 }) => {
     let attempts = 0;
+    let currentInterval = pollInterval;
 
     while (attempts < maxAttempts) {
         try {
@@ -277,6 +282,9 @@ export const pollJobUntilCompletion = async ({
             } else {
                 statusResponse = await pollJobStatusById(jobId);
             }
+
+            // Reset interval on successful response
+            currentInterval = pollInterval;
 
             const data = statusResponse.data;
             const status = data.status;
@@ -307,7 +315,7 @@ export const pollJobUntilCompletion = async ({
             if (status === 'queued' || status === 'processing' || status === 'in_progress') {
                 attempts++;
                 if (attempts < maxAttempts) {
-                    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+                    await new Promise((resolve) => setTimeout(resolve, currentInterval));
                     continue;
                 } else {
                     throw new Error(
@@ -319,14 +327,43 @@ export const pollJobUntilCompletion = async ({
             // Unknown status
             throw new Error(`Unknown job status: ${status}`);
         } catch (error) {
-            console.error(`Error polling job (attempt ${attempts}):`, error);
+            const err = error as any;
+
+            // Handle rate limit errors (429) with exponential backoff
+            if (err.status === 429) {
+                attempts++;
+
+                // Get retry-after header or use exponential backoff
+                if (err.retryAfter) {
+                    currentInterval = parseInt(err.retryAfter) * 1000;
+                } else {
+                    // Exponential backoff: 10s, 20s, 40s, 80s, max 5 minutes
+                    currentInterval = Math.min(currentInterval * 1.5, 300000);
+                }
+
+                console.warn(
+                    `Rate limited (429). Retrying in ${currentInterval / 1000}s (attempt ${attempts}/${maxAttempts})`
+                );
+
+                if (attempts < maxAttempts) {
+                    await new Promise((resolve) => setTimeout(resolve, currentInterval));
+                    continue;
+                } else {
+                    throw new Error(
+                        `Job polling failed: Rate limited after ${attempts} attempts. Server requested longer wait time.`
+                    );
+                }
+            }
+
+            // Handle other errors
+            console.error(`Error polling job (attempt ${attempts}):`, err);
 
             if (attempts >= maxAttempts - 1) {
                 throw error;
             }
 
             attempts++;
-            await new Promise((resolve) => setTimeout(resolve, pollInterval));
+            await new Promise((resolve) => setTimeout(resolve, currentInterval));
         }
     }
 

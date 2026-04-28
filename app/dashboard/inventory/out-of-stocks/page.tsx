@@ -52,7 +52,8 @@ const defaultColumns: TableViewColumns = {
 
 export default function OutOfStocks() {
   // Set API context once (merchant_id, branch_id, token)
-  useApiContext('9', '1234567890');
+  // useApiContext('9', '1234567890');
+  useApiContext();
 
   const [products, setProducts] = useState<LowStockProduct[]>([]);
   const { notification, showNotification } = useNotification();
@@ -147,7 +148,7 @@ export default function OutOfStocks() {
           sort_by: 'name',
           sort_order: 'asc',
         });
-        console.log("Fetched data:", data.data.items);
+        // console.log("Fetched data:", data.data.items);
         setProducts(data.data.items);
       } catch (error) {
         console.error("Error fetching out of stock products:", error);

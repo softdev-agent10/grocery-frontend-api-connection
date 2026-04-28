@@ -78,7 +78,8 @@ const defaultColumns: TableViewColumns = {
 
 export default function TopSellingPage() {
   // Set API context once (merchant_id, branch_id, token)
-  useApiContext('9', '1234567890');
+  // useApiContext('9', '1234567890');
+  useApiContext();
 
   const [products, setProducts] = useState<TopSellingProduct[]>([]);
   const { notification, showNotification } = useNotification();
@@ -157,10 +158,10 @@ export default function TopSellingPage() {
         page: 1,
         limit: 100
       });
-      console.log("Fetched top selling products:", data.data.items);
+      // console.log("Fetched top selling products:", data.data.items);
       setProducts(data.data.items);
     } catch (error) {
-      console.error("Failed to load top selling products:", error);
+      // console.error("Failed to load top selling products:", error);
       showNotification("Failed to load top selling products", 'error');
     } finally {
       setIsLoading(false);
@@ -184,7 +185,7 @@ export default function TopSellingPage() {
           setTempItemsPerPage(parsed.itemsPerPage);
         }
       } catch (error) {
-        console.error("Failed to parse table settings:", error);
+        // console.error("Failed to parse table settings:", error);
       }
     }
 
@@ -213,7 +214,7 @@ export default function TopSellingPage() {
       showNotification(`${format.toUpperCase()} file downloaded successfully!`, 'success');
       setActiveModal(null);
     } catch (error) {
-      console.error("Error downloading file:", error);
+      // console.error("Error downloading file:", error);
       showNotification("Failed to download file", 'error');
     }
   };

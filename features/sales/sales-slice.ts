@@ -1,11 +1,11 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { CartItemType } from '@/components/sales/cart-items';
-import { CardOrder, Order } from '@/components/sales/order-history';
+import { Order } from '@/components/sales/activity/order-history';
 
 export interface HeldSale {
   id: string;
   items: CartItemType[];
-  customer: { name: string; contact: string } | null;
+  customer: Customer | null;
   taxPercent: number;
   isTaxFree: boolean;
   discountValue: number;
@@ -13,9 +13,16 @@ export interface HeldSale {
   heldAt: string; // Serialized Date
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  phone_number: string;
+  email?: string;
+}
+
 interface SalesState {
   items: CartItemType[];
-  customer: { name: string; contact: string } | null;
+  customer: Customer | null;
   taxPercent: number;
   discountValue: number;
   discountType: 'percentage' | 'flat';
@@ -72,7 +79,7 @@ export const salesSlice = createSlice({
     removeItem: (state, action: PayloadAction<string>) => {
       state.items = state.items.filter(item => item.id !== action.payload);
     },
-    setCustomer: (state, action: PayloadAction<{ name: string; contact: string } | null>) => {
+    setCustomer: (state, action: PayloadAction<Customer | null>) => {
       state.customer = action.payload;
     },
     setTaxPercent: (state, action: PayloadAction<number>) => {
@@ -99,7 +106,7 @@ export const salesSlice = createSlice({
     holdSale: (state, action: PayloadAction<HeldSale>) => {
       // 1. Always prevent duplicate entries by ID (e.g., from sync)
       if (state.heldSales.some(sale => sale.id === action.payload.id)) return;
-      
+
       // 2. If it's a local action (not from sync), prevent holding an empty cart
       // This catches double-clicks before the state can update and clear the items
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,7 +140,7 @@ export const salesSlice = createSlice({
     addToHistory: (state, action: PayloadAction<Order>) => {
       // Prevent duplicate entries by ID (e.g., if sync listener dispatches twice)
       if (state.history.some(order => order.id === action.payload.id)) return;
-      
+
       state.history.unshift(action.payload);
     },
     setSelectedCategory: (state, action: PayloadAction<string | null>) => {

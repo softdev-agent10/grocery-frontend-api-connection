@@ -77,7 +77,7 @@ export default function CustomerDisplayPage() {
 
     if (paymentStatus === 'success' || paymentStatus === 'error') {
       setCountdown(5);
-      
+
       interval = setInterval(() => {
         setCountdown((prev) => Math.max(0, prev - 1));
       }, 1000);
@@ -101,9 +101,9 @@ export default function CustomerDisplayPage() {
 
     setCartProducts(items);
 
-    console.log("cartProducts from Redux:", items);
+    // console.log("cartProducts from Redux:", items);
 
-  }, [items]); 
+  }, [items]);
 
   // Auto-rotate ads
   useEffect(() => {
@@ -158,8 +158,8 @@ export default function CustomerDisplayPage() {
                     const hasDiscount = item.discountValue && item.discountValue > 0;
                     const itemDiscount = hasDiscount
                       ? (item.discountType === "percentage"
-                          ? (itemSubtotal * (item.discountValue || 0)) / 100
-                          : (item.discountValue || 0))
+                        ? (itemSubtotal * (item.discountValue || 0)) / 100
+                        : (item.discountValue || 0))
                       : 0;
                     const itemTotal = itemSubtotal - itemDiscount;
 
@@ -223,11 +223,11 @@ export default function CustomerDisplayPage() {
 
               {/* Branding Footer */}
               <div className="bg-white border border-gray-200 p-4 rounded-xl flex items-center justify-center shadow-sm">
-                <Image 
-                  src="/assets/logo-light.svg" 
-                  alt="Logo" 
-                  width={140} 
-                  height={40} 
+                <Image
+                  src="/assets/logo-light.svg"
+                  alt="Logo"
+                  width={140}
+                  height={40}
                   className="h-8 w-auto"
                 />
               </div>
@@ -264,9 +264,9 @@ export default function CustomerDisplayPage() {
                         <div className="relative bg-white p-8 rounded-[2.5rem] shadow-2xl border-4 border-blue-50">
                           {/* Real development QR code */}
                           <div className="size-64 bg-white rounded-2xl flex items-center justify-center relative overflow-hidden">
-                            <Image 
-                              src="/assets/qr_under_development.png" 
-                              alt="Payment QR Code" 
+                            <Image
+                              src="/assets/qr_under_development.png"
+                              alt="Payment QR Code"
                               fill
                               className="object-contain p-2"
                             />
@@ -330,56 +330,56 @@ export default function CustomerDisplayPage() {
             ) : (
               <motion.div
                 key={`ad-${currentAd}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1 }}
-              className="absolute inset-0"
-            >
-              <Image
-                src={ADS[currentAd].image}
-                alt={ADS[currentAd].title}
-                fill
-                className="object-cover transition-all duration-1000"
-                priority
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-              
-              <div className="absolute bottom-12 left-12 right-12 text-white">
-                <motion.div
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <div className={cn(
-                    "inline-block px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.3em] shadow-lg mb-4",
-                    ADS[currentAd].color
-                  )}>
-                    Featured Offer
-                  </div>
-                  <h1 className={cn(
-                    "font-black tracking-tight leading-none drop-shadow-2xl mb-2",
-                    items.length > 0 ? "text-5xl" : "text-8xl"
-                  )}>
-                    {ADS[currentAd].title}
-                  </h1>
-                  <p className={cn(
-                    "font-medium text-white/90 italic drop-shadow-lg",
-                    items.length > 0 ? "text-xl" : "text-3xl"
-                  )}>
-                    {ADS[currentAd].subtitle}
-                  </p>
-                </motion.div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1 }}
+                className="absolute inset-0"
+              >
+                <Image
+                  src={ADS[currentAd].image}
+                  alt={ADS[currentAd].title}
+                  fill
+                  className="object-cover transition-all duration-1000"
+                  priority
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+                <div className="absolute bottom-12 left-12 right-12 text-white">
+                  <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <div className={cn(
+                      "inline-block px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.3em] shadow-lg mb-4",
+                      ADS[currentAd].color
+                    )}>
+                      Featured Offer
+                    </div>
+                    <h1 className={cn(
+                      "font-black tracking-tight leading-none drop-shadow-2xl mb-2",
+                      items.length > 0 ? "text-5xl" : "text-8xl"
+                    )}>
+                      {ADS[currentAd].title}
+                    </h1>
+                    <p className={cn(
+                      "font-medium text-white/90 italic drop-shadow-lg",
+                      items.length > 0 ? "text-xl" : "text-3xl"
+                    )}>
+                      {ADS[currentAd].subtitle}
+                    </p>
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Ad Indicators */}
           <div className="absolute bottom-6 right-8 flex gap-2">
             {ADS.map((_, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 className={cn(
                   "h-1.5 rounded-full transition-all duration-500",
                   currentAd === i ? "w-8 bg-white" : "w-1.5 bg-white/30"
@@ -394,11 +394,11 @@ export default function CustomerDisplayPage() {
             items.length > 0 ? "top-6 right-6" : "top-8 left-8"
           )}>
             <div className="bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-2xl border border-white/20">
-              <Image 
-                src="/assets/logo-light.svg" 
-                alt="Logo" 
-                width={120} 
-                height={35} 
+              <Image
+                src="/assets/logo-light.svg"
+                alt="Logo"
+                width={120}
+                height={35}
                 className="h-6 w-auto"
               />
             </div>

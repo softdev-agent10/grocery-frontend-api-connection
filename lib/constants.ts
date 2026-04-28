@@ -108,12 +108,12 @@ export const INVENTORY_ITEMS: NavItem[] = [
     href: "/dashboard/inventory/tax-fee",
     matcher: "prefix",
   },
-  {
-    label: "Warranties",
-    icon: Shield,
-    href: "/dashboard/inventory/warranties",
-    matcher: "prefix",
-  },
+  // {
+  //   label: "Warranties",
+  //   icon: Shield,
+  //   href: "/dashboard/inventory/warranties",
+  //   matcher: "prefix",
+  // },
 ];
 
 // TOOLS SECTION: Cash Drawer moved to top, followed by other tools
@@ -130,12 +130,12 @@ export const TOOLS_ITEMS: NavItem[] = [
     href: "/dashboard/tools/customer-accounts",
     matcher: "prefix",
   },
-  {
-    label: "Membership Card",
-    icon: CreditCard,
-    href: "/dashboard/tools/membership-card",
-    matcher: "prefix",
-  },
+  // {
+  //   label: "Membership Card",
+  //   icon: CreditCard,
+  //   href: "/dashboard/tools/membership-card",
+  //   matcher: "prefix",
+  // },
   {
     label: "Promotion",
     icon: Megaphone,

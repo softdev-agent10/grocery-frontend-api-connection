@@ -2,7 +2,7 @@ import { apiClient } from '@/lib/apiClient';
 import { PaginatedResponse, SingleResponse } from '@/lib/types/api.types';
 
 export interface Customer {
-    id: number;
+    id: string;
     name: string;
     phone_number: string;
     email: string;
@@ -44,7 +44,7 @@ export const createCustomer = (data: Partial<Customer>) =>
 /**
  * Update
  */
-export const updateCustomer = (id: number, data: Partial<Customer>) =>
+export const updateCustomer = (id: string, data: Partial<Customer>) =>
     apiClient.patch<SingleResponse<Customer>>(
         `/tools/customer/${id}`,
         data

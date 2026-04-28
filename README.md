@@ -96,4 +96,4 @@ We follow a modular monolith structure. Each feature should be developed in isol
 
 ## License
 
-This project is licensed under the MIT License—see the LICENSE file for details."# grocery-frontend-api-connection" 
+This project is licensed under the MIT License—see the LICENSE file for details.
